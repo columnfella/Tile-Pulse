@@ -1,10 +1,11 @@
 import React from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, Image } from 'react-native';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 
 interface GameBoardBackgroundProps {
   hitLineY: number;
-  activeLanes: boolean[]; // [lane0, lane1, lane2, lane3] is currently pressed
-  laneFlashes?: boolean[]; // [lane0, lane1, lane2, lane3] momentary flash
+  activeLanes: boolean[]; // [lane0, lane1, lane2, lane3]
+  laneFlashes?: boolean[];
   onLanePressStart?: (lane: 0 | 1 | 2 | 3) => void;
   onLanePressEnd?: (lane: 0 | 1 | 2 | 3) => void;
   theme?: ThemeConfig;
@@ -15,9 +16,9 @@ interface GameBoardBackgroundProps {
 export const LANE_KEYS = ['D', 'F', 'J', 'K'] as const;
 
 /**
- * 4-Lane Rhythm Game Board Surface
+ * 4-Lane React Native Rhythm Game Board Surface
  * Reads theme parameters for lane width, hit line, dividers, and background.
- * Provides multi-touch pointer event zones across all 4 vertical columns.
+ * Provides multi-touch touch handling across all 4 vertical columns.
  */
 export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   hitLineY,
@@ -32,131 +33,219 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   const { board, feedback } = theme;
 
   return (
-    <div
-      className="relative w-full h-full overflow-hidden select-none touch-none"
-      style={{
-        backgroundColor: board.backgroundColor,
-      }}
-    >
+    <View style={[styles.root, { backgroundColor: board.backgroundColor }]}>
       {/* Optional Background Texture / Image */}
       {board.backgroundImageSource && (
-        <img
-          src={board.backgroundImageSource}
-          alt="Board background"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-30"
+        <Image
+          source={board.backgroundImageSource}
+          style={styles.backgroundImage}
+          resizeMode="cover"
         />
       )}
 
       {/* 4 Lanes Container */}
-      <div className="absolute inset-0 flex">
+      <View style={styles.lanesRow}>
         {([0, 1, 2, 3] as const).map((laneIndex) => {
           const isPressed = activeLanes[laneIndex];
           const isFlashing = laneFlashes[laneIndex];
 
           return (
-            <div
+            <Pressable
               key={laneIndex}
-              className="relative flex-1 h-full flex flex-col justify-end transition-colors duration-75"
-              style={{
-                borderRight:
-                  laneIndex < 3
-                    ? `${board.laneDividersWidth}px solid ${board.laneDividersColor}`
-                    : 'none',
-                backgroundColor: isFlashing
-                  ? feedback.laneHitFlashColor
-                  : isPressed
-                  ? feedback.lanePressColor
-                  : 'transparent',
-              }}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                onLanePressStart?.(laneIndex);
-              }}
-              onPointerUp={(e) => {
-                e.preventDefault();
-                try {
-                  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-                } catch {}
-                onLanePressEnd?.(laneIndex);
-              }}
-              onPointerCancel={(e) => {
-                e.preventDefault();
-                try {
-                  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-                } catch {}
-                onLanePressEnd?.(laneIndex);
-              }}
+              style={[
+                styles.laneColumn,
+                {
+                  borderRightWidth: laneIndex < 3 ? board.laneDividersWidth : 0,
+                  borderRightColor: board.laneDividersColor,
+                  backgroundColor: isFlashing
+                    ? feedback.laneHitFlashColor
+                    : isPressed
+                    ? feedback.lanePressColor
+                    : 'transparent',
+                },
+              ]}
+              onPressIn={() => onLanePressStart?.(laneIndex)}
+              onPressOut={() => onLanePressEnd?.(laneIndex)}
             >
               {/* Lane Key Badge / Prompt at Hit Line */}
               {showKeyLabels && (
-                <div
-                  className="absolute pointer-events-none w-full flex flex-col items-center justify-center transition-opacity"
-                  style={{
-                    top: `${hitLineY - 32}px`,
-                    opacity: isPressed ? 0.9 : 0.45,
-                  }}
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.keyLabelContainer,
+                    {
+                      top: hitLineY - 34,
+                      opacity: isPressed ? 1 : 0.45,
+                    },
+                  ]}
                 >
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border transition-transform"
-                    style={{
-                      borderColor: isPressed ? '#38bdf8' : 'rgba(255,255,255,0.2)',
-                      backgroundColor: isPressed ? 'rgba(56,189,248,0.3)' : 'rgba(0,0,0,0.4)',
-                      color: isPressed ? '#38bdf8' : board.laneKeyLabelsColor,
-                      transform: isPressed ? 'scale(1.15)' : 'scale(1)',
-                    }}
+                  <View
+                    style={[
+                      styles.keyLabelBadge,
+                      {
+                        borderColor: isPressed ? '#38bdf8' : 'rgba(255, 255, 255, 0.2)',
+                        backgroundColor: isPressed ? 'rgba(56, 189, 248, 0.35)' : 'rgba(0, 0, 0, 0.5)',
+                      },
+                    ]}
                   >
-                    {LANE_KEYS[laneIndex]}
-                  </div>
-                </div>
+                    <Text
+                      style={[
+                        styles.keyLabelText,
+                        {
+                          color: isPressed ? '#38bdf8' : board.laneKeyLabelsColor,
+                        },
+                      ]}
+                    >
+                      {LANE_KEYS[laneIndex]}
+                    </Text>
+                  </View>
+                </View>
               )}
 
-              {/* Lane Hit Area Subtle Indicator Glow */}
-              <div
-                className="pointer-events-none w-full transition-opacity duration-75"
-                style={{
-                  height: '90px',
-                  background: isPressed
-                    ? 'linear-gradient(180deg, rgba(56, 189, 248, 0.35) 0%, rgba(56, 189, 248, 0.05) 100%)'
-                    : 'transparent',
-                }}
+              {/* Lane Hit Area Indicator Glow at bottom */}
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.laneBottomGlow,
+                  {
+                    backgroundColor: isPressed ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+                  },
+                ]}
               />
-            </div>
+            </Pressable>
           );
         })}
-      </div>
+      </View>
 
       {/* Tiles Layer Mounted Inside Board */}
-      <div className="absolute inset-0 pointer-events-none">
+      <View pointerEvents="none" style={styles.tilesLayer}>
         {children}
-      </div>
+      </View>
 
       {/* Horizontal Hit Line (Near bottom of screen) */}
-      <div
-        className="absolute left-0 right-0 pointer-events-none flex items-center"
-        style={{
-          top: `${hitLineY}px`,
-          height: `${board.hitLineThickness}px`,
-          backgroundColor: board.hitLineColor,
-          boxShadow: `0 0 14px ${board.hitLineGlowColor}, 0 0 28px ${board.hitLineGlowColor}`,
-        }}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.hitLine,
+          {
+            top: hitLineY,
+            height: board.hitLineThickness,
+            backgroundColor: board.hitLineColor,
+            shadowColor: board.hitLineGlowColor,
+            shadowOpacity: 0.85,
+            shadowRadius: 10,
+            elevation: 8,
+          },
+        ]}
       >
-        {/* Decorative corner target pips */}
-        <div className="absolute -left-1 w-2.5 h-2.5 rounded-full bg-sky-300 shadow" />
-        <div className="absolute -right-1 w-2.5 h-2.5 rounded-full bg-sky-300 shadow" />
-      </div>
+        <View style={styles.hitPipLeft} />
+        <View style={styles.hitPipRight} />
+      </View>
 
       {/* Hit Zone Highlight Band */}
-      <div
-        className="absolute left-0 right-0 pointer-events-none"
-        style={{
-          top: `${hitLineY - 24}px`,
-          height: '48px',
-          background: board.hitZoneOverlayColor,
-          borderTop: '1px dashed rgba(56, 189, 248, 0.3)',
-          borderBottom: '1px dashed rgba(56, 189, 248, 0.3)',
-        }}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.hitZoneBand,
+          {
+            top: hitLineY - 24,
+            backgroundColor: board.hitZoneOverlayColor,
+          },
+        ]}
       />
-    </div>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.3,
+  },
+  tilesLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  lanesRow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  laneColumn: {
+    flex: 1,
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  keyLabelContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyLabelBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyLabelText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  laneBottomGlow: {
+    height: 80,
+    width: '100%',
+  },
+  hitLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  hitPipLeft: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#7dd3fc',
+    marginLeft: -4,
+  },
+  hitPipRight: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#7dd3fc',
+    marginRight: -4,
+  },
+  hitZoneBand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 48,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderTopColor: 'rgba(56, 189, 248, 0.3)',
+    borderBottomColor: 'rgba(56, 189, 248, 0.3)',
+  },
+});

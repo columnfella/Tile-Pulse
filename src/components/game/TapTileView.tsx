@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, StyleSheet, Image } from 'react-native';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 
 interface TapTileViewProps {
@@ -8,13 +9,12 @@ interface TapTileViewProps {
   isHit?: boolean;
   isMissed?: boolean;
   theme?: ThemeConfig;
-  className?: string;
 }
 
 /**
- * Decoupled Tap Tile Component
- * Reads visual configuration and sample texture exclusively from theme.
- * Seamlessly swaps to custom image sprite when imageSource is defined.
+ * React Native Decoupled Tap Tile Component
+ * Reads visual configuration exclusively from ACTIVE_THEME.
+ * If imageSource is defined, renders Image; otherwise renders clean sample texture.
  */
 export const TapTileView: React.FC<TapTileViewProps> = ({
   y,
@@ -23,85 +23,117 @@ export const TapTileView: React.FC<TapTileViewProps> = ({
   isHit = false,
   isMissed = false,
   theme = ACTIVE_THEME,
-  className = '',
 }) => {
   const { tapTile, geometry } = theme;
 
   if (isHit) {
-    return (
-      <div
-        className="absolute left-1 right-1 pointer-events-none transition-all duration-200 transform scale-110 opacity-0"
-        style={{
-          top: `${y}px`,
-          height: `${height}px`,
-          boxShadow: `0 0 30px ${tapTile.activeGlowColor}`,
-        }}
-      />
-    );
+    return null;
   }
 
-  // If a custom image/sprite is provided in the theme, render it seamlessly
+  // Custom sprite hook
   if (tapTile.imageSource) {
     return (
-      <div
-        className={`absolute left-1 right-1 pointer-events-none transition-opacity duration-150 ${className} ${
-          isMissed ? 'opacity-30 grayscale' : 'opacity-100'
-        }`}
-        style={{
-          top: `${y}px`,
-          height: `${height}px`,
-        }}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.container,
+          {
+            top: y,
+            height: height,
+            borderRadius: geometry.tileBorderRadius,
+            opacity: isMissed ? 0.35 : 1,
+          },
+        ]}
       >
-        <img
-          src={tapTile.imageSource}
-          alt={`Tap tile lane ${lane}`}
-          className="w-full h-full object-cover"
-          style={{ borderRadius: `${geometry.tileBorderRadius}px` }}
+        <Image
+          source={tapTile.imageSource}
+          style={[styles.sprite, { borderRadius: geometry.tileBorderRadius }]}
+          resizeMode="cover"
         />
-      </div>
+      </View>
     );
   }
 
   // Sample Texture: Clean geometric modern dark tile with neon accent edge & glossy shine
   return (
-    <div
-      className={`absolute left-1 right-1 pointer-events-none overflow-hidden select-none transition-opacity duration-150 ${className} ${
-        isMissed ? 'opacity-35 grayscale' : 'opacity-100'
-      }`}
-      style={{
-        top: `${y}px`,
-        height: `${height}px`,
-        borderRadius: `${geometry.tileBorderRadius}px`,
-        background: `linear-gradient(180deg, ${tapTile.gradientFrom} 0%, ${tapTile.solidColor} 100%)`,
-        borderWidth: `${geometry.borderWidth}px`,
-        borderColor: isMissed ? '#64748b' : tapTile.borderColor,
-        boxShadow: isMissed ? 'none' : `0 4px 14px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.15)`,
-      }}
+    <View
+      pointerEvents="none"
+      style={[
+        styles.container,
+        {
+          top: y,
+          height: height,
+          borderRadius: geometry.tileBorderRadius,
+          backgroundColor: tapTile.solidColor,
+          borderColor: isMissed ? '#64748b' : tapTile.borderColor,
+          borderWidth: geometry.borderWidth,
+          opacity: isMissed ? 0.35 : 1,
+        },
+      ]}
     >
-      {/* Top Gloss Highlight */}
-      <div
-        className="w-full h-2.5 opacity-40"
-        style={{
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%)',
-        }}
-      />
-
-      {/* Bottom Leading Edge Indicator (The Hit Anchor) */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-1.5"
-        style={{
-          backgroundColor: isMissed ? '#94a3b8' : tapTile.accentBarColor,
-          boxShadow: isMissed ? 'none' : `0 0 8px ${tapTile.activeGlowColor}`,
-        }}
-      />
+      {/* Top Gloss Highlight Bar */}
+      <View style={styles.topGloss} />
 
       {/* Center Subtle Geometric Watermark */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
-        <div
-          className="w-6 h-6 border rotate-45"
-          style={{ borderColor: tapTile.borderColor }}
-        />
-      </div>
-    </div>
+      <View style={styles.watermarkContainer}>
+        <View style={[styles.watermarkDiamond, { borderColor: tapTile.borderColor }]} />
+      </View>
+
+      {/* Bottom Leading Edge Indicator (The Hit Anchor) */}
+      <View
+        style={[
+          styles.hitAnchor,
+          {
+            backgroundColor: isMissed ? '#94a3b8' : tapTile.accentBarColor,
+          },
+        ]}
+      />
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    left: 4,
+    right: 4,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  sprite: {
+    width: '100%',
+    height: '100%',
+  },
+  topGloss: {
+    width: '100%',
+    height: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  watermarkContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.25,
+  },
+  watermarkDiamond: {
+    width: 24,
+    height: 24,
+    borderWidth: 1,
+    transform: [{ rotate: '45deg' }],
+  },
+  hitAnchor: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+  },
+});

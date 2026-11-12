@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 
 interface ComboDisplayProps {
   combo: number;
@@ -8,13 +9,36 @@ export const ComboDisplay: React.FC<ComboDisplayProps> = ({ combo }) => {
   if (combo <= 1) return null;
 
   return (
-    <div className="absolute top-[42%] left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center select-none z-10 opacity-90">
-      <div className="text-4xl font-extrabold tracking-tight text-white drop-shadow-md">
-        {combo}
-      </div>
-      <div className="text-[10px] font-bold tracking-widest text-sky-400 uppercase">
-        COMBO
-      </div>
-    </div>
+    <View pointerEvents="none" style={styles.container}>
+      <Text style={styles.comboNumber}>{combo}</Text>
+      <Text style={styles.comboLabel}>COMBO</Text>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    top: '42%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    opacity: 0.9,
+  },
+  comboNumber: {
+    fontSize: 42,
+    fontWeight: '900',
+    color: '#ffffff',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  comboLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 3,
+    color: '#38bdf8',
+  },
+});

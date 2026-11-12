@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { HitJudgment } from '../../types/game';
 import { ACTIVE_THEME } from '../../constants/theme';
 
@@ -29,28 +30,51 @@ export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, ti
   }
 
   return (
-    <div
-      key={`${judgment}-${Date.now()}`}
-      className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center justify-center animate-bounce z-20"
-      style={{
-        animationDuration: '350ms',
-      }}
-    >
-      <div
-        className="font-black tracking-widest text-2xl drop-shadow-md select-none"
-        style={{
-          color: config.color,
-          textShadow: `0 0 16px ${config.glow}, 0 2px 4px rgba(0,0,0,0.8)`,
-        }}
+    <View pointerEvents="none" style={styles.container}>
+      <Text
+        style={[
+          styles.judgmentText,
+          {
+            color: config.color,
+            textShadowColor: config.glow,
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 16,
+          },
+        ]}
       >
         {config.text}
-      </div>
+      </Text>
 
       {judgment !== 'MISS' && typeof timeDiffMs === 'number' && (
-        <span className="text-[11px] font-mono font-bold text-slate-300 opacity-80 mt-0.5">
+        <Text style={styles.timeDiffText}>
           {timeDiffMs > 0 ? `+${timeDiffMs}ms` : `${timeDiffMs}ms`}
-        </span>
+        </Text>
       )}
-    </div>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    top: '32%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
+  judgmentText: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: 3,
+  },
+  timeDiffText: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+    fontWeight: 'bold',
+    color: '#cbd5e1',
+    marginTop: 2,
+    opacity: 0.85,
+  },
+});

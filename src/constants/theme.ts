@@ -1,29 +1,29 @@
+import { ImageSourcePropType } from 'react-native';
+
 /**
- * Modular Theme & Texture Configuration for TilePulse
+ * Modular Theme & Texture Architecture for TilePulse
  * 
- * All visual styles, sample textures, geometry dimensions, and sprite image slots
- * are isolated here. Any tile or board component reads from ACTIVE_THEME.
+ * Defines ACTIVE_THEME with colors, border radii, lane widths,
+ * and optional imageSource?: ImageSourcePropType | null slots set to null by default.
  * 
- * To swap custom art/sprites in the future, assign an image URI or asset path
- * to the respective `imageSource` slot (currently `null`).
+ * If imageSource is null, components render clean geometric sample textures.
+ * If custom sprites are provided, they render <ImageBackground> / <Image> seamlessly.
  */
 
 export interface ThemeConfig {
   id: string;
   name: string;
   
-  // Board & Geometry
   geometry: {
     lanesCount: 4;
     laneWidthPercent: number; // 25% for 4 lanes
     hitLineYPercent: number;  // 82% from top of screen
-    defaultTapTileHeightPx: number; // height for instantaneous tap tiles
-    pixelsPerBeat: number;    // default speed factor
+    defaultTapTileHeightPx: number;
+    pixelsPerBeat: number;
     borderWidth: number;
     tileBorderRadius: number;
   };
 
-  // Normal Tap Tile
   tapTile: {
     solidColor: string;
     gradientFrom: string;
@@ -31,10 +31,9 @@ export interface ThemeConfig {
     borderColor: string;
     activeGlowColor: string;
     accentBarColor: string;
-    imageSource: string | null; // Placeholder slot for sprite / custom texture
+    imageSource?: ImageSourcePropType | null;
   };
 
-  // Hold Tile
   holdTile: {
     headColor: string;
     tailColor: string;
@@ -43,10 +42,9 @@ export interface ThemeConfig {
     activeFillColor: string;
     activeGlowColor: string;
     stripesPattern: boolean;
-    imageSource: string | null; // Placeholder slot for hold body/head sprite
+    imageSource?: ImageSourcePropType | null;
   };
 
-  // Lanes & Board
   board: {
     backgroundColor: string;
     laneDividersColor: string;
@@ -56,10 +54,9 @@ export interface ThemeConfig {
     hitLineThickness: number;
     hitZoneOverlayColor: string;
     laneKeyLabelsColor: string;
-    backgroundImageSource: string | null;
+    backgroundImageSource?: ImageSourcePropType | null;
   };
 
-  // Feedback & Judgments
   feedback: {
     lanePressColor: string;
     laneHitFlashColor: string;
@@ -71,7 +68,6 @@ export interface ThemeConfig {
     };
   };
 
-  // General App & Navigation UI
   ui: {
     appBackground: string;
     surfaceBackground: string;
@@ -90,7 +86,7 @@ export interface ThemeConfig {
 
 export const MINIMAL_DARK_THEME: ThemeConfig = {
   id: 'minimal_dark',
-  name: 'Minimal Dark (Standard)',
+  name: 'Minimal Dark Neon',
   geometry: {
     lanesCount: 4,
     laneWidthPercent: 25,
@@ -101,26 +97,26 @@ export const MINIMAL_DARK_THEME: ThemeConfig = {
     tileBorderRadius: 8,
   },
   tapTile: {
-    solidColor: '#0f172a', // Slate 900
-    gradientFrom: '#1e293b', // Slate 800
+    solidColor: '#0f172a',
+    gradientFrom: '#1e293b',
     gradientTo: '#090d16',
-    borderColor: '#38bdf8', // Sky 400 crisp accent border
+    borderColor: '#38bdf8',
     activeGlowColor: 'rgba(56, 189, 248, 0.6)',
     accentBarColor: '#38bdf8',
-    imageSource: null, // Set to image URI when custom sprite is provided
+    imageSource: null,
   },
   holdTile: {
-    headColor: '#0369a1', // Sky 700
-    tailColor: '#0284c7', // Sky 600
+    headColor: '#0369a1',
+    tailColor: '#0284c7',
     bodyColor: 'rgba(14, 165, 233, 0.22)',
     bodyBorderColor: 'rgba(56, 189, 248, 0.7)',
-    activeFillColor: 'linear-gradient(to top, #38bdf8, #0284c7)',
+    activeFillColor: '#0284c7',
     activeGlowColor: 'rgba(56, 189, 248, 0.85)',
     stripesPattern: true,
-    imageSource: null, // Set to image URI when custom sprite is provided
+    imageSource: null,
   },
   board: {
-    backgroundColor: '#030712', // Neutral pitch black
+    backgroundColor: '#030712',
     laneDividersColor: 'rgba(255, 255, 255, 0.12)',
     laneDividersWidth: 1,
     hitLineColor: '#38bdf8',
@@ -156,7 +152,4 @@ export const MINIMAL_DARK_THEME: ThemeConfig = {
   },
 };
 
-/**
- * Active theme export used throughout all game components
- */
 export const ACTIVE_THEME: ThemeConfig = MINIMAL_DARK_THEME;

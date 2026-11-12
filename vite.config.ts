@@ -8,6 +8,9 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
+        'react-native': 'react-native-web',
+        'expo-router': path.resolve(__dirname, 'src/utils/expo-router-web.tsx'),
+        'expo-document-picker': path.resolve(__dirname, 'src/utils/expo-document-picker-shim.ts'),
         '@': path.resolve(__dirname, '.'),
       },
     },

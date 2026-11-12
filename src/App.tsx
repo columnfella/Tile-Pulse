@@ -3,117 +3,155 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Song } from './types/song';
-import { storageService } from './services/storage';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Text, Pressable } from 'react-native';
+import { RouterProvider, useRouter, useLocalSearchParams } from './utils/expo-router-web';
 import { MobileShell } from './components/ui/MobileShell';
-import { BottomTabBar } from './components/ui/Tabs';
+import HomeScreen from '../app/(tabs)/index';
+import EditorScreen from '../app/(tabs)/editor';
+import PlayScreen from '../app/play/[id]';
+import { Home, Sliders } from 'lucide-react';
+import { ACTIVE_THEME } from './constants/theme';
 import { SplashScreen } from './screens/SplashScreen';
-import { HomeScreen } from './screens/HomeScreen';
-import { EditorScreen } from './screens/EditorScreen';
-import { GameplayScreen } from './screens/GameplayScreen';
 
-export default function App() {
-  const [isInitialized, setIsInitialized] = useState<boolean>(false);
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [currentTab, setCurrentTab] = useState<'home' | 'editor'>('home');
-  const [activePlayingSong, setActivePlayingSong] = useState<Song | null>(null);
-  const [editorSongId, setEditorSongId] = useState<string>('');
+function AppContent() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'home' | 'editor'>('home');
+  const [isReady, setIsReady] = useState<boolean>(false);
 
-  const refreshSongs = useCallback(async () => {
-    const list = await storageService.getSongs();
-    setSongs(list);
-    if (list.length > 0 && !editorSongId) {
-      setEditorSongId(list[0].id);
-    }
-  }, [editorSongId]);
+  const isPlaying = router.route.startsWith('/play/');
 
-  // Handle URL query parameters (e.g. ?autostart=1 or ?tab=editor)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('tab') === 'editor') {
-      setCurrentTab('editor');
+      setActiveTab('editor');
     }
   }, []);
 
-  const handleSplashLoaded = useCallback(async () => {
-    await refreshSongs();
-    setIsInitialized(true);
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('autostart') === '1') {
-      const list = await storageService.getSongs();
-      if (list.length > 0) {
-        setActivePlayingSong(list[0]);
-      }
+  useEffect(() => {
+    if (router.route.includes('editor')) {
+      setActiveTab('editor');
+    } else if (router.route === '/(tabs)' || router.route === '/') {
+      setActiveTab('home');
     }
-  }, [refreshSongs]);
+  }, [router.route]);
 
-  const handlePlaySong = (song: Song) => {
-    setActivePlayingSong(song);
-  };
-
-  const handleEditSong = (song: Song) => {
-    setEditorSongId(song.id);
-    setCurrentTab('editor');
-  };
-
-  const handleExitGameplay = () => {
-    setActivePlayingSong(null);
-  };
-
-  const handleRestartGameplay = () => {
-    if (activePlayingSong) {
-      const current = activePlayingSong;
-      setActivePlayingSong(null);
-      setTimeout(() => {
-        setActivePlayingSong(current);
-      }, 50);
+  const handleTabPress = (tab: 'home' | 'editor') => {
+    setActiveTab(tab);
+    if (tab === 'editor') {
+      router.push('/(tabs)/editor');
+    } else {
+      router.replace('/(tabs)');
     }
   };
+
+  if (!isReady) {
+    return <SplashScreen onLoaded={() => setIsReady(true)} />;
+  }
 
   return (
-    <MobileShell activeScreen={activePlayingSong ? 'play' : currentTab}>
-      {!isInitialized ? (
-        <SplashScreen onLoaded={handleSplashLoaded} />
-      ) : activePlayingSong ? (
-        /* Full-screen Gameplay Screen Modal/Route */
-        <GameplayScreen
-          song={activePlayingSong}
-          onExitToHome={handleExitGameplay}
-          onRestart={handleRestartGameplay}
-        />
+    <MobileShell activeScreen={isPlaying ? 'play' : activeTab}>
+      {isPlaying ? (
+        <View style={styles.screenContainer}>
+          <PlayScreen />
+        </View>
       ) : (
-        /* Main Tab Navigation Container */
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
-          <div className="flex-1 overflow-hidden">
-            {currentTab === 'home' ? (
-              <HomeScreen
-                songs={songs}
-                onRefreshSongs={refreshSongs}
-                onPlaySong={handlePlaySong}
-                onEditSong={handleEditSong}
-              />
-            ) : (
-              <EditorScreen
-                songs={songs}
-                selectedSongId={editorSongId || (songs[0]?.id ?? '')}
-                onSelectSong={(id) => setEditorSongId(id)}
-                onRefreshSongs={refreshSongs}
-                onPlaySong={handlePlaySong}
-              />
-            )}
-          </div>
+        <View style={styles.mainContainer}>
+          <View style={styles.screenContainer}>
+            {activeTab === 'home' ? <HomeScreen /> : <EditorScreen />}
+          </View>
 
-          {/* Bottom Tab Bar */}
-          <BottomTabBar
-            currentTab={currentTab}
-            onTabChange={(tab) => setCurrentTab(tab)}
-            quickPlaySongTitle={songs[0]?.title}
-            onQuickPlay={songs[0] ? () => handlePlaySong(songs[0]) : undefined}
-          />
-        </div>
+          {/* Bottom Tabs Bar */}
+          <View
+            style={[
+              styles.tabBar,
+              {
+                backgroundColor: ACTIVE_THEME.ui.surfaceBackground,
+                borderTopColor: ACTIVE_THEME.ui.cardBorder,
+              },
+            ]}
+          >
+            <Pressable
+              style={styles.tabItem}
+              onPress={() => handleTabPress('home')}
+              accessibilityLabel="Home tab"
+            >
+              <Home
+                size={20}
+                color={activeTab === 'home' ? '#38bdf8' : '#94a3b8'}
+                strokeWidth={activeTab === 'home' ? 2.5 : 1.75}
+              />
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: activeTab === 'home' ? '#38bdf8' : '#94a3b8' },
+                ]}
+              >
+                Songs
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.tabItem}
+              onPress={() => handleTabPress('editor')}
+              accessibilityLabel="Edit tab"
+            >
+              <Sliders
+                size={20}
+                color={activeTab === 'editor' ? '#38bdf8' : '#94a3b8'}
+                strokeWidth={activeTab === 'editor' ? 2.5 : 1.75}
+              />
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: activeTab === 'editor' ? '#38bdf8' : '#94a3b8' },
+                ]}
+              >
+                Editor
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       )}
     </MobileShell>
   );
 }
+
+export default function App() {
+  return (
+    <RouterProvider>
+      <AppContent />
+    </RouterProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  screenContainer: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  tabBar: {
+    height: 60,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 16,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  tabText: {
+    fontSize: 11,
+    marginTop: 3,
+    fontWeight: '600',
+  },
+});

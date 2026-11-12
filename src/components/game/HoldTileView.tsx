@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 
 interface HoldTileViewProps {
@@ -10,13 +11,12 @@ interface HoldTileViewProps {
   isHit?: boolean;
   isMissed?: boolean;
   theme?: ThemeConfig;
-  className?: string;
 }
 
 /**
- * Decoupled Hold Tile Component
+ * React Native Decoupled Hold Tile Component
  * Renders both unheld body and active dynamic filling state as it passes the hit line.
- * Reads visual configuration and sample texture exclusively from theme.
+ * Reads visual configuration exclusively from ACTIVE_THEME.
  */
 export const HoldTileView: React.FC<HoldTileViewProps> = ({
   y,
@@ -27,115 +27,151 @@ export const HoldTileView: React.FC<HoldTileViewProps> = ({
   isHit = false,
   isMissed = false,
   theme = ACTIVE_THEME,
-  className = '',
 }) => {
   const { holdTile, geometry } = theme;
 
   if (isHit && holdProgress >= 1) {
-    return (
-      <div
-        className="absolute left-1 right-1 pointer-events-none transition-all duration-300 transform scale-105 opacity-0"
-        style={{
-          top: `${y}px`,
-          height: `${height}px`,
-          boxShadow: `0 0 35px ${holdTile.activeGlowColor}`,
-        }}
-      />
-    );
+    return null;
   }
 
   // Custom sprite hook
   if (holdTile.imageSource) {
     return (
-      <div
-        className={`absolute left-1 right-1 pointer-events-none ${className} ${
-          isMissed ? 'opacity-30 grayscale' : 'opacity-100'
-        }`}
-        style={{
-          top: `${y}px`,
-          height: `${height}px`,
-        }}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.container,
+          {
+            top: y,
+            height: height,
+            borderRadius: geometry.tileBorderRadius,
+            opacity: isMissed ? 0.35 : 1,
+          },
+        ]}
       >
-        <img
-          src={holdTile.imageSource}
-          alt={`Hold tile lane ${lane}`}
-          className="w-full h-full object-cover"
-          style={{ borderRadius: `${geometry.tileBorderRadius}px` }}
+        <Image
+          source={holdTile.imageSource}
+          style={[styles.sprite, { borderRadius: geometry.tileBorderRadius }]}
+          resizeMode="cover"
         />
-      </div>
+      </View>
     );
   }
 
-  // Sample Texture: Elongated body with leading head cap, trailing tail, active energy fill bar
   const clampedProgress = Math.min(1, Math.max(0, holdProgress));
   const fillPercentage = clampedProgress * 100;
 
   return (
-    <div
-      className={`absolute left-1 right-1 pointer-events-none overflow-hidden select-none transition-opacity duration-150 ${className} ${
-        isMissed ? 'opacity-35 grayscale' : 'opacity-100'
-      }`}
-      style={{
-        top: `${y}px`,
-        height: `${height}px`,
-        borderRadius: `${geometry.tileBorderRadius}px`,
-        backgroundColor: holdTile.bodyColor,
-        borderWidth: `${geometry.borderWidth}px`,
-        borderColor: isHolding ? '#38bdf8' : isMissed ? '#64748b' : holdTile.bodyBorderColor,
-        boxShadow: isHolding
-          ? `0 0 20px ${holdTile.activeGlowColor}, inset 0 0 15px rgba(56, 189, 248, 0.4)`
-          : isMissed
-          ? 'none'
-          : '0 4px 12px rgba(0,0,0,0.3)',
-      }}
+    <View
+      pointerEvents="none"
+      style={[
+        styles.container,
+        {
+          top: y,
+          height: height,
+          borderRadius: geometry.tileBorderRadius,
+          backgroundColor: holdTile.bodyColor,
+          borderColor: isHolding ? '#38bdf8' : isMissed ? '#64748b' : holdTile.bodyBorderColor,
+          borderWidth: geometry.borderWidth,
+          opacity: isMissed ? 0.35 : 1,
+        },
+      ]}
     >
-      {/* Subtle musical diagonal stripes pattern */}
-      {holdTile.stripesPattern && (
-        <div
-          className="absolute inset-0 opacity-15"
-          style={{
-            backgroundImage: `repeating-linear-gradient(45deg, #fff 0, #fff 2px, transparent 2px, transparent 12px)`,
-          }}
-        />
-      )}
-
       {/* Dynamic Active Hold Filling Bar (fills upward from bottom head cap as player holds) */}
-      <div
-        className="absolute bottom-0 left-0 right-0 transition-all duration-75"
-        style={{
-          height: `${fillPercentage}%`,
-          background: holdTile.activeFillColor,
-          opacity: isHolding ? 0.9 : 0.4,
-          boxShadow: isHolding ? `0 0 12px #38bdf8` : 'none',
-        }}
+      <View
+        style={[
+          styles.activeFillBar,
+          {
+            height: `${fillPercentage}%`,
+            backgroundColor: holdTile.activeFillColor,
+            opacity: isHolding ? 0.9 : 0.45,
+          },
+        ]}
+      />
+
+      {/* Trailing Tail Cap (at the top) */}
+      <View
+        style={[
+          styles.tailCap,
+          {
+            backgroundColor: holdTile.tailColor,
+          },
+        ]}
       />
 
       {/* Leading Edge / Head Cap (The initial tap hit target at the bottom) */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-10 flex items-center justify-center font-black text-xs tracking-wider"
-        style={{
-          backgroundColor: isHolding ? '#0284c7' : isMissed ? '#475569' : holdTile.headColor,
-          borderTopWidth: '1px',
-          borderTopColor: 'rgba(255,255,255,0.3)',
-          color: '#ffffff',
-          textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-        }}
+      <View
+        style={[
+          styles.headCap,
+          {
+            backgroundColor: isHolding ? '#0284c7' : isMissed ? '#475569' : holdTile.headColor,
+          },
+        ]}
       >
-        <span className="opacity-90">HOLD</span>
+        <Text style={styles.headText}>HOLD</Text>
         {isHolding && (
-          <span className="ml-1 text-[10px] animate-pulse text-sky-200">
+          <Text style={styles.progressText}>
             {Math.round(clampedProgress * 100)}%
-          </span>
+          </Text>
         )}
-      </div>
-
-      {/* Trailing Tail Cap (at the top) */}
-      <div
-        className="absolute top-0 left-0 right-0 h-2 opacity-80"
-        style={{
-          backgroundColor: holdTile.tailColor,
-        }}
-      />
-    </div>
+      </View>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    left: 4,
+    right: 4,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  sprite: {
+    width: '100%',
+    height: '100%',
+  },
+  activeFillBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  tailCap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headCap: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  headText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  progressText: {
+    color: '#bae6fd',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+});
