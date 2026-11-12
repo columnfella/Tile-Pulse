@@ -1,0 +1,6 @@
+{
+  "name": "TilePulse - 4-Lane Piano Rhythm Game",
+  "description": "A high-performance 4-lane mobile rhythm game MVP with audio-synced beatmap engine, tap & hold tiles, interactive visual beat editor, and custom song upload.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
