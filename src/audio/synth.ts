@@ -78,20 +78,7 @@ export function encodeWav(samples: Float32Array): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-/** Piano-like hit chime for a lane: triangle fundamental + sine 2nd harmonic. */
-export function renderHitSound(freq: number): Uint8Array<ArrayBuffer> {
-  const buf = new Float32Array(Math.ceil(0.4 * SAMPLE_RATE));
-  addTone(buf, 0, freq, 'triangle', 0.6, 0.005, 0.35);
-  addTone(buf, 0, freq * 2, 'sine', 0.12, 0.002, 0.15);
-  return encodeWav(buf);
-}
 
-/** Short tick played repeatedly while a hold tile is held down. */
-export function renderHoldTick(): Uint8Array<ArrayBuffer> {
-  const buf = new Float32Array(Math.ceil(0.07 * SAMPLE_RATE));
-  addTone(buf, 0, 660, 'sine', 0.25, 0.002, 0.05);
-  return encodeWav(buf);
-}
 
 /** Renders the built-in starter song (melody + metronome) as a full track. */
 export function renderStarterTrack(bpm: number, durationSeconds: number): Uint8Array<ArrayBuffer> {

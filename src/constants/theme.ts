@@ -91,7 +91,7 @@ export const MINIMAL_DARK_THEME: ThemeConfig = {
     lanesCount: 4,
     laneWidthPercent: 25,
     hitLineYPercent: 82,
-    defaultTapTileHeightPx: 120,
+    defaultTapTileHeightPx: 144, // 20% taller than the original 120px
     pixelsPerBeat: 260,
     borderWidth: 2,
     tileBorderRadius: 8,

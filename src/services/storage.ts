@@ -82,6 +82,32 @@ class StorageService {
     return saveImportedAudio(songId, picked);
   }
 
+  /**
+   * Imports a device audio file as a new song with default settings
+   * (120 BPM, 4/4, empty beatmap — editable later in the Editor).
+   */
+  public async importDeviceSong(file: {
+    name: string;
+    uri: string;
+    durationSeconds?: number;
+  }): Promise<Song> {
+    const id = `song_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const audioUri = await saveImportedAudio(id, { canceled: false, name: file.name, uri: file.uri });
+    const song: Song = {
+      id,
+      title: file.name.replace(/\.[^/.]+$/, '') || 'Untitled',
+      audioUri,
+      bpm: 120,
+      timeSignature: { beatsPerMeasure: 4, beatUnit: 4 },
+      tiles: [],
+      createdAt: Date.now(),
+      durationSeconds: file.durationSeconds && file.durationSeconds > 0 ? file.durationSeconds : undefined,
+      sourceUri: file.uri,
+    };
+    await this.saveSong(song);
+    return song;
+  }
+
   /** Returns a URI the audio player can load for this song. */
   public async getAudioUriForSong(song: Song): Promise<string> {
     if (song.audioUri.startsWith('synthesized:')) return song.audioUri;

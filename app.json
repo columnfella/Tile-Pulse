@@ -14,7 +14,21 @@
       "expo-router",
       "expo-audio",
       "expo-document-picker",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#030712",
+          "imageWidth": 120
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "granularPermissions": ["audio"],
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

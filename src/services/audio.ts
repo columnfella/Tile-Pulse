@@ -1,45 +1,56 @@
 /**
  * Audio engine for TilePulse, built on expo-audio (iOS, Android and web).
  *
- * - Music tracks (uploaded files or the rendered starter song) play through
- *   one main AudioPlayer.
- * - Hit chimes and hold ticks are pre-rendered WAVs played from small player
- *   pools so rapid taps can overlap.
- * - getCurrentTime() is the game's master clock: it extrapolates between the
- *   player's reported positions with a monotonic timer for smooth tile motion
- *   and re-syncs whenever the player drifts.
+ * PERFORMANCE: on Android, reading expo-audio properties such as
+ * `player.currentTime`, `player.playing` or `player.isLoaded` blocks the JS
+ * thread until the Android main thread answers (runBlocking on the main
+ * queue). Doing that every frame starves both threads and makes gameplay
+ * stutter badly. So the hot path never touches native properties:
+ *
+ *  - The song clock is pure JavaScript: an anchor (position + wall-clock time)
+ *    that is extrapolated with Date.now().
+ *  - The anchor is set when playback starts and corrected from the player's
+ *    `playbackStatusUpdate` events, which arrive asynchronously (no blocking).
+ *  - Clock changes are broadcast to subscribers so the game can drive tile
+ *    motion on the UI thread (see subscribeClock).
  */
 
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
-import { renderHitSound, renderHoldTick, renderStarterTrack } from '../audio/synth';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer, type AudioStatus } from 'expo-audio';
+import { renderStarterTrack } from '../audio/synth';
 import { writeGeneratedWav } from './audioFileStore';
 
-const LANE_FREQUENCIES = [261.63, 329.63, 392.0, 523.25]; // C4, E4, G4, C5
-const VOICES_PER_LANE = 2;
 const LOAD_TIMEOUT_MS = 5000;
-const DRIFT_TOLERANCE_SEC = 0.06;
+const STATUS_INTERVAL_MS = 100;
+const DRIFT_TOLERANCE_SEC = 0.08;
+const START_TIMEOUT_MS = 1200;
 
-const now = () => (globalThis.performance?.now?.() ?? Date.now()) / 1000;
+/** Song clock anchor: at wall time `wallMs` the song was at `pos` seconds. */
+export interface ClockAnchor {
+  pos: number;
+  wallMs: number;
+  running: boolean;
+  duration: number;
+}
+
+type ClockListener = (anchor: ClockAnchor) => void;
 
 class AudioEngine {
   private track: AudioPlayer | null = null;
   private trackSubscription: { remove: () => void } | null = null;
-  private hitVoices: AudioPlayer[][] = [];
-  private hitVoiceCursor = [0, 0, 0, 0];
-  private tickVoices: AudioPlayer[] = [];
-  private tickCursor = 0;
-  private sfxReady: Promise<void> | null = null;
   private synthesizedUris = new Map<string, string>();
+  private clockListeners = new Set<ClockListener>();
 
   private isPlaying = false;
   private duration = 15;
   private pausedAt = 0;
-  // Clock anchor: track position `anchorPos` was observed at monotonic time `anchorTime`
+  // Clock anchor (see ClockAnchor)
   private anchorPos = 0;
-  private anchorTime = 0;
-  private clockStarted = false;
-  private lastReportedPos = -1;
+  private anchorWallMs = 0;
+  private clockRunning = false;
+  private startTimer: ReturnType<typeof setTimeout> | null = null;
   private loadToken = 0;
+  private trackLoaded = false;
+  private currentSource: string | null = null;
 
   constructor() {
     setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'mixWithOthers' }).catch(
@@ -47,26 +58,96 @@ class AudioEngine {
     );
   }
 
-  /** Renders and loads the hit/tick sound effects once. Never rejects. */
-  public prepareEffects(): Promise<void> {
-    if (!this.sfxReady) {
-      this.sfxReady = (async () => {
-        try {
-          const laneUris = await Promise.all(
-            LANE_FREQUENCIES.map((f, i) => writeGeneratedWav(`hit_lane_${i}`, renderHitSound(f)))
-          );
-          this.hitVoices = laneUris.map((uri) =>
-            Array.from({ length: VOICES_PER_LANE }, () => createAudioPlayer(uri))
-          );
-          const tickUri = await writeGeneratedWav('hold_tick', renderHoldTick());
-          this.tickVoices = [createAudioPlayer(tickUri), createAudioPlayer(tickUri)];
-        } catch (err) {
-          console.warn('Failed to prepare sound effects:', err);
-        }
-      })();
-    }
-    return this.sfxReady;
+  /* ------------------------------ clock ------------------------------ */
+
+  /** Subscribe to clock anchor changes. Returns an unsubscribe function. */
+  public subscribeClock(listener: ClockListener): () => void {
+    this.clockListeners.add(listener);
+    listener(this.getClockAnchor());
+    return () => {
+      this.clockListeners.delete(listener);
+    };
   }
+
+  public getClockAnchor(): ClockAnchor {
+    if (!this.isPlaying) {
+      return { pos: this.pausedAt, wallMs: Date.now(), running: false, duration: this.duration };
+    }
+    return {
+      pos: this.anchorPos,
+      wallMs: this.anchorWallMs,
+      running: this.clockRunning,
+      duration: this.duration,
+    };
+  }
+
+  private emitClock(): void {
+    const anchor = this.getClockAnchor();
+    this.clockListeners.forEach((l) => l(anchor));
+  }
+
+  private setAnchor(pos: number, running: boolean): void {
+    this.anchorPos = pos;
+    this.anchorWallMs = Date.now();
+    this.clockRunning = running;
+    this.emitClock();
+  }
+
+  private clearStartTimer(): void {
+    if (this.startTimer) {
+      clearTimeout(this.startTimer);
+      this.startTimer = null;
+    }
+  }
+
+  /** Handles async status events from the music player (never blocks JS). */
+  private handleStatus = (status: AudioStatus): void => {
+    if (status.isLoaded) this.trackLoaded = true;
+    if (status.duration > 0) this.duration = status.duration;
+
+    if (status.didJustFinish) {
+      this.clearStartTimer();
+      this.pausedAt = this.getCurrentTime();
+      this.isPlaying = false;
+      this.clockRunning = false;
+      this.emitClock();
+      return;
+    }
+    if (!this.isPlaying) return;
+
+    const reported = status.currentTime;
+    if (!this.clockRunning) {
+      // Start the clock once audio output has really begun, so tiles don't
+      // run ahead during player start-up latency. Positions outside
+      // [offset, offset + 0.5s] are stale (seek still pending).
+      if (status.playing && reported > this.anchorPos + 0.001 && reported < this.anchorPos + 0.5) {
+        this.clearStartTimer();
+        this.setAnchor(reported, true);
+      }
+      return;
+    }
+
+    if (status.playing && Math.abs(reported - this.getCurrentTime()) > DRIFT_TOLERANCE_SEC) {
+      this.setAnchor(reported, true);
+    }
+  };
+
+  /** Current playback position in seconds. Pure JS — safe to call every frame. */
+  public getCurrentTime(): number {
+    if (!this.isPlaying) return this.pausedAt;
+    if (!this.clockRunning) return this.anchorPos;
+    return Math.min(this.duration, this.anchorPos + (Date.now() - this.anchorWallMs) / 1000);
+  }
+
+  public getDuration(): number {
+    return this.duration;
+  }
+
+  public getIsPlaying(): boolean {
+    return this.isPlaying;
+  }
+
+  /* ------------------------------ transport --------------------------- */
 
   private async resolveSource(audioUri: string, bpm: number, durationSeconds?: number): Promise<string> {
     if (!audioUri.startsWith('synthesized:')) return audioUri;
@@ -90,30 +171,30 @@ class AudioEngine {
   ): Promise<void> {
     const token = ++this.loadToken;
     this.stop();
-    void this.prepareEffects();
 
     const source = await this.resolveSource(audioUri, bpm, durationSeconds);
     if (token !== this.loadToken) return; // superseded by a newer load
 
+    if (this.track && this.currentSource === source && this.trackLoaded) {
+      return; // same track already loaded (e.g. "Play Again")
+    }
+
+    this.trackLoaded = false;
+    this.duration = durationSeconds || 15;
+    this.currentSource = source;
     this.trackSubscription?.remove();
     if (!this.track) {
-      this.track = createAudioPlayer(source, { updateInterval: 100 });
+      this.track = createAudioPlayer(source, { updateInterval: STATUS_INTERVAL_MS });
     } else {
       this.track.replace(source);
     }
-    const player = this.track;
+    this.trackSubscription = this.track.addListener('playbackStatusUpdate', this.handleStatus);
 
-    this.trackSubscription = player.addListener('playbackStatusUpdate', (status) => {
-      if (status.didJustFinish) {
-        this.pausedAt = this.getCurrentTime();
-        this.isPlaying = false;
-      }
-    });
-
+    // Wait for the "loaded" status event (async) instead of polling isLoaded
     await new Promise<void>((resolve) => {
       const start = Date.now();
       const check = () => {
-        if (player.isLoaded || token !== this.loadToken || Date.now() - start > LOAD_TIMEOUT_MS) {
+        if (this.trackLoaded || token !== this.loadToken || Date.now() - start > LOAD_TIMEOUT_MS) {
           resolve();
         } else {
           setTimeout(check, 30);
@@ -121,8 +202,6 @@ class AudioEngine {
       };
       check();
     });
-
-    this.duration = player.duration > 0 ? player.duration : durationSeconds || 15;
   }
 
   /** Starts playback from an offset in seconds. */
@@ -130,11 +209,14 @@ class AudioEngine {
     if (!this.track) return;
     const offset = Math.max(0, startOffsetSeconds);
     this.pausedAt = offset;
-    this.anchorPos = offset;
-    this.anchorTime = now();
-    this.clockStarted = false;
-    this.lastReportedPos = -1;
     this.isPlaying = true;
+    this.setAnchor(offset, false);
+
+    // Safety net: if no status event confirms playback, start the clock anyway
+    this.clearStartTimer();
+    this.startTimer = setTimeout(() => {
+      if (this.isPlaying && !this.clockRunning) this.setAnchor(this.anchorPos, true);
+    }, START_TIMEOUT_MS);
 
     const player = this.track;
     player
@@ -149,16 +231,23 @@ class AudioEngine {
     if (!this.isPlaying) return;
     this.pausedAt = this.getCurrentTime();
     this.isPlaying = false;
+    this.clockRunning = false;
+    this.clearStartTimer();
     this.track?.pause();
+    this.emitClock();
   }
 
   public stop(): void {
+    const wasActive = this.isPlaying || this.pausedAt !== 0;
     this.isPlaying = false;
+    this.clockRunning = false;
     this.pausedAt = 0;
+    this.clearStartTimer();
     if (this.track) {
       this.track.pause();
       this.track.seekTo(0).catch(() => {});
     }
+    if (wasActive) this.emitClock();
   }
 
   public seek(seconds: number): void {
@@ -167,79 +256,7 @@ class AudioEngine {
     this.pausedAt = Math.max(0, seconds);
     this.track?.seekTo(this.pausedAt).catch(() => {});
     if (wasPlaying) this.play(this.pausedAt);
-  }
-
-  /** Current playback position in seconds — the master clock for the game loop. */
-  public getCurrentTime(): number {
-    if (!this.isPlaying || !this.track) return this.pausedAt;
-
-    const reported = this.track.currentTime;
-    const t = now();
-
-    if (!this.clockStarted) {
-      // Hold the clock until audio output has actually started, so tiles
-      // don't run ahead of the music during player startup latency.
-      // Positions outside [offset, offset + 0.5s] are stale (seek not finished yet).
-      const advanced = reported > this.anchorPos + 0.001 && reported < this.anchorPos + 0.5;
-      const timedOut = t - this.anchorTime > 1.0; // never stall the game indefinitely
-      if ((this.track.playing && advanced) || timedOut) {
-        this.clockStarted = true;
-        if (advanced) this.anchorPos = reported;
-        this.anchorTime = t;
-        this.lastReportedPos = reported;
-      }
-      return this.anchorPos;
-    }
-
-    const estimate = this.anchorPos + (t - this.anchorTime);
-    if (reported !== this.lastReportedPos) {
-      this.lastReportedPos = reported;
-      if (Math.abs(reported - estimate) > DRIFT_TOLERANCE_SEC) {
-        this.anchorPos = reported;
-        this.anchorTime = t;
-        return reported;
-      }
-    }
-    return Math.min(estimate, this.duration);
-  }
-
-  public getDuration(): number {
-    return this.duration;
-  }
-
-  public getIsPlaying(): boolean {
-    return this.isPlaying;
-  }
-
-  private trigger(player: AudioPlayer | undefined, volume: number): void {
-    if (!player) return;
-    try {
-      player.volume = volume;
-      player.seekTo(0).catch(() => {});
-      player.play();
-    } catch {
-      // Player not ready yet; skip this sound
-    }
-  }
-
-  /** Plays a short piano chime for the lane. */
-  public playHitSound(lane: 0 | 1 | 2 | 3, isPerfect: boolean = true): void {
-    const voices = this.hitVoices[lane];
-    if (!voices?.length) {
-      void this.prepareEffects();
-      return;
-    }
-    const idx = this.hitVoiceCursor[lane];
-    this.hitVoiceCursor[lane] = (idx + 1) % voices.length;
-    this.trigger(voices[idx], isPerfect ? 1 : 0.6);
-  }
-
-  /** Short tick while a hold tile is held. */
-  public playHoldTick(_progress: number): void {
-    if (!this.tickVoices.length) return;
-    const idx = this.tickCursor;
-    this.tickCursor = (idx + 1) % this.tickVoices.length;
-    this.trigger(this.tickVoices[idx], 0.5);
+    else this.emitClock();
   }
 }
 

@@ -1,14 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
+import Animated, { FadeOut } from 'react-native-reanimated';
+import { popIn } from '../ui/motion';
 import { HitJudgment } from '../../types/game';
 import { ACTIVE_THEME } from '../../constants/theme';
 
 interface HitJudgmentBadgeProps {
   judgment: HitJudgment | null;
   timeDiffMs?: number;
+  /** Changes on every hit so the badge re-pops even for repeated judgments. */
+  hitId?: number;
 }
 
-export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, timeDiffMs }) => {
+export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, timeDiffMs, hitId }) => {
   if (!judgment) return null;
 
   const { judgments } = ACTIVE_THEME.feedback;
@@ -30,7 +34,13 @@ export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, ti
   }
 
   return (
-    <View pointerEvents="none" style={styles.container}>
+    <Animated.View
+      key={hitId}
+      entering={popIn}
+      exiting={FadeOut.duration(120)}
+      pointerEvents="none"
+      style={styles.container}
+    >
       <Text
         style={[
           styles.judgmentText,
@@ -50,7 +60,7 @@ export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, ti
           {timeDiffMs > 0 ? `+${timeDiffMs}ms` : `${timeDiffMs}ms`}
         </Text>
       )}
-    </View>
+    </Animated.View>
   );
 };
 

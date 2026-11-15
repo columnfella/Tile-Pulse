@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,15 +8,21 @@ import {
   Platform,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '../../src/components/ui/useScreenInsets';
+import Animated, {
+  FadeIn,
+  FadeInUp,
+  ZoomIn,
+  useAnimatedStyle,
+  useFrameCallback,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Song, TileNote } from '../../types/song';
+import { Song } from '../../types/song';
 import { HitJudgment, GameStats, ActiveTileState } from '../../types/game';
 import { ACTIVE_THEME } from '../../constants/theme';
 import {
   calculateNoteTimeSeconds,
-  calculateTileY,
-  calculateTileHeight,
   evaluateHitJudgment,
   isWithinHitWindow,
   isTilePastMissThreshold,
@@ -27,10 +33,12 @@ import {
 import { audioService } from '../../services/audio';
 import { storageService } from '../../services/storage';
 import { GameBoardBackground } from '../../src/components/game/GameBoardBackground';
-import { TapTileView } from '../../src/components/game/TapTileView';
-import { HoldTileView } from '../../src/components/game/HoldTileView';
 import { HitJudgmentBadge } from '../../src/components/game/HitJudgmentBadge';
 import { ComboDisplay } from '../../src/components/game/ComboDisplay';
+import { TileField, type TimedTile } from '../../src/components/game/TileField';
+import { Countdown, LoadingOverlay } from '../../src/components/game/StartSequence';
+import { PressableScale } from '../../src/components/ui/PressableScale';
+import { backdropIn, backdropOut, cardIn, cardOut } from '../../src/components/ui/motion';
 import { Pause, Play, RotateCcw, Home, Sparkles } from 'lucide-react-native';
 
 export default function PlayScreen() {
@@ -41,11 +49,29 @@ export default function PlayScreen() {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
+  // loading → countdown → playing. Input and the game loop only run while playing.
+  const [phase, setPhase] = useState<'loading' | 'countdown' | 'playing'>('loading');
+  // Incremented on every judgment so the badge re-pops each hit
+  const [hitId, setHitId] = useState<number>(0);
   const [audioDuration, setAudioDuration] = useState<number>(15);
 
+  // Performance: the song clock lives in a shared value that the UI thread
+  // reads to scroll the tiles, so nothing re-renders per frame. React state is
+  // only updated at low frequency (HUD clock once per second, the visible tile
+  // window twice per second) or when a tile's status changes.
+  const songTime = useSharedValue(0);
+  // Clock anchor mirrored from the audio engine; the UI thread extrapolates it
+  const clockPos = useSharedValue(0);
+  const clockWallMs = useSharedValue(0);
+  const clockRunning = useSharedValue(false);
+  const clockDuration = useSharedValue(15);
+  const [displaySecond, setDisplaySecond] = useState<number>(0);
+  const [windowStep, setWindowStep] = useState<number>(0);
+  const [tileVersion, setTileVersion] = useState<number>(0);
+  const bumpTiles = useCallback(() => setTileVersion((v) => v + 1), []);
+  const nextMissIndexRef = useRef(0);
+
   const [activeLanes, setActiveLanes] = useState<boolean[]>([false, false, false, false]);
-  const [laneFlashes, setLaneFlashes] = useState<boolean[]>([false, false, false, false]);
 
   const [currentJudgment, setCurrentJudgment] = useState<HitJudgment | null>(null);
   const [judgmentTimeDiff, setJudgmentTimeDiff] = useState<number | undefined>(undefined);
@@ -66,7 +92,7 @@ export default function PlayScreen() {
   const activeHoldByLaneRef = useRef<Map<number, string>>(new Map());
   const animFrameIdRef = useRef<number | null>(null);
 
-  const insets = useSafeAreaInsets();
+  const insets = useScreenInsets();
   // Measured height of the play area (the real screen size once system bars are hidden)
   const [boardHeight, setBoardHeight] = useState<number>(0);
   const { geometry } = ACTIVE_THEME;
@@ -76,6 +102,65 @@ export default function PlayScreen() {
   const handleRootLayout = (e: LayoutChangeEvent) => {
     setBoardHeight(e.nativeEvent.layout.height);
   };
+
+  // Pre-computed timing data (sorted by start time) so per-frame and per-tap
+  // work doesn't repeatedly filter / sort / recompute the beatmap.
+  const timeline = useMemo<TimedTile[]>(() => {
+    if (!song) return [];
+    return song.tiles
+      .map((t) => {
+        const noteTime = calculateNoteTimeSeconds(t.beat, song.bpm);
+        const durationSeconds = (t.durationBeats * 60) / song.bpm;
+        return { ...t, noteTime, durationSeconds, endTime: noteTime + durationSeconds };
+      })
+      .sort((a, b) => a.noteTime - b.noteTime);
+  }, [song]);
+
+  const tilesById = useMemo(() => new Map(timeline.map((t) => [t.id, t])), [timeline]);
+
+  const tilesByLane = useMemo(() => {
+    const lanes: TimedTile[][] = [[], [], [], []];
+    timeline.forEach((t) => lanes[t.lane].push(t));
+    return lanes;
+  }, [timeline]);
+
+  // Mirror the audio clock anchor into shared values (only changes on
+  // start / pause / drift correction — a few times per song, not per frame).
+  useEffect(
+    () =>
+      audioService.subscribeClock((anchor) => {
+        clockPos.value = anchor.pos;
+        clockWallMs.value = anchor.wallMs;
+        clockDuration.value = anchor.duration;
+        clockRunning.value = anchor.running;
+      }),
+    [clockPos, clockWallMs, clockDuration, clockRunning]
+  );
+
+  // Advance the song clock on the UI thread every display frame. Tile motion
+  // reads this directly, so it stays smooth regardless of JS-thread load.
+  useFrameCallback(() => {
+    songTime.value = clockRunning.value
+      ? Math.min(clockDuration.value, clockPos.value + (Date.now() - clockWallMs.value) / 1000)
+      : clockPos.value;
+  });
+
+  // Only tiles near the playhead are mounted; the window advances every 0.5s
+  const WINDOW_STEP_SEC = 0.5;
+  const visibleTiles = useMemo(() => {
+    if (!song || boardHeight === 0) return [];
+    const speed = (pixelsPerBeat * song.bpm) / 60;
+    const t = windowStep * WINDOW_STEP_SEC;
+    const lookahead = hitLineY / speed + WINDOW_STEP_SEC + 1;
+    const behind = (boardHeight - hitLineY) / speed + WINDOW_STEP_SEC + 0.5;
+    return timeline.filter((tile) => tile.endTime >= t - behind && tile.noteTime <= t + lookahead);
+  }, [song, boardHeight, hitLineY, pixelsPerBeat, timeline, windowStep]);
+
+  const getTileState = useCallback((tileId: string) => tileStatesRef.current.get(tileId), []);
+
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${Math.min(100, (songTime.value / (audioDuration || 1)) * 100)}%`,
+  }));
 
   // Load song from storage
   useEffect(() => {
@@ -113,12 +198,16 @@ export default function PlayScreen() {
       });
       tileStatesRef.current = states;
 
-      // Start audio playback
+      // Load the audio, keeping the loading screen up for a minimum time so it
+      // doesn't flash, then hand over to the countdown (which starts playback).
       const uri = await storageService.getAudioUriForSong(target);
-      await audioService.loadTrack(target.id, uri, target.bpm, target.durationSeconds);
+      await Promise.all([
+        audioService.loadTrack(target.id, uri, target.bpm, target.durationSeconds),
+        new Promise((resolve) => setTimeout(resolve, 900)),
+      ]);
       if (cancelled) return;
       setAudioDuration(audioService.getDuration());
-      audioService.play(0);
+      setPhase('countdown');
     }
     init().catch((err) => {
       console.warn('Failed to start song:', err);
@@ -138,6 +227,7 @@ export default function PlayScreen() {
     (tileId: string, judgment: HitJudgment, score: number, timeDiffMs?: number) => {
       setCurrentJudgment(judgment);
       setJudgmentTimeDiff(timeDiffMs);
+      setHitId((n) => n + 1);
 
       setStats((prev) => {
         const isHit = judgment !== 'MISS';
@@ -173,24 +263,9 @@ export default function PlayScreen() {
     []
   );
 
-  const triggerLaneFlash = (lane: 0 | 1 | 2 | 3) => {
-    setLaneFlashes((prev) => {
-      const next = [...prev];
-      next[lane] = true;
-      return next;
-    });
-    setTimeout(() => {
-      setLaneFlashes((prev) => {
-        const next = [...prev];
-        next[lane] = false;
-        return next;
-      });
-    }, 90);
-  };
-
   const handleLanePressStart = useCallback(
     (lane: 0 | 1 | 2 | 3) => {
-      if (isPaused || isCompleted || !song) return;
+      if (phase !== 'playing' || isPaused || isCompleted || !song) return;
 
       setActiveLanes((prev) => {
         const next = [...prev];
@@ -198,22 +273,17 @@ export default function PlayScreen() {
         return next;
       });
 
-      triggerLaneFlash(lane);
-
       const curAudioTime = audioService.getCurrentTime();
-      const laneTiles = song.tiles
-        .filter((t) => t.lane === lane)
-        .sort((a, b) => a.beat - b.beat);
 
-      let targetTile: TileNote | null = null;
+      let targetTile: TimedTile | null = null;
       let minDiff = Infinity;
 
-      for (const t of laneTiles) {
+      for (const t of tilesByLane[lane]) {
+        if (t.noteTime > curAudioTime + 0.5) break; // sorted: the rest are too far ahead
         const state = tileStatesRef.current.get(t.id);
         if (state && (state.status === 'pending' || state.status === 'holding')) {
-          const noteTime = calculateNoteTimeSeconds(t.beat, song.bpm);
-          const diff = Math.abs(curAudioTime - noteTime);
-          if (diff < minDiff && isWithinHitWindow(curAudioTime - noteTime)) {
+          const diff = Math.abs(curAudioTime - t.noteTime);
+          if (diff < minDiff && isWithinHitWindow(curAudioTime - t.noteTime)) {
             minDiff = diff;
             targetTile = t;
           }
@@ -221,8 +291,7 @@ export default function PlayScreen() {
       }
 
       if (targetTile) {
-        const noteTime = calculateNoteTimeSeconds(targetTile.beat, song.bpm);
-        const timeDiffSec = curAudioTime - noteTime;
+        const timeDiffSec = curAudioTime - targetTile.noteTime;
         const result = evaluateHitJudgment(timeDiffSec);
 
         if (targetTile.durationBeats === 0) {
@@ -231,7 +300,6 @@ export default function PlayScreen() {
             heldBeats: 0,
             holdProgress: 1,
           });
-          audioService.playHitSound(lane, result.judgment === 'PERFECT');
           registerHit(targetTile.id, result.judgment, result.score, Math.round(timeDiffSec * 1000));
         } else {
           tileStatesRef.current.set(targetTile.id, {
@@ -241,13 +309,11 @@ export default function PlayScreen() {
             holdStartTime: curAudioTime,
           });
           activeHoldByLaneRef.current.set(lane, targetTile.id);
-          audioService.playHitSound(lane, true);
         }
-      } else {
-        audioService.playHitSound(lane, false);
+        bumpTiles();
       }
     },
-    [isPaused, isCompleted, song, registerHit]
+    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, bumpTiles]
   );
 
   const handleLanePressEnd = useCallback(
@@ -261,14 +327,12 @@ export default function PlayScreen() {
       const holdingTileId = activeHoldByLaneRef.current.get(lane);
       if (holdingTileId && song) {
         activeHoldByLaneRef.current.delete(lane);
-        const tile = song.tiles.find((t) => t.id === holdingTileId);
+        const tile = tilesById.get(holdingTileId);
         const state = tileStatesRef.current.get(holdingTileId);
 
         if (tile && state && state.status === 'holding') {
           const curTime = audioService.getCurrentTime();
-          const startNoteTime = calculateNoteTimeSeconds(tile.beat, song.bpm);
-          const durationSeconds = (tile.durationBeats * 60) / song.bpm;
-          const progress = calculateHoldProgress(curTime, startNoteTime, durationSeconds);
+          const progress = calculateHoldProgress(curTime, tile.noteTime, tile.durationSeconds);
 
           if (progress >= 0.85) {
             state.status = 'hit';
@@ -279,56 +343,72 @@ export default function PlayScreen() {
             state.holdProgress = progress;
             registerHit(tile.id, 'MISS', 0);
           }
+          bumpTiles();
         }
       }
     },
-    [song, registerHit]
+    [song, registerHit, tilesById, bumpTiles]
   );
 
   // Audio-Synced Game Loop
   useEffect(() => {
-    if (isPaused || isCompleted || !song) return;
+    if (phase !== 'playing' || isPaused || isCompleted || !song) return;
 
-    let lastTickTime = 0;
+    let lastSecond = -1;
+    let lastStep = -1;
 
     const gameLoop = () => {
       const curTime = audioService.getCurrentTime();
-      setAudioCurrentTime(curTime);
+
+      // Low-frequency React updates only
+      const second = Math.floor(curTime);
+      if (second !== lastSecond) {
+        lastSecond = second;
+        setDisplaySecond(second);
+      }
+      const step = Math.floor(curTime / WINDOW_STEP_SEC);
+      if (step !== lastStep) {
+        lastStep = step;
+        setWindowStep(step);
+      }
+
+      let tilesChanged = false;
 
       // Check active hold notes
       activeHoldByLaneRef.current.forEach((tileId, lane) => {
-        const tile = song.tiles.find((t) => t.id === tileId);
+        const tile = tilesById.get(tileId);
         const state = tileStatesRef.current.get(tileId);
         if (tile && state && state.status === 'holding') {
-          const startNoteTime = calculateNoteTimeSeconds(tile.beat, song.bpm);
-          const durationSeconds = (tile.durationBeats * 60) / song.bpm;
-          const progress = calculateHoldProgress(curTime, startNoteTime, durationSeconds);
+          const progress = calculateHoldProgress(curTime, tile.noteTime, tile.durationSeconds);
           state.holdProgress = progress;
-
-          if (curTime - lastTickTime > 0.15) {
-            audioService.playHoldTick(progress);
-            lastTickTime = curTime;
-          }
 
           if (progress >= 1.0) {
             state.status = 'hit';
             activeHoldByLaneRef.current.delete(lane);
             registerHit(tile.id, 'PERFECT', 1000);
+            tilesChanged = true;
           }
         }
       });
 
-      // Check missed notes
-      song.tiles.forEach((t) => {
+      // Check missed notes. Tiles are sorted by start time; a pointer skips the
+      // leading run of already-resolved tiles so we never rescan the whole map.
+      let advancing = true;
+      for (let j = nextMissIndexRef.current; j < timeline.length; j++) {
+        const t = timeline[j];
+        if (t.noteTime > curTime) break; // the rest haven't started yet
         const state = tileStatesRef.current.get(t.id);
-        if (state && state.status === 'pending') {
-          const noteTime = calculateNoteTimeSeconds(t.beat, song.bpm);
-          if (isTilePastMissThreshold(noteTime, curTime, t.durationBeats, song.bpm)) {
-            state.status = 'missed';
-            registerHit(t.id, 'MISS', 0);
-          }
+        if (state?.status === 'pending' && isTilePastMissThreshold(t.noteTime, curTime, t.durationBeats, song.bpm)) {
+          state.status = 'missed';
+          registerHit(t.id, 'MISS', 0);
+          tilesChanged = true;
         }
-      });
+        const resolved = state?.status === 'hit' || state?.status === 'missed';
+        if (advancing && resolved) nextMissIndexRef.current = j + 1;
+        else advancing = false;
+      }
+
+      if (tilesChanged) bumpTiles();
 
       // Song completion: the track finished, or we're past its end
       const songEnded =
@@ -350,7 +430,7 @@ export default function PlayScreen() {
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [isPaused, isCompleted, song, registerHit]);
+  }, [phase, isPaused, isCompleted, song, registerHit, timeline, tilesById, bumpTiles]);
 
   const handleTogglePause = () => {
     if (isPaused) {
@@ -399,7 +479,14 @@ export default function PlayScreen() {
       });
       setIsPaused(false);
       setIsCompleted(false);
-      audioService.play(0);
+      songTime.value = 0;
+      nextMissIndexRef.current = 0;
+      activeHoldByLaneRef.current.clear();
+      setDisplaySecond(0);
+      setWindowStep(0);
+      bumpTiles();
+      setCurrentJudgment(null);
+      setPhase('countdown');
     }
   };
 
@@ -417,16 +504,27 @@ export default function PlayScreen() {
     return 'D';
   };
 
-  if (!song || loadError) {
+  const handleCountdownDone = () => {
+    audioService.play(0);
+    setPhase('playing');
+  };
+
+  if (loadError) {
+    return (
+      <Animated.View entering={FadeIn} style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>{loadError}</Text>
+        <PressableScale style={[styles.modalSecondaryBtn, styles.errorBackBtn]} onPress={handleExitToHome}>
+          <Home size={14} color="#e2e8f0" />
+          <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
+        </PressableScale>
+      </Animated.View>
+    );
+  }
+
+  if (!song) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>{loadError ?? 'Loading track...'}</Text>
-        {loadError && (
-          <Pressable style={[styles.modalSecondaryBtn, styles.errorBackBtn]} onPress={handleExitToHome}>
-            <Home size={14} color="#e2e8f0" />
-            <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
-          </Pressable>
-        )}
+        <LoadingOverlay />
       </View>
     );
   }
@@ -437,7 +535,8 @@ export default function PlayScreen() {
       onLayout={handleRootLayout}
     >
       {/* Top HUD Cluster */}
-      <View
+      <Animated.View
+        entering={FadeInUp.delay(150).duration(400)}
         style={[
           styles.topHudContainer,
           { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right },
@@ -445,19 +544,21 @@ export default function PlayScreen() {
       >
         <View style={styles.topHudRow}>
           <View style={styles.hudLeft}>
-            <Pressable
-              style={styles.pauseBtn}
+            <PressableScale
+              style={[styles.pauseBtn, phase !== 'playing' && styles.pauseBtnDisabled]}
               onPress={handleTogglePause}
+              disabled={phase !== 'playing'}
+              scaleTo={0.88}
               accessibilityLabel="Pause game"
             >
               <Pause size={16} color="#ffffff" />
-            </Pressable>
+            </PressableScale>
             <View>
               <Text style={styles.hudSongTitle} numberOfLines={1}>
                 {song.title}
               </Text>
               <Text style={styles.hudTimeText}>
-                {formatAudioTime(audioCurrentTime)} / {formatAudioTime(audioDuration)}
+                {formatAudioTime(displaySecond)} / {formatAudioTime(audioDuration)}
               </Text>
             </View>
           </View>
@@ -469,153 +570,85 @@ export default function PlayScreen() {
             </Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Judgment & Combo Badges */}
-      <HitJudgmentBadge judgment={currentJudgment} timeDiffMs={judgmentTimeDiff} />
+      <HitJudgmentBadge judgment={currentJudgment} timeDiffMs={judgmentTimeDiff} hitId={hitId} />
       <ComboDisplay combo={stats.combo} />
 
       {/* 4-Lane Game Board */}
       <GameBoardBackground
         hitLineY={hitLineY}
         activeLanes={activeLanes}
-        laneFlashes={laneFlashes}
         onLanePressStart={handleLanePressStart}
         onLanePressEnd={handleLanePressEnd}
         showKeyLabels={Platform.OS === 'web'}
       >
-        {boardHeight > 0 && song.tiles.map((tile) => {
-          const state = tileStatesRef.current.get(tile.id) || {
-            status: 'pending',
-            heldBeats: 0,
-            holdProgress: 0,
-          };
-
-          const noteTimeSeconds = calculateNoteTimeSeconds(tile.beat, song.bpm);
-          // Audio-Synced Game Loop formula
-          const tileBottomY = calculateTileY(
-            noteTimeSeconds,
-            audioCurrentTime,
-            pixelsPerBeat,
-            song.bpm,
-            hitLineY
-          );
-
-          const defaultTapHeight = geometry.defaultTapTileHeightPx;
-          const tileHeight = calculateTileHeight(
-            tile.durationBeats,
-            pixelsPerBeat,
-            defaultTapHeight
-          );
-          const tileTopY = tileBottomY - tileHeight;
-
-          if (tileTopY > boardHeight + 150 || tileBottomY < -200) {
-            return null;
-          }
-
-          const lanePercent = 25;
-          const leftPercent = tile.lane * lanePercent;
-
-          if (tile.durationBeats > 0) {
-            return (
-              <View
-                key={tile.id}
-                style={[
-                  styles.tileWrapper,
-                  { left: `${leftPercent}%`, width: `${lanePercent}%` },
-                ]}
-              >
-                <HoldTileView
-                  y={tileTopY}
-                  height={tileHeight}
-                  lane={tile.lane}
-                  isHolding={state.status === 'holding'}
-                  holdProgress={state.holdProgress}
-                  isHit={state.status === 'hit'}
-                  isMissed={state.status === 'missed'}
-                />
-              </View>
-            );
-          }
-
-          return (
-            <View
-              key={tile.id}
-              style={[
-                styles.tileWrapper,
-                { left: `${leftPercent}%`, width: `${lanePercent}%` },
-              ]}
-            >
-              <TapTileView
-                y={tileTopY}
-                height={tileHeight}
-                lane={tile.lane}
-                isHit={state.status === 'hit'}
-                isMissed={state.status === 'missed'}
-              />
-            </View>
-          );
-        })}
+        {boardHeight > 0 && (
+          <TileField
+            tiles={visibleTiles}
+            bpm={song.bpm}
+            hitLineY={hitLineY}
+            pixelsPerBeat={pixelsPerBeat}
+            tapHeight={geometry.defaultTapTileHeightPx}
+            songTime={songTime}
+            getTileState={getTileState}
+            version={tileVersion}
+          />
+        )}
       </GameBoardBackground>
 
       {/* Bottom Progress Bar */}
       <View style={styles.bottomProgressBar}>
-        <View
-          style={[
-            styles.bottomProgressFill,
-            {
-              width: `${Math.min(100, (audioCurrentTime / (audioDuration || 1)) * 100)}%`,
-            },
-          ]}
-        />
+        <Animated.View style={[styles.bottomProgressFill, progressStyle]} />
       </View>
 
       {/* Pause Overlay (in-screen instead of <Modal>, which re-shows the Android system bars) */}
       {isPaused && (
-        <View style={styles.modalBackdrop}>
-          <View style={styles.statusModalCard}>
+        <Animated.View entering={backdropIn} exiting={backdropOut} style={styles.modalBackdrop}>
+          <Animated.View entering={cardIn} exiting={cardOut} style={styles.statusModalCard}>
             <Text style={styles.statusModalTitle}>Game Paused</Text>
             <Text style={styles.statusModalSub}>{song.title}</Text>
 
             <View style={styles.statusModalButtons}>
-              <Pressable
+              <PressableScale
                 style={styles.modalPrimaryBtn}
                 onPress={handleTogglePause}
                 accessibilityLabel="Resume playing"
               >
                 <Play size={15} color="#ffffff" fill="#ffffff" />
                 <Text style={styles.modalPrimaryBtnText}>Resume</Text>
-              </Pressable>
+              </PressableScale>
 
-              <Pressable
+              <PressableScale
                 style={styles.modalSecondaryBtn}
                 onPress={handleRestart}
                 accessibilityLabel="Restart song"
               >
                 <RotateCcw size={14} color="#e2e8f0" />
                 <Text style={styles.modalSecondaryBtnText}>Restart</Text>
-              </Pressable>
+              </PressableScale>
 
-              <Pressable
+              <PressableScale
                 style={styles.modalTertiaryBtn}
                 onPress={handleExitToHome}
                 accessibilityLabel="Exit to Song List"
               >
                 <Home size={14} color="#94a3b8" />
                 <Text style={styles.modalTertiaryBtnText}>Exit to Song List</Text>
-              </Pressable>
+              </PressableScale>
             </View>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       )}
 
       {/* Completion Overlay */}
       {isCompleted && (
-        <View style={styles.modalBackdrop}>
-          <View style={styles.statusModalCard}>
-            <View style={styles.rankBadge}>
+        <Animated.View entering={backdropIn} exiting={backdropOut} style={styles.modalBackdrop}>
+          <Animated.View entering={cardIn} exiting={cardOut} style={styles.statusModalCard}>
+            <Animated.View entering={ZoomIn.delay(200).springify().damping(10)} style={styles.rankBadge}>
               <Text style={styles.rankText}>{getRank(stats.accuracy)}</Text>
-            </View>
+            </Animated.View>
 
             <Text style={styles.statusModalTitle}>Song Completed!</Text>
             <Text style={styles.statusModalSub}>{song.title}</Text>
@@ -651,26 +684,34 @@ export default function PlayScreen() {
             </View>
 
             <View style={styles.statusModalButtons}>
-              <Pressable
+              <PressableScale
                 style={styles.modalPrimaryBtn}
                 onPress={handleRestart}
                 accessibilityLabel="Play Again"
               >
                 <RotateCcw size={14} color="#ffffff" />
                 <Text style={styles.modalPrimaryBtnText}>Play Again</Text>
-              </Pressable>
+              </PressableScale>
 
-              <Pressable
+              <PressableScale
                 style={styles.modalSecondaryBtn}
                 onPress={handleExitToHome}
                 accessibilityLabel="Back to Home"
               >
                 <Home size={14} color="#e2e8f0" />
                 <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
-              </Pressable>
+              </PressableScale>
             </View>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/* Start sequence: countdown over the board, then music starts */}
+      {phase === 'countdown' && !isPaused && <Countdown onDone={handleCountdownDone} />}
+
+      {/* Loading screen fades out once the audio is ready */}
+      {phase === 'loading' && (
+        <LoadingOverlay title={song.title} subtitle={`${song.bpm} BPM · ${song.tiles.length} notes`} />
       )}
     </View>
   );
@@ -709,6 +750,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  pauseBtnDisabled: {
+    opacity: 0.4,
   },
   pauseBtn: {
     width: 36,

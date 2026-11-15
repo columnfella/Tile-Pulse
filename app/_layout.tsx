@@ -1,9 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationBar } from 'expo-navigation-bar';
 import { audioService } from '../services/audio';
+import { storageService } from '../services/storage';
+import { AppSplash } from '../src/components/ui/AppSplash';
 
 /**
  * Immersive full-screen mode: hides the status bar (all platforms) and the
@@ -24,12 +27,37 @@ function useImmersiveMode() {
   }, []);
 }
 
+// Keep the native splash up until our animated splash is on screen
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const MIN_SPLASH_MS = 1400;
+
+/** Seeds storage; resolves after a minimum splash time. */
+async function initializeApp(): Promise<void> {
+  await Promise.all([
+    storageService.initStorage(),
+    new Promise((resolve) => setTimeout(resolve, MIN_SPLASH_MS)),
+  ]);
+}
+
 export default function RootLayout() {
   useImmersiveMode();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Render the hit sounds up front so the first tap isn't silent
-    void audioService.prepareEffects();
+    let cancelled = false;
+    initializeApp()
+      .catch((err) => console.warn('App initialization failed:', err))
+      .finally(() => {
+        if (!cancelled) setIsReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const hideNativeSplash = useCallback(() => {
+    SplashScreen.hideAsync().catch(() => {});
   }, []);
 
   return (
@@ -40,6 +68,7 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: '#030712' },
+          animation: 'fade_from_bottom',
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -48,11 +77,15 @@ export default function RootLayout() {
           options={{
             headerShown: false,
             presentation: 'fullScreenModal',
-            animation: 'slide_from_bottom',
+            animation: 'fade',
+            animationDuration: 250,
             gestureEnabled: false,
           }}
         />
       </Stack>
+
+      {/* Animated startup screen; fades out once initialization finishes */}
+      {!isReady && <AppSplash onReady={hideNativeSplash} />}
     </>
   );
 }

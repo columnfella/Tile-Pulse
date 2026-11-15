@@ -1,6 +1,23 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+
+/** Live hold progress, computed on the UI thread from the song clock. */
+export interface LiveHoldProgress {
+  songTime: SharedValue<number>;
+  start: number; // seconds
+  duration: number; // seconds
+}
+
+function LiveFill({ live, color }: { live: LiveHoldProgress; color: string }) {
+  const { songTime, start, duration } = live;
+  const style = useAnimatedStyle(() => {
+    const p = duration > 0 ? (songTime.value - start) / duration : 1;
+    return { height: `${Math.min(1, Math.max(0, p)) * 100}%` };
+  });
+  return <Animated.View style={[styles.activeFillBar, { backgroundColor: color, opacity: 0.9 }, style]} />;
+}
 
 interface HoldTileViewProps {
   y: number;
@@ -11,6 +28,8 @@ interface HoldTileViewProps {
   isHit?: boolean;
   isMissed?: boolean;
   theme?: ThemeConfig;
+  /** When holding, animate the fill on the UI thread instead of via re-renders. */
+  live?: LiveHoldProgress;
 }
 
 /**
@@ -27,6 +46,7 @@ export const HoldTileView: React.FC<HoldTileViewProps> = ({
   isHit = false,
   isMissed = false,
   theme = ACTIVE_THEME,
+  live,
 }) => {
   const { holdTile, geometry } = theme;
 
@@ -78,16 +98,20 @@ export const HoldTileView: React.FC<HoldTileViewProps> = ({
       ]}
     >
       {/* Dynamic Active Hold Filling Bar (fills upward from bottom head cap as player holds) */}
-      <View
-        style={[
-          styles.activeFillBar,
-          {
-            height: `${fillPercentage}%`,
-            backgroundColor: holdTile.activeFillColor,
-            opacity: isHolding ? 0.9 : 0.45,
-          },
-        ]}
-      />
+      {isHolding && live ? (
+        <LiveFill live={live} color={holdTile.activeFillColor} />
+      ) : (
+        <View
+          style={[
+            styles.activeFillBar,
+            {
+              height: `${fillPercentage}%`,
+              backgroundColor: holdTile.activeFillColor,
+              opacity: isHolding ? 0.9 : 0.45,
+            },
+          ]}
+        />
+      )}
 
       {/* Trailing Tail Cap (at the top) */}
       <View
@@ -109,7 +133,7 @@ export const HoldTileView: React.FC<HoldTileViewProps> = ({
         ]}
       >
         <Text style={styles.headText}>HOLD</Text>
-        {isHolding && (
+        {isHolding && !live && (
           <Text style={styles.progressText}>
             {Math.round(clampedProgress * 100)}%
           </Text>

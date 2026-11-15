@@ -23,4 +23,6 @@ export interface Song {
   createdAt: number;
   durationSeconds?: number;
   artist?: string;
+  /** Original file on the device it was imported from (used to spot duplicates). */
+  sourceUri?: string;
 }

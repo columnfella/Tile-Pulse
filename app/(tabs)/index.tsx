@@ -1,23 +1,40 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Pressable,
   ScrollView,
   TextInput,
   KeyboardAvoidingView,
   Alert,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenView } from '../../src/components/ui/ScreenView';
+import Animated, { FadeInDown, FadeOut } from 'react-native-reanimated';
+import { PressableScale } from '../../src/components/ui/PressableScale';
+import {
+  backdropIn,
+  backdropOut,
+  cardIn,
+  cardOut,
+  listItemIn,
+  listItemOut,
+  listLayout,
+} from '../../src/components/ui/motion';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Song } from '../../types/song';
 import { storageService } from '../../services/storage';
-import { pickAudioDocument, type PickedAudioResult } from '../../services/documentPicker';
+import {
+  pickAudioDocument,
+  supportsDeviceAudioLibrary,
+  supportsFolderScan,
+  type DeviceAudioFile,
+  type PickedAudioResult,
+} from '../../services/documentPicker';
+import { AudioLibrarySheet } from '../../src/components/ui/AudioLibrarySheet';
 import { ACTIVE_THEME } from '../../constants/theme';
 import {
-  Upload,
+  HardDrive,
   Play,
   Edit3,
   Trash2,
@@ -29,10 +46,15 @@ import {
   Check,
 } from 'lucide-react-native';
 
+const supportsStorageScan = supportsDeviceAudioLibrary || supportsFolderScan;
+
 export default function HomeScreen() {
   const router = useRouter();
   const [songs, setSongs] = useState<Song[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [banner, setBanner] = useState<string | null>(null);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedFile, setSelectedFile] = useState<PickedAudioResult | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string>('');
   const [songTitle, setSongTitle] = useState('');
@@ -73,18 +95,78 @@ export default function HomeScreen() {
     }
   };
 
-  const handlePickDocument = async () => {
+  const applyPickedFile = (picked: PickedAudioResult) => {
+    setSelectedFile(picked);
+    const name = picked.name || 'Custom Song';
+    setSelectedFileName(name);
+    setSongTitle(name.replace(/\.[^/.]+$/, ''));
+    setErrorMsg('');
+  };
+
+  const resetUploadForm = () => {
+    setSelectedFile(null);
+    setSelectedFileName('');
+    setSongTitle('');
+    setBpmInput('120');
+    setTimeSignature('4/4');
+    setErrorMsg('');
+  };
+
+  /** System picker for a single file (fallback, and the only option on web). */
+  const handleBrowseFiles = async () => {
+    setIsLibraryOpen(false);
     try {
       const result = await pickAudioDocument();
       if (!result.canceled && result.uri) {
-        setSelectedFile(result);
-        const name = result.name || 'Custom Song';
-        setSelectedFileName(name);
-        setSongTitle(name.replace(/\.[^/.]+$/, ''));
-        setErrorMsg('');
+        applyPickedFile(result);
+        setIsUploadModalOpen(true);
       }
     } catch {
       setErrorMsg('Failed to pick document.');
+    }
+  };
+
+  /** Opens the storage scanner (permission prompt first) on phones. */
+  const handlePickDocument = () => {
+    if (supportsStorageScan) {
+      setIsLibraryOpen(true);
+    } else {
+      void handleBrowseFiles();
+    }
+  };
+
+  /** Header "From Storage" button: scan storage, then fill in the song details. */
+  const handleGetFromStorage = () => {
+    resetUploadForm();
+    handlePickDocument();
+  };
+
+
+  // Device files already imported, so the scanner can mark them "Added"
+  const importedUris = useMemo(
+    () => new Set(songs.map((s) => s.sourceUri).filter((u): u is string => !!u)),
+    [songs]
+  );
+
+  const showBanner = (message: string) => {
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    setBanner(message);
+    bannerTimerRef.current = setTimeout(() => setBanner(null), 3500);
+  };
+
+  const handleImportFile = async (file: DeviceAudioFile) => {
+    await storageService.importDeviceSong(file);
+  };
+
+  const handleImported = (added: number, failed: number) => {
+    setIsLibraryOpen(false);
+    loadSongs().catch((err) => console.warn('Failed to reload songs:', err));
+    if (added > 0) {
+      showBanner(
+        `Added ${added} song${added === 1 ? '' : 's'}${failed ? ` · ${failed} failed` : ''} — set BPM & notes in the Editor`
+      );
+    } else if (failed > 0) {
+      showBanner(`Couldn't add ${failed} song${failed === 1 ? '' : 's'}`);
     }
   };
 
@@ -135,11 +217,12 @@ export default function HomeScreen() {
       // Navigate to Editor for the new song
       router.push({
         pathname: '/(tabs)/editor',
-        params: { songId: newSong.id },
+        params: { songId: newSong.id, t: String(Date.now()) },
       });
     } catch (err) {
       console.error('Failed to save song:', err);
-      setErrorMsg('Error saving song to storage.');
+      const reason = err instanceof Error ? err.message : String(err);
+      setErrorMsg(`Couldn't save this song: ${reason}`);
     } finally {
       setIsSaving(false);
     }
@@ -173,14 +256,14 @@ export default function HomeScreen() {
   const handleEditSong = (song: Song) => {
     router.push({
       pathname: '/(tabs)/editor',
-      params: { songId: song.id },
+      params: { songId: song.id, t: String(Date.now()) },
     });
   };
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
+    <ScreenView style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: ACTIVE_THEME.ui.cardBorder }]}>
+      <Animated.View entering={FadeInDown.duration(350)} style={[styles.header, { borderBottomColor: ACTIVE_THEME.ui.cardBorder }]}>
         <View>
           <View style={styles.titleRow}>
             <Text style={styles.appName}>TilePulse</Text>
@@ -189,23 +272,23 @@ export default function HomeScreen() {
           <Text style={styles.appSub}>4-Lane Rhythm Studio</Text>
         </View>
 
-        <Pressable
+        <PressableScale
           style={styles.uploadButton}
-          onPress={() => {
-            setSelectedFile(null);
-            setSelectedFileName('');
-            setSongTitle('');
-            setBpmInput('120');
-            setTimeSignature('4/4');
-            setErrorMsg('');
-            setIsUploadModalOpen(true);
-          }}
-          accessibilityLabel="Upload Song"
+          onPress={handleGetFromStorage}
+          accessibilityLabel="Get song from storage"
         >
-          <Upload size={14} color="#ffffff" strokeWidth={2.5} />
-          <Text style={styles.uploadButtonText}>Upload Song</Text>
-        </Pressable>
-      </View>
+          <HardDrive size={14} color="#ffffff" strokeWidth={2.5} />
+          <Text style={styles.uploadButtonText}>From Storage</Text>
+        </PressableScale>
+      </Animated.View>
+
+      {/* Import result banner */}
+      {banner && (
+        <Animated.View entering={FadeInDown.duration(250)} exiting={FadeOut.duration(250)} style={styles.banner}>
+          <Check size={13} color="#4ade80" />
+          <Text style={styles.bannerText}>{banner}</Text>
+        </Animated.View>
+      )}
 
       {/* Song List */}
       <ScrollView contentContainerStyle={styles.scrollList}>
@@ -214,13 +297,16 @@ export default function HomeScreen() {
           <Text style={styles.sectionHeaderSub}>Ready to play</Text>
         </View>
 
-        {songs.map((song) => {
+        {songs.map((song, index) => {
           const isStarter = song.id === 'starter_fur_elise';
           const holdCount = song.tiles.filter((t) => t.durationBeats > 0).length;
 
           return (
-            <View
+            <Animated.View
               key={song.id}
+              entering={listItemIn(index)}
+              exiting={listItemOut}
+              layout={listLayout}
               style={[
                 styles.songCard,
                 {
@@ -244,13 +330,13 @@ export default function HomeScreen() {
                   {song.artist && <Text style={styles.artistText}>{song.artist}</Text>}
                 </View>
 
-                <Pressable
+                <PressableScale
                   onPress={() => handleDeleteSong(song.id, song.title)}
                   style={styles.deleteIconButton}
                   accessibilityLabel={`Delete ${song.title}`}
                 >
                   <Trash2 size={15} color="#64748b" />
-                </Pressable>
+                </PressableScale>
               </View>
 
               {/* Metadata Pills */}
@@ -276,36 +362,39 @@ export default function HomeScreen() {
 
               {/* Action Buttons */}
               <View style={styles.cardActionsRow}>
-                <Pressable
+                <PressableScale
                   style={styles.playButton}
                   onPress={() => handlePlaySong(song)}
                   accessibilityLabel={`Play ${song.title}`}
                 >
                   <Play size={14} color="#ffffff" fill="#ffffff" />
                   <Text style={styles.playButtonText}>Play</Text>
-                </Pressable>
+                </PressableScale>
 
-                <Pressable
+                <PressableScale
                   style={styles.editButton}
                   onPress={() => handleEditSong(song)}
                   accessibilityLabel={`Edit ${song.title}`}
                 >
                   <Edit3 size={13} color="#cbd5e1" />
                   <Text style={styles.editButtonText}>Edit</Text>
-                </Pressable>
+                </PressableScale>
               </View>
-            </View>
+            </Animated.View>
           );
         })}
       </ScrollView>
 
       {/* Upload Form Overlay (in-screen instead of <Modal>, which re-shows the Android system bars) */}
       {isUploadModalOpen && (
+        <Animated.View entering={backdropIn} exiting={backdropOut} style={styles.modalBackdrop}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalBackdrop}
+          style={styles.modalCenter}
         >
-          <View
+          <Animated.View
+            entering={cardIn}
+            exiting={cardOut}
             style={[
               styles.modalCard,
               {
@@ -319,23 +408,23 @@ export default function HomeScreen() {
                 <FileAudio size={18} color="#38bdf8" />
                 <Text style={styles.modalTitle}>Upload Audio Track</Text>
               </View>
-              <Pressable
+              <PressableScale
                 onPress={() => setIsUploadModalOpen(false)}
                 accessibilityLabel="Close modal"
               >
                 <X size={18} color="#94a3b8" />
-              </Pressable>
+              </PressableScale>
             </View>
 
             {/* Document Picker Trigger */}
             <View style={styles.formField}>
               <Text style={styles.fieldLabel}>Audio File (.mp3, .wav, .m4a)</Text>
-              <Pressable style={styles.filePickerBox} onPress={handlePickDocument}>
+              <PressableScale style={styles.filePickerBox} onPress={handlePickDocument}>
                 <Text style={styles.filePickerText} numberOfLines={1}>
-                  {selectedFileName || 'Tap to browse audio file...'}
+                  {selectedFileName || 'Tap to choose from storage...'}
                 </Text>
                 <Text style={styles.browseButtonText}>Browse</Text>
-              </Pressable>
+              </PressableScale>
             </View>
 
             {/* Title Input */}
@@ -354,14 +443,15 @@ export default function HomeScreen() {
             <View style={styles.formField}>
               <View style={styles.labelWithActionRow}>
                 <Text style={styles.fieldLabel}>BPM (Beats Per Minute)</Text>
-                <Pressable style={styles.tapTempoButton} onPress={handleTapTempo}>
+                <PressableScale style={styles.tapTempoButton} onPress={handleTapTempo}>
                   <Text style={styles.tapTempoText}>Tap Tempo</Text>
-                </Pressable>
+                </PressableScale>
               </View>
               <TextInput
                 style={[styles.textInput, styles.fontMono]}
                 value={bpmInput}
-                onChangeText={setBpmInput}
+                onChangeText={(text) => setBpmInput(text.replace(/[^0-9]/g, "").slice(0, 3))}
+                maxLength={3}
                 keyboardType="numeric"
               />
             </View>
@@ -371,7 +461,7 @@ export default function HomeScreen() {
               <Text style={styles.fieldLabel}>Time Signature</Text>
               <View style={styles.timeSigGrid}>
                 {(['4/4', '3/4', '6/8'] as const).map((sig) => (
-                  <Pressable
+                  <PressableScale
                     key={sig}
                     onPress={() => setTimeSignature(sig)}
                     style={[
@@ -387,7 +477,7 @@ export default function HomeScreen() {
                     >
                       {sig}
                     </Text>
-                  </Pressable>
+                  </PressableScale>
                 ))}
               </View>
             </View>
@@ -396,14 +486,14 @@ export default function HomeScreen() {
 
             {/* Submit & Cancel */}
             <View style={styles.modalActionsRow}>
-              <Pressable
+              <PressableScale
                 style={styles.cancelButton}
                 onPress={() => setIsUploadModalOpen(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
+              </PressableScale>
 
-              <Pressable
+              <PressableScale
                 style={[styles.createButton, isSaving && { opacity: 0.6 }]}
                 onPress={handleSaveUpload}
                 disabled={isSaving}
@@ -412,12 +502,24 @@ export default function HomeScreen() {
                 <Text style={styles.createButtonText}>
                   {isSaving ? 'Saving...' : 'Create Song'}
                 </Text>
-              </Pressable>
+              </PressableScale>
             </View>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
+        </Animated.View>
       )}
-    </SafeAreaView>
+
+      {/* Phone audio library (Android) — shown above the upload form */}
+      {isLibraryOpen && (
+        <AudioLibrarySheet
+          importedUris={importedUris}
+          onImportFile={handleImportFile}
+          onImported={handleImported}
+          onBrowseFiles={handleBrowseFiles}
+          onClose={() => setIsLibraryOpen(false)}
+        />
+      )}
+    </ScreenView>
   );
 }
 
@@ -593,6 +695,31 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
     fontSize: 12,
     fontWeight: '600',
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#052e16',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
+  bannerText: {
+    flex: 1,
+    color: '#4ade80',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  modalCenter: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFill,
