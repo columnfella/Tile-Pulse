@@ -24,6 +24,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Song } from '../../types/song';
 import { storageService } from '../../services/storage';
+import { PRESET_IDS } from '../../src/game/presets';
 import {
   pickAudioDocument,
   supportsDeviceAudioLibrary,
@@ -32,19 +33,12 @@ import {
   type PickedAudioResult,
 } from '../../services/documentPicker';
 import { AudioLibrarySheet } from '../../src/components/ui/AudioLibrarySheet';
+import { PixelIcon } from '../../src/components/ui/PixelIcon';
+import { SongSettingsSheet, ThemeSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
+import { AnimatedBackground } from '../../src/components/backgrounds/AnimatedBackground';
+import { setDefaultBackground, useDefaultBackground } from '../../src/services/settings';
 import { ACTIVE_THEME } from '../../constants/theme';
-import {
-  HardDrive,
-  Play,
-  Edit3,
-  Trash2,
-  Clock,
-  Layers,
-  Sparkles,
-  X,
-  FileAudio,
-  Check,
-} from 'lucide-react-native';
+import { FONTS } from '../../src/theme/pixel';
 
 const supportsStorageScan = supportsDeviceAudioLibrary || supportsFolderScan;
 
@@ -54,6 +48,9 @@ export default function HomeScreen() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
+  const [settingsSongId, setSettingsSongId] = useState<string | null>(null);
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const defaultBackground = useDefaultBackground();
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedFile, setSelectedFile] = useState<PickedAudioResult | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string>('');
@@ -69,10 +66,18 @@ export default function HomeScreen() {
     setSongs(list);
   }, []);
 
-  // Reload on focus so note counts reflect beatmaps saved in the Editor tab
+  // Reload on focus so note counts reflect beatmaps saved in the Editor tab.
+  // On leaving the tab, close any open sheet so coming back shows the normal
+  // song list (tabs stay mounted, so state would otherwise persist).
   useFocusEffect(
     useCallback(() => {
       loadSongs().catch((err) => console.warn('Failed to load songs:', err));
+      return () => {
+        setIsLibraryOpen(false);
+        setIsUploadModalOpen(false);
+        setSettingsSongId(null);
+        setIsThemeOpen(false);
+      };
     }, [loadSongs])
   );
 
@@ -156,6 +161,21 @@ export default function HomeScreen() {
 
   const handleImportFile = async (file: DeviceAudioFile) => {
     await storageService.importDeviceSong(file);
+  };
+
+  const settingsSong = settingsSongId ? songs.find((s) => s.id === settingsSongId) : undefined;
+
+  /** Saves a rename and/or background change from the song settings sheet. */
+  const handleSaveSongSettings = async (changes: { title: string; background: string }) => {
+    if (!settingsSong) return;
+    await storageService.saveSong({
+      ...settingsSong,
+      title: changes.title,
+      background: changes.background === 'default' ? undefined : changes.background,
+    });
+    setSettingsSongId(null);
+    await loadSongs();
+    showBanner(`Saved “${changes.title}”`);
   };
 
   const handleImported = (added: number, failed: number) => {
@@ -262,30 +282,51 @@ export default function HomeScreen() {
 
   return (
     <ScreenView style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
+      {/* Theme background (faint, behind the song list) */}
+      <AnimatedBackground id={defaultBackground} opacity={0.28} />
+
       {/* Header */}
       <Animated.View entering={FadeInDown.duration(350)} style={[styles.header, { borderBottomColor: ACTIVE_THEME.ui.cardBorder }]}>
-        <View>
-          <View style={styles.titleRow}>
-            <Text style={styles.appName}>TilePulse</Text>
-            <Sparkles size={16} color="#38bdf8" />
+        {/* Logo: pixel mark + two-tone wordmark */}
+        <View style={styles.titleRow}>
+          <View style={styles.logoMark}>
+            <View style={[styles.logoPixel, { backgroundColor: '#2f6bff' }]} />
+            <View style={[styles.logoPixel, { backgroundColor: '#FF6B4A' }]} />
+            <View style={[styles.logoPixel, { backgroundColor: '#1a3d99' }]} />
+            <View style={[styles.logoPixel, { backgroundColor: '#2f6bff' }]} />
           </View>
-          <Text style={styles.appSub}>4-Lane Rhythm Studio</Text>
+          <View>
+            <Text style={styles.appName}>
+              TILE<Text style={styles.appNameAccent}>PULSE</Text>
+            </Text>
+            <Text style={styles.appSub}>4-lane rhythm studio</Text>
+          </View>
         </View>
 
-        <PressableScale
-          style={styles.uploadButton}
-          onPress={handleGetFromStorage}
-          accessibilityLabel="Get song from storage"
-        >
-          <HardDrive size={14} color="#ffffff" strokeWidth={2.5} />
-          <Text style={styles.uploadButtonText}>From Storage</Text>
+          <View style={styles.headerButtons}>
+          <PressableScale
+            scaleTo={0.88}
+            style={styles.themeButton}
+            onPress={() => setIsThemeOpen(true)}
+            accessibilityLabel="Choose app theme"
+          >
+            <PixelIcon name="palette" size={18} color="#cdd6ea" />
+          </PressableScale>
+          <PressableScale
+            style={styles.uploadButton}
+            onPress={handleGetFromStorage}
+            accessibilityLabel="Get song from storage"
+          >
+            <PixelIcon name="storage" size={14} color="#ffffff" />
+            <Text style={styles.uploadButtonText}>From Storage</Text>
         </PressableScale>
+        </View>
       </Animated.View>
 
       {/* Import result banner */}
       {banner && (
         <Animated.View entering={FadeInDown.duration(250)} exiting={FadeOut.duration(250)} style={styles.banner}>
-          <Check size={13} color="#4ade80" />
+          <PixelIcon name="check" size={14} color="#4d8dff" />
           <Text style={styles.bannerText}>{banner}</Text>
         </Animated.View>
       )}
@@ -298,7 +339,7 @@ export default function HomeScreen() {
         </View>
 
         {songs.map((song, index) => {
-          const isStarter = song.id === 'starter_fur_elise';
+          const isStarter = PRESET_IDS.has(song.id);
           const holdCount = song.tiles.filter((t) => t.durationBeats > 0).length;
 
           return (
@@ -330,19 +371,28 @@ export default function HomeScreen() {
                   {song.artist && <Text style={styles.artistText}>{song.artist}</Text>}
                 </View>
 
-                <PressableScale
-                  onPress={() => handleDeleteSong(song.id, song.title)}
-                  style={styles.deleteIconButton}
-                  accessibilityLabel={`Delete ${song.title}`}
-                >
-                  <Trash2 size={15} color="#64748b" />
-                </PressableScale>
+                <View style={styles.cardIconButtons}>
+                  <PressableScale
+                    onPress={() => setSettingsSongId(song.id)}
+                    style={styles.deleteIconButton}
+                    accessibilityLabel={`Rename or customize ${song.title}`}
+                  >
+                    <PixelIcon name="pencil" size={14} color="#6b7a99" />
+                  </PressableScale>
+                  <PressableScale
+                    onPress={() => handleDeleteSong(song.id, song.title)}
+                    style={styles.deleteIconButton}
+                    accessibilityLabel={`Delete ${song.title}`}
+                  >
+                    <PixelIcon name="trash" size={14} color="#6b7a99" />
+                  </PressableScale>
+                </View>
               </View>
 
               {/* Metadata Pills */}
               <View style={styles.pillsRow}>
                 <View style={styles.pillBadge}>
-                  <Clock size={11} color="#38bdf8" />
+                  <PixelIcon name="clock" size={14} color="#4d8dff" />
                   <Text style={styles.pillText}>{song.bpm} BPM</Text>
                 </View>
 
@@ -353,7 +403,7 @@ export default function HomeScreen() {
                 </View>
 
                 <View style={styles.pillBadge}>
-                  <Layers size={11} color="#34d399" />
+                  <PixelIcon name="note" size={14} color="#4d8dff" />
                   <Text style={styles.pillText}>
                     {song.tiles.length} notes {holdCount > 0 ? `(${holdCount} hold)` : ''}
                   </Text>
@@ -367,7 +417,7 @@ export default function HomeScreen() {
                   onPress={() => handlePlaySong(song)}
                   accessibilityLabel={`Play ${song.title}`}
                 >
-                  <Play size={14} color="#ffffff" fill="#ffffff" />
+                  <PixelIcon name="play" size={14} color="#ffffff" />
                   <Text style={styles.playButtonText}>Play</Text>
                 </PressableScale>
 
@@ -376,7 +426,7 @@ export default function HomeScreen() {
                   onPress={() => handleEditSong(song)}
                   accessibilityLabel={`Edit ${song.title}`}
                 >
-                  <Edit3 size={13} color="#cbd5e1" />
+                  <PixelIcon name="pencil" size={14} color="#cdd6ea" />
                   <Text style={styles.editButtonText}>Edit</Text>
                 </PressableScale>
               </View>
@@ -405,14 +455,14 @@ export default function HomeScreen() {
           >
             <View style={styles.modalHeaderRow}>
               <View style={styles.modalHeaderLeft}>
-                <FileAudio size={18} color="#38bdf8" />
+                <PixelIcon name="note" size={21} color="#4d8dff" />
                 <Text style={styles.modalTitle}>Upload Audio Track</Text>
               </View>
               <PressableScale
                 onPress={() => setIsUploadModalOpen(false)}
                 accessibilityLabel="Close modal"
               >
-                <X size={18} color="#94a3b8" />
+                <PixelIcon name="close" size={14} color="#9aa7c2" />
               </PressableScale>
             </View>
 
@@ -435,7 +485,7 @@ export default function HomeScreen() {
                 value={songTitle}
                 onChangeText={setSongTitle}
                 placeholder="e.g. Moonlight Sonata"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#6b7a99"
               />
             </View>
 
@@ -498,7 +548,7 @@ export default function HomeScreen() {
                 onPress={handleSaveUpload}
                 disabled={isSaving}
               >
-                <Check size={14} color="#ffffff" />
+                <PixelIcon name="check" size={14} color="#ffffff" />
                 <Text style={styles.createButtonText}>
                   {isSaving ? 'Saving...' : 'Create Song'}
                 </Text>
@@ -510,6 +560,25 @@ export default function HomeScreen() {
       )}
 
       {/* Phone audio library (Android) — shown above the upload form */}
+      {/* Song settings: rename + background */}
+      {settingsSong && (
+        <SongSettingsSheet
+          song={settingsSong}
+          defaultBackground={defaultBackground}
+          onSave={handleSaveSongSettings}
+          onClose={() => setSettingsSongId(null)}
+        />
+      )}
+
+      {/* App theme */}
+      {isThemeOpen && (
+        <ThemeSettingsSheet
+          value={defaultBackground}
+          onChange={(bg) => void setDefaultBackground(bg)}
+          onClose={() => setIsThemeOpen(false)}
+        />
+      )}
+
       {isLibraryOpen && (
         <AudioLibrarySheet
           importedUris={importedUris}
@@ -528,10 +597,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderBottomWidth: 2,
+    backgroundColor: '#05070d',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -539,32 +609,49 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
+  },
+  logoMark: {
+    width: 24,
+    height: 24,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 2,
+  },
+  logoPixel: {
+    width: 11,
+    height: 11,
   },
   appName: {
-    fontSize: 20,
-    fontWeight: '900',
+    fontFamily: FONTS.pixel,
+    fontSize: 13,
+    lineHeight: 18,
     color: '#ffffff',
-    letterSpacing: -0.5,
+    includeFontPadding: false,
+  },
+  appNameAccent: {
+    color: '#FF6B4A',
   },
   appSub: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 2,
+    fontFamily: FONTS.body,
+    fontSize: 15,
+    lineHeight: 16,
+    color: '#6b7a99',
+    includeFontPadding: false,
   },
   uploadButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#0284c7',
+    backgroundColor: '#FF6B4A',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 0,
   },
   uploadButtonText: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   scrollList: {
     padding: 16,
@@ -577,20 +664,20 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sectionHeaderTitle: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#94a3b8',
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    color: '#9aa7c2',
     letterSpacing: 1,
   },
   sectionHeaderSub: {
-    fontSize: 11,
-    color: '#38bdf8',
-    fontWeight: '600',
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    color: '#4d8dff',
   },
   songCard: {
     padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
+    borderRadius: 0,
+    borderWidth: 2,
   },
   cardTopRow: {
     flexDirection: 'row',
@@ -608,28 +695,46 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   songCardTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 20,
     color: '#ffffff',
     maxWidth: 200,
   },
   sampleBadge: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    borderColor: 'rgba(56, 189, 248, 0.4)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(77, 141, 255, 0.2)',
+    borderColor: 'rgba(77, 141, 255, 0.4)',
+    borderWidth: 2,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 0,
   },
   sampleBadgeText: {
-    color: '#7dd3fc',
-    fontSize: 9,
-    fontWeight: 'bold',
+    color: '#8fb8ff',
+    fontFamily: FONTS.body,
+    fontSize: 13,
   },
   artistText: {
-    fontSize: 11,
-    color: '#94a3b8',
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    color: '#9aa7c2',
     marginTop: 2,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  themeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 0,
+    backgroundColor: '#15203a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardIconButtons: {
+    flexDirection: 'row',
+    gap: 4,
   },
   deleteIconButton: {
     padding: 4,
@@ -644,25 +749,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.6)',
+    backgroundColor: 'rgba(21, 32, 58, 0.8)',
+    borderWidth: 2,
+    borderColor: 'rgba(31, 46, 82, 0.6)',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 0,
   },
   pillText: {
-    color: '#cbd5e1',
-    fontSize: 11,
-    fontFamily: 'monospace',
+    color: '#cdd6ea',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   cardActionsRow: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 14,
     paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(51, 65, 85, 0.6)',
+    borderTopWidth: 2,
+    borderTopColor: 'rgba(31, 46, 82, 0.6)',
   },
   playButton: {
     flex: 1,
@@ -670,31 +775,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#0284c7',
+    backgroundColor: '#FF6B4A',
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 0,
   },
   playButtonText: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#334155',
+    backgroundColor: '#15203a',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 0,
   },
   editButtonText: {
-    color: '#e2e8f0',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#e6ecf7',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   banner: {
     flexDirection: 'row',
@@ -704,16 +809,16 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: '#052e16',
-    borderWidth: 1,
-    borderColor: '#22c55e',
+    borderRadius: 0,
+    backgroundColor: '#0b1a33',
+    borderWidth: 2,
+    borderColor: '#4d8dff',
   },
   bannerText: {
     flex: 1,
-    color: '#4ade80',
-    fontSize: 11,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   modalCenter: {
     flex: 1,
@@ -733,16 +838,16 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 360,
-    borderRadius: 24,
-    borderWidth: 1,
+    borderRadius: 0,
+    borderWidth: 2,
     padding: 20,
   },
   modalHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomWidth: 2,
+    borderBottomColor: '#15203a',
     paddingBottom: 12,
     marginBottom: 16,
   },
@@ -752,17 +857,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modalTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontFamily: FONTS.pixel,
+    fontSize: 11,
     color: '#ffffff',
   },
   formField: {
     marginBottom: 14,
   },
   fieldLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#cbd5e1',
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    color: '#cdd6ea',
     marginBottom: 6,
   },
   labelWithActionRow: {
@@ -775,48 +880,50 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
     borderStyle: 'dashed',
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: 'rgba(11, 18, 32, 0.6)',
   },
   filePickerText: {
-    color: '#94a3b8',
-    fontSize: 12,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 17,
     maxWidth: 200,
   },
   browseButtonText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   textInput: {
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 12,
+    backgroundColor: '#0b1220',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: '#ffffff',
-    fontSize: 13,
+    fontFamily: FONTS.body,
+    fontSize: 19,
   },
   fontMono: {
     fontFamily: 'monospace',
   },
   tapTempoButton: {
-    backgroundColor: '#082f49',
-    borderColor: '#0369a1',
-    borderWidth: 1,
-    borderRadius: 6,
+    backgroundColor: '#3a1a12',
+    borderColor: '#d9502f',
+    borderWidth: 2,
+    borderRadius: 0,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   tapTempoText: {
-    color: '#7dd3fc',
-    fontSize: 10,
-    fontWeight: 'bold',
+    color: '#8fb8ff',
+    fontFamily: FONTS.body,
+    fontSize: 15,
   },
   timeSigGrid: {
     flexDirection: 'row',
@@ -824,34 +931,34 @@ const styles = StyleSheet.create({
   },
   timeSigBtn: {
     flex: 1,
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 12,
+    backgroundColor: '#0b1220',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
+    borderRadius: 0,
     paddingVertical: 8,
     alignItems: 'center',
   },
   timeSigBtnActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    borderColor: '#38bdf8',
+    backgroundColor: 'rgba(77, 141, 255, 0.15)',
+    borderColor: '#4d8dff',
   },
   timeSigText: {
-    color: '#94a3b8',
-    fontFamily: 'monospace',
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   timeSigTextActive: {
-    color: '#38bdf8',
+    color: '#4d8dff',
   },
   errorText: {
-    color: '#f87171',
-    fontSize: 11,
-    backgroundColor: 'rgba(127, 29, 29, 0.3)',
-    borderColor: 'rgba(153, 27, 27, 0.5)',
-    borderWidth: 1,
+    color: '#FF6B4A',
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    backgroundColor: 'rgba(92, 36, 20, 0.3)',
+    borderColor: 'rgba(140, 50, 30, 0.5)',
+    borderWidth: 2,
     padding: 8,
-    borderRadius: 10,
+    borderRadius: 0,
     marginBottom: 12,
   },
   modalActionsRow: {
@@ -861,20 +968,20 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: '#15203a',
+    borderRadius: 0,
     paddingVertical: 10,
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: '#94a3b8',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   createButton: {
     flex: 1,
-    backgroundColor: '#0284c7',
-    borderRadius: 12,
+    backgroundColor: '#FF6B4A',
+    borderRadius: 0,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -883,7 +990,7 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
 });

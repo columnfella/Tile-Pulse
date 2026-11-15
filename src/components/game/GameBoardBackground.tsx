@@ -9,16 +9,17 @@ import {
   type GestureResponderEvent,
 } from 'react-native';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
+import { FONTS } from '../../theme/pixel';
 
 interface GameBoardBackgroundProps {
   hitLineY: number;
-  activeLanes: boolean[]; // [lane0, lane1, lane2, lane3]
-  laneFlashes?: boolean[];
   onLanePressStart?: (lane: 0 | 1 | 2 | 3) => void;
   onLanePressEnd?: (lane: 0 | 1 | 2 | 3) => void;
   theme?: ThemeConfig;
   showKeyLabels?: boolean;
   children?: React.ReactNode;
+  /** Animated layer drawn behind the lanes (e.g. the song's background). */
+  backdrop?: React.ReactNode;
 }
 
 export const LANE_KEYS = ['D', 'F', 'J', 'K'] as const;
@@ -37,19 +38,22 @@ const USE_MULTI_TOUCH = Platform.OS !== 'web';
  */
 export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   hitLineY,
-  activeLanes,
-  laneFlashes = [false, false, false, false],
   onLanePressStart,
   onLanePressEnd,
   theme = ACTIVE_THEME,
   showKeyLabels = true,
   children,
+  backdrop,
 }) => {
-  const { board, feedback } = theme;
+  const { board } = theme;
 
   const boardRef = useRef<React.ComponentRef<typeof View>>(null);
   const boardFrame = useRef({ x: 0, width: 1 });
   const touchLanes = useRef(new Map<string, Lane>());
+
+  // Hit feedback is a background flash (see useHitFlash), not a lane highlight
+  const pressLane = (lane: Lane) => onLanePressStart?.(lane);
+  const releaseLane = (lane: Lane) => onLanePressEnd?.(lane);
 
   const handleLayout = () => {
     boardRef.current?.measureInWindow((x, _y, width) => {
@@ -69,7 +73,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
       if (touchLanes.current.has(id)) continue;
       const lane = laneForX(t.pageX);
       touchLanes.current.set(id, lane);
-      onLanePressStart?.(lane);
+      pressLane(lane);
     }
   };
 
@@ -82,8 +86,8 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
       if (lane !== prev) {
         // Finger slid into another lane: release the old one, press the new one
         touchLanes.current.set(id, lane);
-        if (![...touchLanes.current.values()].includes(prev)) onLanePressEnd?.(prev);
-        onLanePressStart?.(lane);
+        if (![...touchLanes.current.values()].includes(prev)) releaseLane(prev);
+        pressLane(lane);
       }
     }
   };
@@ -95,7 +99,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
       if (lane === undefined) continue;
       touchLanes.current.delete(id);
       // Only release if no other finger is still on this lane
-      if (![...touchLanes.current.values()].includes(lane)) onLanePressEnd?.(lane);
+      if (![...touchLanes.current.values()].includes(lane)) releaseLane(lane);
     }
   };
 
@@ -124,11 +128,12 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
         />
       )}
 
+      {backdrop}
+
       {/* 4 Lanes Container */}
       <View style={styles.lanesRow}>
         {([0, 1, 2, 3] as const).map((laneIndex) => {
-          const isPressed = activeLanes[laneIndex];
-          const isFlashing = laneFlashes[laneIndex];
+          const isPressed = false; // key labels are static (web only)
 
           return (
             <Pressable
@@ -138,16 +143,11 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                 {
                   borderRightWidth: laneIndex < 3 ? board.laneDividersWidth : 0,
                   borderRightColor: board.laneDividersColor,
-                  backgroundColor: isFlashing
-                    ? feedback.laneHitFlashColor
-                    : isPressed
-                    ? feedback.lanePressColor
-                    : 'transparent',
                 },
               ]}
               disabled={USE_MULTI_TOUCH}
-              onPressIn={USE_MULTI_TOUCH ? undefined : () => onLanePressStart?.(laneIndex)}
-              onPressOut={USE_MULTI_TOUCH ? undefined : () => onLanePressEnd?.(laneIndex)}
+              onPressIn={USE_MULTI_TOUCH ? undefined : () => pressLane(laneIndex)}
+              onPressOut={USE_MULTI_TOUCH ? undefined : () => releaseLane(laneIndex)}
             >
               {/* Lane Key Badge / Prompt at Hit Line */}
               {showKeyLabels && (
@@ -165,8 +165,8 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                     style={[
                       styles.keyLabelBadge,
                       {
-                        borderColor: isPressed ? '#38bdf8' : 'rgba(255, 255, 255, 0.2)',
-                        backgroundColor: isPressed ? 'rgba(56, 189, 248, 0.35)' : 'rgba(0, 0, 0, 0.5)',
+                        borderColor: isPressed ? '#4d8dff' : 'rgba(255, 255, 255, 0.2)',
+                        backgroundColor: isPressed ? 'rgba(77, 141, 255, 0.35)' : 'rgba(0, 0, 0, 0.5)',
                       },
                     ]}
                   >
@@ -174,7 +174,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                       style={[
                         styles.keyLabelText,
                         {
-                          color: isPressed ? '#38bdf8' : board.laneKeyLabelsColor,
+                          color: isPressed ? '#4d8dff' : board.laneKeyLabelsColor,
                         },
                       ]}
                     >
@@ -184,16 +184,6 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                 </View>
               )}
 
-              {/* Lane Hit Area Indicator Glow at bottom */}
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.laneBottomGlow,
-                  {
-                    backgroundColor: isPressed ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
-                  },
-                ]}
-              />
             </Pressable>
           );
         })}
@@ -285,14 +275,14 @@ const styles = StyleSheet.create({
   keyLabelBadge: {
     width: 28,
     height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 0,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   keyLabelText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   laneBottomGlow: {
     height: 80,
@@ -309,15 +299,15 @@ const styles = StyleSheet.create({
   hitPipLeft: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: '#7dd3fc',
+    borderRadius: 0,
+    backgroundColor: '#8fb8ff',
     marginLeft: -4,
   },
   hitPipRight: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: '#7dd3fc',
+    borderRadius: 0,
+    backgroundColor: '#8fb8ff',
     marginRight: -4,
   },
   hitZoneBand: {
@@ -325,9 +315,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 48,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderTopColor: 'rgba(56, 189, 248, 0.3)',
-    borderBottomColor: 'rgba(56, 189, 248, 0.3)',
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderTopColor: 'rgba(77, 141, 255, 0.3)',
+    borderBottomColor: 'rgba(77, 141, 255, 0.3)',
   },
 });

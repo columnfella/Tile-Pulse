@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Song } from '../types/song';
 import { STARTER_SONG } from '../game/starterSong';
+import { PRESET_SONGS } from '../game/presets';
 import type { PickedAudioResult } from './documentPicker';
 import {
   saveImportedAudio,
@@ -9,6 +10,7 @@ import {
 } from './audioFileStore';
 
 const SONGS_STORAGE_KEY = 'tilepulse_songs_v1';
+const SEEDED_PRESETS_KEY = 'tilepulse_seeded_presets_v1';
 
 /**
  * Persists song metadata/beatmaps in AsyncStorage (works on iOS, Android and
@@ -28,12 +30,32 @@ class StorageService {
       this.initPromise = (async () => {
         try {
           const raw = await AsyncStorage.getItem(SONGS_STORAGE_KEY);
-          if (raw === null) {
-            await this.writeSongs([STARTER_SONG]);
+          const songs: Song[] = raw ? JSON.parse(raw) : [];
+
+          // Which presets were already offered to this player. Older installs
+          // predate this key and only ever received Für Elise.
+          const seededRaw = await AsyncStorage.getItem(SEEDED_PRESETS_KEY);
+          const seeded: string[] = seededRaw
+            ? JSON.parse(seededRaw)
+            : raw !== null
+              ? [STARTER_SONG.id]
+              : [];
+
+          // Add presets this player hasn't been given yet (a preset they
+          // deleted stays deleted, because it's already in `seeded`).
+          const missing = PRESET_SONGS.map((p) => p.song).filter(
+            (p) => !seeded.includes(p.id) && !songs.some((s) => s.id === p.id)
+          );
+          if (raw === null || missing.length > 0) {
+            await this.writeSongs([...songs, ...missing]);
           }
+          await AsyncStorage.setItem(
+            SEEDED_PRESETS_KEY,
+            JSON.stringify([...new Set([...seeded, ...PRESET_SONGS.map((p) => p.song.id)])])
+          );
         } catch (err) {
           console.warn('Storage initialization failed:', err);
-          this.cache = [STARTER_SONG];
+          this.cache = PRESET_SONGS.map((p) => p.song);
         }
       })();
     }
@@ -49,7 +71,7 @@ class StorageService {
       this.cache = Array.isArray(parsed) ? (parsed as Song[]) : [];
     } catch (err) {
       console.warn('Failed to read songs, falling back to starter song:', err);
-      this.cache = [STARTER_SONG];
+      this.cache = PRESET_SONGS.map((p) => p.song);
     }
     return [...this.cache];
   }

@@ -10,8 +10,9 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { Music } from 'lucide-react-native';
 import { countdownOut, popIn } from '../ui/motion';
+import { PixelIcon } from '../ui/PixelIcon';
+import { FONTS } from '../../theme/pixel';
 
 interface LoadingOverlayProps {
   title?: string;
@@ -56,7 +57,7 @@ export function LoadingOverlay({ title, subtitle }: LoadingOverlayProps) {
       <View style={styles.iconWrap}>
         <Animated.View style={[styles.ring, ringStyle]} />
         <Animated.View style={[styles.icon, iconStyle]}>
-          <Music size={30} color="#ffffff" />
+          <PixelIcon name="note" size={28} color="#ffffff" />
         </Animated.View>
       </View>
 
@@ -122,7 +123,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     zIndex: 200,
     elevation: 200,
-    backgroundColor: '#030712',
+    backgroundColor: '#05070d',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
@@ -138,39 +139,40 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 96,
     height: 96,
-    borderRadius: 30,
+    borderRadius: 0,
     borderWidth: 2,
-    borderColor: '#38bdf8',
+    borderColor: '#4d8dff',
   },
   icon: {
     width: 72,
     height: 72,
-    borderRadius: 24,
-    backgroundColor: '#0284c7',
+    borderRadius: 0,
+    backgroundColor: '#FF6B4A',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#38bdf8',
+    shadowColor: '#4d8dff',
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 0 },
     elevation: 12,
   },
   title: {
     color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: -0.5,
+    fontFamily: FONTS.pixel,
+    fontSize: 14,
+    letterSpacing: 0,
     maxWidth: '90%',
   },
   subtitle: {
-    color: '#94a3b8',
-    fontSize: 12,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 17,
     marginTop: 4,
   },
   track: {
     width: 160,
     height: 4,
-    borderRadius: 2,
-    backgroundColor: '#1e293b',
+    borderRadius: 0,
+    backgroundColor: '#15203a',
     overflow: 'hidden',
     marginTop: 28,
   },
@@ -179,13 +181,13 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: '40%',
-    borderRadius: 2,
-    backgroundColor: '#38bdf8',
+    borderRadius: 0,
+    backgroundColor: '#4d8dff',
   },
   loadingText: {
-    color: '#64748b',
-    fontSize: 11,
-    fontWeight: '600',
+    color: '#6b7a99',
+    fontFamily: FONTS.body,
+    fontSize: 16,
     letterSpacing: 1,
     marginTop: 10,
   },
@@ -198,14 +200,15 @@ const styles = StyleSheet.create({
   },
   countdownText: {
     color: '#ffffff',
-    fontSize: 96,
-    fontWeight: '900',
-    textShadowColor: '#38bdf8',
+    fontFamily: FONTS.pixel,
+    fontSize: 67,
+    textShadowColor: '#4d8dff',
     textShadowRadius: 30,
     textShadowOffset: { width: 0, height: 0 },
   },
   goText: {
-    color: '#38bdf8',
-    fontSize: 72,
+    color: '#4d8dff',
+    fontFamily: FONTS.pixel,
+    fontSize: 50,
   },
 });

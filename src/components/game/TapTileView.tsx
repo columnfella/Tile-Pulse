@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, StyleSheet, Image } from 'react-native';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
+import { PIXEL } from '../../theme/pixel';
 
 interface TapTileViewProps {
   y: number;
@@ -11,129 +12,64 @@ interface TapTileViewProps {
   theme?: ThemeConfig;
 }
 
+/** Colours for each tile state: base fill + bevel highlight/shadow. */
+export const TILE_STATES = {
+  normal: { base: '#2f6bff', light: '#7aa4ff', dark: '#163fa8' },
+  // Pressed like a button: darker, with the bevel flipped (pushed in)
+  pressed: { base: '#163a8f', light: '#0c2260', dark: '#3f6fd6' },
+  // Missed: turns red as it scrolls off the screen
+  missed: { base: '#d8342f', light: '#ff7a73', dark: '#7d1411' },
+} as const;
+
+const BEVEL = PIXEL.unit;
+
 /**
- * React Native Decoupled Tap Tile Component
- * Reads visual configuration exclusively from ACTIVE_THEME.
- * If imageSource is defined, renders Image; otherwise renders clean sample texture.
+ * Pixel-art tap tile drawn as a single View: the bevel is made with per-side
+ * border colours (light top/left, dark bottom/right). One view per tile keeps
+ * mounting cheap during gameplay.
  */
-export const TapTileView: React.FC<TapTileViewProps> = ({
+export const TapTileView = memo(function TapTileView({
   y,
   height,
-  lane,
   isHit = false,
   isMissed = false,
   theme = ACTIVE_THEME,
-}) => {
-  const { tapTile, geometry } = theme;
-
-  if (isHit) {
-    return null;
-  }
-
-  // Custom sprite hook
-  if (tapTile.imageSource) {
+}: TapTileViewProps) {
+  if (theme.tapTile.imageSource) {
     return (
-      <View
-        pointerEvents="none"
-        style={[
-          styles.container,
-          {
-            top: y,
-            height: height,
-            borderRadius: geometry.tileBorderRadius,
-            opacity: isMissed ? 0.35 : 1,
-          },
-        ]}
-      >
-        <Image
-          source={tapTile.imageSource}
-          style={[styles.sprite, { borderRadius: geometry.tileBorderRadius }]}
-          resizeMode="cover"
-        />
+      <View pointerEvents="none" style={[styles.tile, { top: y, height, opacity: isMissed ? 0.5 : 1 }]}>
+        <Image source={theme.tapTile.imageSource} style={styles.sprite} resizeMode="stretch" />
       </View>
     );
   }
 
-  // Sample Texture: Clean geometric modern dark tile with neon accent edge & glossy shine
+  const c = isMissed ? TILE_STATES.missed : isHit ? TILE_STATES.pressed : TILE_STATES.normal;
+
   return (
     <View
       pointerEvents="none"
       style={[
-        styles.container,
+        styles.tile,
         {
           top: y,
-          height: height,
-          borderRadius: geometry.tileBorderRadius,
-          backgroundColor: tapTile.solidColor,
-          borderColor: isMissed ? '#64748b' : tapTile.borderColor,
-          borderWidth: geometry.borderWidth,
-          opacity: isMissed ? 0.35 : 1,
+          height,
+          backgroundColor: c.base,
+          borderTopColor: c.light,
+          borderLeftColor: c.light,
+          borderBottomColor: c.dark,
+          borderRightColor: c.dark,
         },
       ]}
-    >
-      {/* Top Gloss Highlight Bar */}
-      <View style={styles.topGloss} />
-
-      {/* Center Subtle Geometric Watermark */}
-      <View style={styles.watermarkContainer}>
-        <View style={[styles.watermarkDiamond, { borderColor: tapTile.borderColor }]} />
-      </View>
-
-      {/* Bottom Leading Edge Indicator (The Hit Anchor) */}
-      <View
-        style={[
-          styles.hitAnchor,
-          {
-            backgroundColor: isMissed ? '#94a3b8' : tapTile.accentBarColor,
-          },
-        ]}
-      />
-    </View>
+    />
   );
-};
+});
 
 const styles = StyleSheet.create({
-  container: {
+  tile: {
     position: 'absolute',
-    left: 4,
-    right: 4,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 6,
-    elevation: 4,
+    left: 3,
+    right: 3,
+    borderWidth: BEVEL,
   },
-  sprite: {
-    width: '100%',
-    height: '100%',
-  },
-  topGloss: {
-    width: '100%',
-    height: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  watermarkContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 0.25,
-  },
-  watermarkDiamond: {
-    width: 24,
-    height: 24,
-    borderWidth: 1,
-    transform: [{ rotate: '45deg' }],
-  },
-  hitAnchor: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 6,
-  },
+  sprite: { width: '100%', height: '100%' },
 });

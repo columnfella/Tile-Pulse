@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import {
   View,
   FlatList,
@@ -9,6 +9,8 @@ import {
   ScrollView,
   type GestureResponderEvent,
   type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import Animated, {
   FadeIn,
@@ -18,6 +20,8 @@ import Animated, {
   useSharedValue,
 } from 'react-native-reanimated';
 import { ScreenView } from '../../src/components/ui/ScreenView';
+import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Song, TileNote } from '../../types/song';
 import { storageService } from '../../services/storage';
@@ -26,24 +30,10 @@ import { ACTIVE_THEME } from '../../constants/theme';
 import { snapToGrid, getMeasureInfo } from '../../src/game/engine';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { listItemIn } from '../../src/components/ui/motion';
-import {
-  Play,
-  Pause,
-  ChevronLeft,
-  ChevronRight,
-  Music2,
-  Undo2,
-  Redo2,
-  Trash2,
-  RotateCcw,
-  Plus,
-  Minus,
-  Check,
-} from 'lucide-react-native';
+import { LANE_COLORS, LANE_LIGHT } from '../../src/theme/pixel';
+import { FONTS } from '../../src/theme/pixel';
 
 const PIXELS_PER_BEAT = 96; // 1/4 snap cells are 24px, 1/2 cells 48px
-const TOTAL_BEATS = 48;
-const GRID_HEIGHT = TOTAL_BEATS * PIXELS_PER_BEAT;
 const TILE_GAP = 2; // px inset so neighbouring notes never visually touch
 const DEFAULT_HOLD_BEATS = 1;
 const MIN_BPM = 40;
@@ -51,47 +41,74 @@ const MAX_BPM = 300;
 /** Clamps any number to a playable tempo (handles 0, negatives, NaN, huge values). */
 const clampBpm = (value: number) =>
   Number.isFinite(value) ? Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(value))) : 120;
-const BEAT_INDICES = Array.from({ length: TOTAL_BEATS + 1 }, (_, i) => i);
+
+/** Extra beats after the song ends, so the last notes have room. */
+const TAIL_BEATS = 4;
+/** Grid length used until the audio's real duration is known. */
+const FALLBACK_BEATS = 64;
+/** The visible window loads in chunks of this many beats as you scroll. */
+const CHUNK_BEATS = 8;
+/** Space above / below the grid so the top and bottom beat labels are fully visible. */
+const GRID_PAD_TOP = 28;
+const GRID_PAD_BOTTOM = 36;
+
+/** Number of beats in the grid: the song's length (plus a little tail). */
+function gridBeatsFor(durationSeconds: number | null, bpm: number, tiles: TileNote[]): number {
+  const songBeats = durationSeconds ? Math.ceil((durationSeconds * bpm) / 60) : FALLBACK_BEATS;
+  const lastNote = tiles.reduce((m, t) => Math.max(m, t.beat + Math.max(t.durationBeats, 1)), 0);
+  return Math.max(16, songBeats, Math.ceil(lastNote)) + TAIL_BEATS;
+}
 
 type Lane = 0 | 1 | 2 | 3;
 type NoteType = 'tap' | 'hold';
 
-
 /* ------------------------------------------------------------------------ *
  * Performance notes
- * The grid used to be ~800 individual Pressables re-rendered on every tap and
- * on every animation frame during preview. Now:
- *  - the static ruler / guide lines are memoized and only depend on the time
- *    signature,
- *  - a single touch layer maps a tap's position to (lane, beat),
- *  - tiles are memoized so only the changed tile re-renders,
- *  - the preview playhead moves via a Reanimated shared value (no React
- *    re-render per frame).
+ *  - The grid is as long as the song, but only the part near the screen is
+ *    rendered: ruler labels, grid lines and notes are windowed by scroll
+ *    position and load in chunks of CHUNK_BEATS as you scroll.
+ *  - A single touch layer maps a tap's position to (lane, beat).
+ *  - Tiles are memoized so only the changed tile re-renders.
+ *  - The preview playhead moves via a Reanimated shared value.
  * ------------------------------------------------------------------------ */
 
 /** Beat → y of the *bottom* edge of that beat's cell (beat 0 is at the bottom). */
-const beatToY = (beat: number) => GRID_HEIGHT - beat * PIXELS_PER_BEAT;
+const beatToY = (beat: number, gridHeight: number) => gridHeight - beat * PIXELS_PER_BEAT;
 
 /** A note's footprint on the grid: [start, end) in beats. */
 const noteEnd = (t: TileNote, cell: number) => t.beat + (t.durationBeats > 0 ? t.durationBeats : cell);
 
+/** Visible window of the grid, in beats. */
+interface BeatRange {
+  from: number;
+  to: number;
+}
+
+const beatsInRange = (range: BeatRange, totalBeats: number) => {
+  const out: number[] = [];
+  for (let b = Math.max(0, range.from); b <= Math.min(totalBeats, range.to); b++) out.push(b);
+  return out;
+};
+
 interface RulerProps {
   beatsPerMeasure: number;
+  totalBeats: number;
+  range: BeatRange;
   /** Tap the ruler to move the Test start point. */
   onPressBeat: (e: GestureResponderEvent) => void;
 }
 
-const Ruler = memo(function Ruler({ beatsPerMeasure, onPressBeat }: RulerProps) {
+const Ruler = memo(function Ruler({ beatsPerMeasure, totalBeats, range, onPressBeat }: RulerProps) {
+  const gridHeight = totalBeats * PIXELS_PER_BEAT;
   return (
-    <Pressable onPress={onPressBeat} style={[styles.rulerColumn, { height: GRID_HEIGHT }]}>
-      {BEAT_INDICES.map((beatIdx) => {
-        const beat = TOTAL_BEATS - beatIdx;
+    <Pressable onPress={onPressBeat} style={[styles.rulerColumn, { height: gridHeight }]}>
+      {beatsInRange(range, totalBeats).map((beat) => {
         const { measure, isBarline } = getMeasureInfo(beat, beatsPerMeasure);
         return (
           <View
             key={beat}
             pointerEvents="none"
-            style={[styles.rulerMark, { top: beatIdx * PIXELS_PER_BEAT - 14 }]}
+            style={[styles.rulerMark, { top: beatToY(beat, gridHeight) - 14 }]}
           >
             {isBarline ? (
               <Text style={styles.barlineText}>M{measure}</Text>
@@ -108,32 +125,36 @@ const Ruler = memo(function Ruler({ beatsPerMeasure, onPressBeat }: RulerProps) 
 interface GridGuidesProps {
   beatsPerMeasure: number;
   subdivision: number;
+  totalBeats: number;
+  range: BeatRange;
 }
 
-/** Strict grid: beat/bar lines plus faint lines for the current snap size. */
-const GridGuides = memo(function GridGuides({ beatsPerMeasure, subdivision }: GridGuidesProps) {
+/** Strict grid: beat/bar lines plus faint lines for the current snap size (visible window only). */
+const GridGuides = memo(function GridGuides({ beatsPerMeasure, subdivision, totalBeats, range }: GridGuidesProps) {
+  const gridHeight = totalBeats * PIXELS_PER_BEAT;
   const cellsPerBeat = Math.round(1 / subdivision);
+  const beats = beatsInRange(range, totalBeats);
   const cellLines: number[] = [];
   if (cellsPerBeat > 1) {
-    for (let i = 0; i < TOTAL_BEATS * cellsPerBeat; i++) {
-      if (i % cellsPerBeat !== 0) cellLines.push(i * subdivision);
+    for (const b of beats) {
+      if (b >= totalBeats) continue;
+      for (let i = 1; i < cellsPerBeat; i++) cellLines.push(b + i * subdivision);
     }
   }
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {cellLines.map((beat) => (
-        <View key={`c${beat}`} style={[styles.gridLine, styles.cellGridLine, { top: beatToY(beat) }]} />
+        <View key={`c${beat}`} style={[styles.gridLine, styles.cellGridLine, { top: beatToY(beat, gridHeight) }]} />
       ))}
-      {BEAT_INDICES.map((beatIdx) => {
-        const beat = TOTAL_BEATS - beatIdx;
+      {beats.map((beat) => {
         const { isBarline } = getMeasureInfo(beat, beatsPerMeasure);
         return (
           <View
             key={beat}
             style={[
               styles.gridLine,
-              { top: beatIdx * PIXELS_PER_BEAT },
+              { top: beatToY(beat, gridHeight) },
               isBarline ? styles.barlineGridLine : styles.beatGridLine,
             ]}
           />
@@ -152,14 +173,15 @@ interface EditorTileProps {
   tile: TileNote;
   /** Height of one grid cell in beats (the current snap size). */
   cell: number;
+  gridHeight: number;
   isSelected: boolean;
   onSelect: (id: string) => void;
 }
 
 /** A note drawn exactly inside its grid cells, with a small gap so notes never touch. */
-const EditorTile = memo(function EditorTile({ tile, cell, isSelected, onSelect }: EditorTileProps) {
+const EditorTile = memo(function EditorTile({ tile, cell, gridHeight, isSelected, onSelect }: EditorTileProps) {
   const isHold = tile.durationBeats > 0;
-  const top = beatToY(noteEnd(tile, cell)) + TILE_GAP;
+  const top = beatToY(noteEnd(tile, cell), gridHeight) + TILE_GAP;
   const height = (noteEnd(tile, cell) - tile.beat) * PIXELS_PER_BEAT - TILE_GAP * 2;
   const showLabel = height >= 30;
 
@@ -173,12 +195,16 @@ const EditorTile = memo(function EditorTile({ tile, cell, isSelected, onSelect }
           height,
           left: `${tile.lane * 25}%`,
           right: `${(3 - tile.lane) * 25}%`,
-          backgroundColor: isHold ? 'rgba(3, 105, 161, 0.75)' : '#0284c7',
-          borderColor: isSelected ? '#ffffff' : '#38bdf8',
-          borderWidth: isSelected ? 2 : 1,
+          backgroundColor: isHold ? '#05070d' : LANE_COLORS[tile.lane],
+          borderColor: isSelected ? '#ffffff' : '#000000',
+          borderWidth: isSelected ? 3 : 2,
         },
       ]}
     >
+      {/* Hold notes: black → blue gradient, like in the game */}
+      {isHold && <LinearGradient colors={['#000000', '#123a9e', '#2f6bff']} style={StyleSheet.absoluteFill} />}
+      {/* Pixel bevel highlight */}
+      <View pointerEvents="none" style={[styles.tileBevel, { backgroundColor: LANE_LIGHT[tile.lane] }]} />
       {showLabel && (
         <View style={styles.gridTileHeader}>
           <Text style={styles.gridTileLabel}>{isHold ? 'HOLD' : 'TAP'}</Text>
@@ -228,7 +254,7 @@ function SongPicker({ songs, loaded, onPick }: SongPickerProps) {
                   accessibilityLabel={`Edit ${item.title}`}
                 >
                   <View style={styles.pickerIcon}>
-                    <Music2 size={18} color="#38bdf8" />
+                    <PixelIcon name="note" size={21} color="#4d8dff" />
                   </View>
                   <View style={styles.pickerInfo}>
                     <Text style={styles.pickerSongTitle} numberOfLines={1}>
@@ -239,7 +265,7 @@ function SongPicker({ songs, loaded, onPick }: SongPickerProps) {
                       {holds > 0 ? ` (${holds} hold)` : ''}
                     </Text>
                   </View>
-                  <ChevronRight size={18} color="#475569" />
+                  <PixelIcon name="chevronRight" size={21} color="#3a4a70" />
                 </PressableScale>
               </Animated.View>
             );
@@ -293,12 +319,26 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lanesWidthRef = useRef(1);
   const isFirstRenderRef = useRef(true);
+  // Song length (seconds). Measured from the audio when the song doesn't store it.
+  const [durationSec, setDurationSec] = useState<number | null>(
+    song.durationSeconds && song.durationSeconds > 0 ? song.durationSeconds : null
+  );
+  // Grid length follows the song: you can't place notes past its end
+  const totalBeats = useMemo(() => gridBeatsFor(durationSec, bpm, tiles), [durationSec, bpm, tiles]);
+  const gridHeight = totalBeats * PIXELS_PER_BEAT;
+  const gridHeightRef = useRef(gridHeight);
+  gridHeightRef.current = gridHeight;
+
+  // Visible window (in beats), updated in chunks as you scroll
+  const [range, setRange] = useState<BeatRange>({ from: 0, to: CHUNK_BEATS * 3 });
+  const viewportHeightRef = useRef(600);
+
   // Latest values for saving from timers / unmount
   const latestRef = useRef({ tiles, bpm });
   latestRef.current = { tiles, bpm };
 
   // Playhead position driven on the UI thread
-  const playheadY = useSharedValue(GRID_HEIGHT);
+  const playheadY = useSharedValue(gridHeight);
   const playheadStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: playheadY.value }],
   }));
@@ -351,6 +391,53 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     const t = setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 50);
     return () => clearTimeout(t);
   }, []);
+
+  // Learn the song's real length from its audio when it isn't stored yet,
+  // and remember it so the grid is the right size next time.
+  useEffect(() => {
+    if (durationSec) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const uri = await storageService.getAudioUriForSong(songRef.current);
+        await audioService.loadTrack(songRef.current.id, uri, songRef.current.bpm, songRef.current.durationSeconds);
+        const measured = audioService.getDuration();
+        if (cancelled || !measured || measured <= 0) return;
+        setDurationSec(measured);
+        const updated = { ...songRef.current, durationSeconds: measured };
+        await storageService.saveSong({ ...updated, bpm: latestRef.current.bpm, tiles: latestRef.current.tiles });
+        onSaved({ ...updated, bpm: latestRef.current.bpm, tiles: latestRef.current.tiles });
+      } catch (err) {
+        console.warn('Could not measure song length:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Recomputes which beats are near the screen; state only changes per chunk. */
+  const updateRange = useCallback(
+    (scrollY: number) => {
+      const viewH = viewportHeightRef.current;
+      const topBeat = (gridHeightRef.current - (scrollY - GRID_PAD_TOP)) / PIXELS_PER_BEAT;
+      const bottomBeat = (gridHeightRef.current - (scrollY - GRID_PAD_TOP) - viewH) / PIXELS_PER_BEAT;
+      const from = Math.max(0, Math.floor((bottomBeat - CHUNK_BEATS) / CHUNK_BEATS) * CHUNK_BEATS);
+      const to = Math.ceil((topBeat + CHUNK_BEATS) / CHUNK_BEATS) * CHUNK_BEATS;
+      setRange((prev) => (prev.from === from && prev.to === to ? prev : { from, to }));
+    },
+    []
+  );
+
+  const handleGridScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollYRef.current = e.nativeEvent.contentOffset.y;
+    updateRange(e.nativeEvent.contentOffset.y);
+  };
+
+  const handleViewportLayout = (e: LayoutChangeEvent) => {
+    viewportHeightRef.current = e.nativeEvent.layout.height || 600;
+  };
 
   // On leaving: stop audio and flush any pending save
   useEffect(() => {
@@ -418,9 +505,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const updatePreviewPlayhead = useCallback(() => {
     if (audioService.getIsPlaying()) {
       const cur = audioService.getCurrentTime();
-      const y = GRID_HEIGHT - cur * (latestRef.current.bpm / 60) * PIXELS_PER_BEAT;
+      const y = gridHeightRef.current - cur * (latestRef.current.bpm / 60) * PIXELS_PER_BEAT;
       playheadY.value = y;
-      scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 200), animated: false });
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, y + GRID_PAD_TOP - 200), animated: false });
       animFrameRef.current = requestAnimationFrame(updatePreviewPlayhead);
     } else {
       setIsPlayingPreview(false);
@@ -454,6 +541,16 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   };
 
   const handlePlayBeatmap = async () => {
+    // A song with no notes would start a game that never ends
+    if (tiles.length === 0) {
+      showToast('Add some notes before playing');
+      return;
+    }
+    // Stop the Test preview so it doesn't keep playing under the game
+    audioService.stop();
+    setIsPlayingPreview(false);
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
     await saveNow(); // the game reads the beatmap from storage
     router.push(`/play/${song.id}`);
   };
@@ -470,7 +567,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const nextNoteStart = (lane: Lane, beat: number, ignoreId?: string) =>
     tiles
       .filter((t) => t.lane === lane && t.id !== ignoreId && t.beat > beat)
-      .reduce((min, t) => Math.min(min, t.beat), TOTAL_BEATS);
+      .reduce((min, t) => Math.min(min, t.beat), totalBeats);
 
   const handleGridSlotPress = (lane: Lane, beat: number) => {
     const cell = activeSubdivision;
@@ -509,8 +606,8 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     const { locationX, locationY } = e.nativeEvent;
     const lane = Math.max(0, Math.min(3, Math.floor((locationX / lanesWidthRef.current) * 4))) as Lane;
     const slotHeight = PIXELS_PER_BEAT * activeSubdivision;
-    const slotIndex = Math.floor((GRID_HEIGHT - locationY) / slotHeight);
-    const beat = Math.max(0, Math.min(TOTAL_BEATS - activeSubdivision, slotIndex * activeSubdivision));
+    const slotIndex = Math.floor((gridHeight - locationY) / slotHeight);
+    const beat = Math.max(0, Math.min(totalBeats - activeSubdivision, slotIndex * activeSubdivision));
     handleGridSlotPress(lane, snapToGrid(beat, activeSubdivision));
   };
 
@@ -594,15 +691,40 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const handleRulerPress = useCallback(
     (e: GestureResponderEvent) => {
       const cellPx = PIXELS_PER_BEAT * activeSubdivision;
-      const index = Math.floor((GRID_HEIGHT - e.nativeEvent.locationY) / cellPx);
-      const beat = Math.max(0, Math.min(TOTAL_BEATS - activeSubdivision, index * activeSubdivision));
+      const index = Math.floor((gridHeightRef.current - e.nativeEvent.locationY) / cellPx);
+      const beat = Math.max(0, Math.min(gridHeightRef.current / PIXELS_PER_BEAT - activeSubdivision, index * activeSubdivision));
       setPreviewStartBeat(beat);
-      if (!isPlayingPreview) playheadY.value = beatToY(beat);
+      if (!isPlayingPreview) playheadY.value = beatToY(beat, gridHeightRef.current);
     },
     [activeSubdivision, isPlayingPreview, playheadY]
   );
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
+
+  // Only notes inside the visible window are mounted
+  const visibleTiles = useMemo(
+    () =>
+      tiles.filter(
+        (t) => noteEnd(t, activeSubdivision) >= range.from && t.beat <= range.to
+      ),
+    [tiles, range, activeSubdivision]
+  );
+
+  // When the grid's length changes (song length measured, BPM changed), keep
+  // the same beats on screen: the grid grows at the top, so shift the scroll.
+  const prevGridHeightRef = useRef(gridHeight);
+  const scrollYRef = useRef(0);
+  useEffect(() => {
+    const delta = gridHeight - prevGridHeightRef.current;
+    prevGridHeightRef.current = gridHeight;
+    if (delta === 0) return;
+    const y = Math.max(0, scrollYRef.current + delta);
+    scrollViewRef.current?.scrollTo({ y, animated: false });
+    scrollYRef.current = y;
+    updateRange(y);
+    if (!isPlayingPreview) playheadY.value = beatToY(previewStartBeat, gridHeight);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gridHeight]);
   const beatsPerMeasure = song.timeSignature?.beatsPerMeasure || 4;
 
   return (
@@ -615,14 +737,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
         {/* Row 1: back · Play (centered) · undo / redo */}
         <View style={styles.topBar}>
           <PressableScale scaleTo={0.9} style={styles.backBtn} onPress={handleBack} accessibilityLabel="Back to song list">
-            <ChevronLeft size={16} color="#cbd5e1" />
+            <PixelIcon name="chevronLeft" size={14} color="#cdd6ea" />
             <Text style={styles.backText}>Songs</Text>
           </PressableScale>
 
           <View style={styles.topBarCenter} pointerEvents="box-none">
             <PressableScale style={styles.playCenterBtn} onPress={handlePlayBeatmap} accessibilityLabel="Play Beatmap">
-              <Play size={13} color="#ffffff" fill="#ffffff" />
-              <Text style={styles.playCenterText}>Play</Text>
+              <PixelIcon name="play" size={14} color="#ffffff" />
+              <Text style={styles.playCenterText}>PLAY</Text>
             </PressableScale>
           </View>
 
@@ -634,7 +756,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               onPress={handleUndo}
               accessibilityLabel="Undo"
             >
-              <Undo2 size={16} color="#e2e8f0" />
+              <PixelIcon name="undo" size={14} color="#e6ecf7" />
             </PressableScale>
             <PressableScale
               scaleTo={0.85}
@@ -643,7 +765,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               onPress={handleRedo}
               accessibilityLabel="Redo"
             >
-              <Redo2 size={16} color="#e2e8f0" />
+              <PixelIcon name="redo" size={14} color="#e6ecf7" />
             </PressableScale>
           </View>
         </View>
@@ -656,7 +778,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             </Text>
             <View style={styles.bpmControl}>
               <PressableScale scaleTo={0.85} style={styles.bpmBtn} onPress={() => handleStepBpm(-1)} accessibilityLabel="Decrease BPM">
-                <Minus size={10} color="#cbd5e1" />
+                <PixelIcon name="minus" size={14} color="#cdd6ea" />
               </PressableScale>
               <TextInput
                 value={bpmDraft}
@@ -677,7 +799,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 accessibilityLabel="BPM"
               />
               <PressableScale scaleTo={0.85} style={styles.bpmBtn} onPress={() => handleStepBpm(1)} accessibilityLabel="Increase BPM">
-                <Plus size={10} color="#cbd5e1" />
+                <PixelIcon name="plus" size={14} color="#cdd6ea" />
               </PressableScale>
             </View>
           </View>
@@ -687,7 +809,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             onPress={handleTogglePreview}
             accessibilityLabel={isPlayingPreview ? 'Pause Audio Preview' : 'Play Audio Preview'}
           >
-            {isPlayingPreview ? <Pause size={13} color="#000000" /> : <Play size={13} color="#38bdf8" />}
+            {isPlayingPreview ? <PixelIcon name="pause" size={14} color="#000000" /> : <PixelIcon name="play" size={14} color="#4d8dff" />}
             <Text style={[styles.previewBtnText, isPlayingPreview && { color: '#000000' }]}>
               {isPlayingPreview ? 'Pause' : 'Test'}
             </Text>
@@ -752,15 +874,15 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             style={styles.startChip}
             onPress={() => {
               setPreviewStartBeat(0);
-              if (!isPlayingPreview) playheadY.value = GRID_HEIGHT;
+              if (!isPlayingPreview) playheadY.value = gridHeight;
             }}
             accessibilityLabel="Reset test start to the beginning"
           >
-            <Play size={9} color="#4ade80" fill="#4ade80" />
+            <PixelIcon name="play" size={7} color="#4d8dff" />
             <Text style={styles.startChipText}>
               Test from {previewStartBeat === 0 ? 'start' : `b${previewStartBeat}`}
             </Text>
-            {previewStartBeat !== 0 && <RotateCcw size={10} color="#4ade80" />}
+            {previewStartBeat !== 0 && <PixelIcon name="reset" size={14} color="#4d8dff" />}
           </PressableScale>
         </View>
       </Animated.View>
@@ -770,35 +892,43 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
         <ScrollView
           ref={scrollViewRef}
           style={styles.gridScroll}
-          contentContainerStyle={{ height: GRID_HEIGHT }}
+          contentContainerStyle={{
+            height: gridHeight + GRID_PAD_TOP + GRID_PAD_BOTTOM,
+            paddingTop: GRID_PAD_TOP,
+            paddingBottom: GRID_PAD_BOTTOM,
+          }}
+          onScroll={handleGridScroll}
+          scrollEventThrottle={32}
+          onLayout={handleViewportLayout}
         >
           <View style={styles.gridRow}>
             <View>
-              <Ruler beatsPerMeasure={beatsPerMeasure} onPressBeat={handleRulerPress} />
+              <Ruler beatsPerMeasure={beatsPerMeasure} totalBeats={totalBeats} range={range} onPressBeat={handleRulerPress} />
               {/* Test start flag on the ruler */}
-              <View pointerEvents="none" style={[styles.startFlag, { top: Math.min(beatToY(previewStartBeat) - 7, GRID_HEIGHT - 15) }]}>
-                <Play size={7} color="#052e16" fill="#052e16" />
+              <View pointerEvents="none" style={[styles.startFlag, { top: Math.min(beatToY(previewStartBeat, gridHeight) - 7, gridHeight - 15) }]}>
+                <PixelIcon name="play" size={7} color="#0b1a33" />
               </View>
             </View>
 
-            <View style={[styles.lanesArea, { height: GRID_HEIGHT }]} onLayout={handleLanesLayout}>
-              <GridGuides beatsPerMeasure={beatsPerMeasure} subdivision={activeSubdivision} />
+            <View style={[styles.lanesArea, { height: gridHeight }]} onLayout={handleLanesLayout}>
+              <GridGuides beatsPerMeasure={beatsPerMeasure} subdivision={activeSubdivision} totalBeats={totalBeats} range={range} />
 
               {/* One touch target for the whole grid instead of hundreds of slots */}
               <Pressable style={StyleSheet.absoluteFill} onPress={handleGridPress} />
 
-              {tiles.map((tile) => (
+              {visibleTiles.map((tile) => (
                 <EditorTile
                   key={tile.id}
                   tile={tile}
                   cell={activeSubdivision}
+                  gridHeight={gridHeight}
                   isSelected={selectedTileId === tile.id}
                   onSelect={handleSelectTile}
                 />
               ))}
 
               {/* Test start line */}
-              <View pointerEvents="none" style={[styles.startLine, { top: beatToY(previewStartBeat) - 1 }]} />
+              <View pointerEvents="none" style={[styles.startLine, { top: beatToY(previewStartBeat, gridHeight) - 1 }]} />
 
               {/* Moving Playhead Line */}
               {isPlayingPreview && (
@@ -826,14 +956,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
 
             <View style={styles.inspectorDurationControls}>
               <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={() => handleStepSelectedDuration(-1)}>
-                <Minus size={12} color="#ffffff" />
+                <PixelIcon name="minus" size={14} color="#ffffff" />
               </PressableScale>
               <Text style={styles.stepValueText}>{selectedTile.durationBeats}b</Text>
               <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={() => handleStepSelectedDuration(1)}>
-                <Plus size={12} color="#ffffff" />
+                <PixelIcon name="plus" size={14} color="#ffffff" />
               </PressableScale>
               <PressableScale style={styles.deleteTileBtn} scaleTo={0.85} onPress={handleDeleteSelected}>
-                <Trash2 size={13} color="#f87171" />
+                <PixelIcon name="trash" size={14} color="#FF6B4A" />
               </PressableScale>
             </View>
           </Animated.View>
@@ -842,7 +972,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
         {/* Toast */}
         {toast && (
           <Animated.View entering={FadeInUp.springify().damping(16)} exiting={FadeOutUp.duration(200)} style={styles.toastCard}>
-            <Check size={13} color="#4ade80" />
+            <PixelIcon name="check" size={14} color="#4d8dff" />
             <Text style={styles.toastText}>{toast}</Text>
           </Animated.View>
         )}
@@ -917,14 +1047,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    color: '#94a3b8',
-    fontSize: 14,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 20,
   },
   header: {
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 10,
-    borderBottomWidth: 1,
+    borderBottomWidth: 2,
   },
   topBar: {
     flexDirection: 'row',
@@ -947,29 +1078,35 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   backText: {
-    color: '#cbd5e1',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#cdd6ea',
+    fontFamily: FONTS.body,
+    fontSize: 19,
   },
   playCenterBtn: {
+    height: 36,
+    minWidth: 104,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#0284c7',
-    paddingHorizontal: 22,
-    paddingVertical: 9,
-    borderRadius: 20,
-    shadowColor: '#38bdf8',
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FF6B4A',
+    // Pixel bevel: light top/left, dark bottom/right
+    borderWidth: 3,
+    borderTopColor: '#ff9a82',
+    borderLeftColor: '#ff9a82',
+    borderBottomColor: '#a83a22',
+    borderRightColor: '#a83a22',
   },
   playCenterText: {
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontFamily: FONTS.pixel,
+    fontSize: 11,
+    lineHeight: 14,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    // Press Start 2P sits slightly high; nudge it to the optical centre
+    marginTop: 2,
   },
   historyGroup: {
     flexDirection: 'row',
@@ -979,8 +1116,8 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 34,
     height: 34,
-    borderRadius: 10,
-    backgroundColor: '#1e293b',
+    borderRadius: 0,
+    backgroundColor: '#15203a',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -988,15 +1125,16 @@ const styles = StyleSheet.create({
     opacity: 0.35,
   },
   saveStatusText: {
-    color: '#4ade80',
-    fontSize: 11,
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 16,
     marginLeft: 4,
   },
   saveStatusSaving: {
-    color: '#94a3b8',
+    color: '#9aa7c2',
   },
   saveStatusError: {
-    color: '#f87171',
+    color: '#FF6B4A',
     fontWeight: 'bold',
   },
   pickerHeader: {
@@ -1006,13 +1144,14 @@ const styles = StyleSheet.create({
   },
   pickerTitle: {
     color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: -0.5,
+    fontFamily: FONTS.pixel,
+    fontSize: 14,
+    letterSpacing: 0,
   },
   pickerSub: {
-    color: '#94a3b8',
-    fontSize: 12,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 17,
     marginTop: 2,
   },
   pickerList: {
@@ -1025,16 +1164,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    backgroundColor: '#0f172a',
+    borderRadius: 0,
+    borderWidth: 2,
+    borderColor: '#15203a',
+    backgroundColor: '#0b1220',
   },
   pickerIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderRadius: 0,
+    backgroundColor: 'rgba(77, 141, 255, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1043,12 +1182,13 @@ const styles = StyleSheet.create({
   },
   pickerSongTitle: {
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 20,
   },
   pickerMeta: {
-    color: '#94a3b8',
-    fontSize: 11,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 16,
     marginTop: 2,
   },
   headerControlsRow: {
@@ -1061,17 +1201,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 12,
+    backgroundColor: '#0b1220',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
+    borderRadius: 0,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   selectedSongTitle: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 17,
     flex: 1,
     marginRight: 6,
   },
@@ -1079,35 +1219,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 12,
+    backgroundColor: '#15203a',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   previewBtnActive: {
-    backgroundColor: '#f59e0b',
-    borderColor: '#f59e0b',
+    backgroundColor: '#FF6B4A',
+    borderColor: '#FF6B4A',
   },
   previewBtnText: {
-    color: '#38bdf8',
-    fontSize: 12,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#0284c7',
-    borderRadius: 12,
+    backgroundColor: '#FF6B4A',
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   saveBtnText: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   subdivisionsRow: {
     flexDirection: 'row',
@@ -1121,30 +1261,30 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   snapLabel: {
-    fontSize: 10,
-    color: '#64748b',
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 15,
+    color: '#6b7a99',
     marginRight: 4,
   },
   snapBadge: {
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    backgroundColor: '#0b1220',
+    borderWidth: 2,
+    borderColor: '#15203a',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 0,
   },
   snapBadgeActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    borderColor: '#38bdf8',
+    backgroundColor: 'rgba(77, 141, 255, 0.2)',
+    borderColor: '#4d8dff',
   },
   snapBadgeText: {
-    color: '#94a3b8',
-    fontSize: 11,
-    fontFamily: 'monospace',
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   snapBadgeTextActive: {
-    color: '#38bdf8',
+    color: '#4d8dff',
     fontWeight: 'bold',
   },
   noteTypeRow: {
@@ -1155,10 +1295,10 @@ const styles = StyleSheet.create({
   },
   segmented: {
     flexDirection: 'row',
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    borderRadius: 8,
+    backgroundColor: '#0b1220',
+    borderWidth: 2,
+    borderColor: '#15203a',
+    borderRadius: 0,
     padding: 2,
     gap: 2,
   },
@@ -1168,44 +1308,46 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 0,
   },
   segmentActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    backgroundColor: 'rgba(77, 141, 255, 0.2)',
   },
   segmentIcon: {
     width: 10,
     height: 6,
-    borderRadius: 2,
-    backgroundColor: '#475569',
+    borderRadius: 0,
+    backgroundColor: '#3a4a70',
   },
   segmentIconHold: {
     height: 12,
   },
   segmentIconActive: {
-    backgroundColor: '#38bdf8',
+    backgroundColor: '#4d8dff',
   },
   segmentText: {
-    color: '#94a3b8',
-    fontSize: 11,
-    fontWeight: '600',
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   segmentTextActive: {
-    color: '#38bdf8',
+    color: '#4d8dff',
     fontWeight: 'bold',
   },
   noteTypeHint: {
     flex: 1,
     textAlign: 'right',
-    color: '#64748b',
-    fontSize: 10,
+    color: '#6b7a99',
+    fontFamily: FONTS.body,
+    fontSize: 15,
   },
   notesCounterText: {
-    color: '#cbd5e1',
-    fontSize: 11,
-    fontFamily: 'monospace',
+    color: '#cdd6ea',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   gridContainer: {
+    overflow: 'hidden', // grid content never draws under the header or tab bar
     flex: 1,
   },
   inspectorBar: {
@@ -1215,9 +1357,9 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 40,
     elevation: 8,
-    backgroundColor: 'rgba(8, 47, 73, 0.94)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(3, 105, 161, 0.5)',
+    backgroundColor: 'rgba(58, 26, 18, 0.94)',
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(217, 80, 47, 0.5)',
     paddingHorizontal: 16,
     paddingVertical: 6,
     flexDirection: 'row',
@@ -1230,14 +1372,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   inspectorTitle: {
-    color: '#38bdf8',
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   inspectorSub: {
-    color: '#94a3b8',
-    fontSize: 11,
-    fontFamily: 'monospace',
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   inspectorDurationControls: {
     flexDirection: 'row',
@@ -1245,15 +1387,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   stepBtn: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#15203a',
     padding: 6,
-    borderRadius: 6,
+    borderRadius: 0,
   },
   stepValueText: {
     color: '#ffffff',
-    fontFamily: 'monospace',
-    fontWeight: 'bold',
-    fontSize: 11,
+    fontFamily: FONTS.body,
+    fontSize: 16,
     width: 28,
     textAlign: 'center',
   },
@@ -1266,32 +1407,32 @@ const styles = StyleSheet.create({
     top: 52,
     alignSelf: 'center',
     zIndex: 50,
-    backgroundColor: '#052e16',
-    borderWidth: 1,
-    borderColor: '#22c55e',
+    backgroundColor: '#0b1a33',
+    borderWidth: 2,
+    borderColor: '#4d8dff',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   toastText: {
-    color: '#4ade80',
-    fontSize: 11,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   gridScroll: {
     flex: 1,
-    backgroundColor: '#030712',
+    backgroundColor: '#05070d',
   },
   gridRow: {
     flexDirection: 'row',
   },
   rulerColumn: {
     width: 44,
-    borderRightWidth: 1,
-    borderRightColor: '#1e293b',
+    borderRightWidth: 2,
+    borderRightColor: '#15203a',
   },
   rulerMark: {
     position: 'absolute',
@@ -1300,15 +1441,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   barlineText: {
-    color: '#38bdf8',
-    fontSize: 10,
-    fontWeight: 'bold',
-    fontFamily: 'monospace',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 15,
   },
   beatNumText: {
-    color: '#475569',
-    fontSize: 9,
-    fontFamily: 'monospace',
+    color: '#3a4a70',
+    fontFamily: FONTS.body,
+    fontSize: 13,
   },
   lanesArea: {
     flex: 1,
@@ -1322,11 +1462,11 @@ const styles = StyleSheet.create({
   },
   barlineGridLine: {
     borderTopWidth: 2,
-    borderTopColor: 'rgba(56, 189, 248, 0.4)',
+    borderTopColor: 'rgba(77, 141, 255, 0.4)',
   },
   beatGridLine: {
-    borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopWidth: 2,
+    borderTopColor: '#15203a',
   },
   laneColumnsRow: {
     ...StyleSheet.absoluteFill,
@@ -1334,12 +1474,19 @@ const styles = StyleSheet.create({
   },
   editorLaneColumn: {
     flex: 1,
-    borderRightWidth: 1,
-    borderRightColor: '#1e293b',
+    borderRightWidth: 2,
+    borderRightColor: '#15203a',
+  },
+  tileBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
   },
   gridTile: {
     position: 'absolute',
-    borderRadius: 8,
+    borderRadius: 0,
     marginHorizontal: TILE_GAP,
     paddingHorizontal: 4,
     paddingVertical: 2,
@@ -1351,37 +1498,36 @@ const styles = StyleSheet.create({
   },
   gridTileLabel: {
     color: '#ffffff',
-    fontSize: 9,
-    fontWeight: '900',
+    fontFamily: FONTS.body,
+    fontSize: 13,
   },
   gridTileBeat: {
-    color: '#bae6fd',
-    fontSize: 8,
-    fontFamily: 'monospace',
+    color: '#c4d9ff',
+    fontFamily: FONTS.body,
+    fontSize: 12,
   },
   gridTileDuration: {
-    color: '#e0f2fe',
-    fontSize: 9,
-    fontFamily: 'monospace',
+    color: '#e3edff',
+    fontFamily: FONTS.body,
+    fontSize: 13,
     textAlign: 'center',
-    fontWeight: 'bold',
   },
   gridTileAnchor: {
     height: 3,
     backgroundColor: '#ffffff',
-    borderRadius: 2,
+    borderRadius: 0,
     opacity: 0.6,
   },
   cellGridLine: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(30, 41, 59, 0.45)',
+    borderTopWidth: 2,
+    borderTopColor: 'rgba(21, 32, 58, 0.45)',
   },
   startLine: {
     position: 'absolute',
     left: 0,
     right: 0,
     height: 2,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#4d8dff',
     opacity: 0.85,
   },
   startFlag: {
@@ -1389,8 +1535,8 @@ const styles = StyleSheet.create({
     left: 3, // labels are right-aligned, so the flag lives on the left
     width: 14,
     height: 14,
-    borderRadius: 7,
-    backgroundColor: '#22c55e',
+    borderRadius: 0,
+    backgroundColor: '#4d8dff',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1401,18 +1547,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.4)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(77, 141, 255, 0.12)',
+    borderWidth: 2,
+    borderColor: 'rgba(77, 141, 255, 0.4)',
+    borderRadius: 0,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   startChipText: {
-    color: '#4ade80',
-    fontSize: 10,
-    fontWeight: 'bold',
-    fontFamily: 'monospace',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 15,
   },
   bpmControl: {
     flexDirection: 'row',
@@ -1422,21 +1567,20 @@ const styles = StyleSheet.create({
   bpmBtn: {
     width: 20,
     height: 20,
-    borderRadius: 6,
-    backgroundColor: '#1e293b',
+    borderRadius: 0,
+    backgroundColor: '#15203a',
     alignItems: 'center',
     justifyContent: 'center',
   },
   bpmText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontWeight: 'bold',
-    fontFamily: 'monospace',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 16,
     minWidth: 34,
     paddingVertical: 2,
     paddingHorizontal: 2,
-    borderRadius: 5,
-    backgroundColor: '#020617',
+    borderRadius: 0,
+    backgroundColor: '#070b14',
     textAlign: 'center',
   },
   playheadLine: {
@@ -1445,19 +1589,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 2,
-    backgroundColor: '#f59e0b',
+    backgroundColor: '#FF6B4A',
   },
   footer: {
     padding: 12,
-    borderTopWidth: 1,
-    backgroundColor: '#0f172a',
+    borderTopWidth: 2,
+    backgroundColor: '#0b1220',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   footerTipText: {
-    color: '#94a3b8',
-    fontSize: 11,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 16,
     flex: 1,
     marginRight: 8,
   },
@@ -1465,14 +1610,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#0284c7',
+    backgroundColor: '#FF6B4A',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 0,
   },
   playBeatmapBtnText: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
 });

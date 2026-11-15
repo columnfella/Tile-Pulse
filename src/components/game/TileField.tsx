@@ -58,6 +58,8 @@ const MovingTile = memo(function MovingTile({
 
   const style = useAnimatedStyle(() => ({
     // Tile bottom reaches the hit line exactly when songTime === noteTime
+    // Visible only once positioned by the worklet (never flashes at y = 0)
+    opacity: 1,
     transform: [{ translateY: baseTop - (noteTime - songTime.value) * speed }],
   }));
 
@@ -111,10 +113,8 @@ export const TileField = memo(function TileField({
     <>
       {tiles.map((tile) => {
         const state = getTileState(tile.id) ?? DEFAULT_STATE;
-        // Hit tiles disappear; skip mounting them at all
-        if (state.status === 'hit' && (tile.durationBeats === 0 || state.holdProgress >= 1)) {
-          return null;
-        }
+        // Hit tiles stay on screen in a darker "pressed" state and scroll away;
+        // missed tiles turn red.
         const height =
           tile.durationBeats > 0 ? Math.max(tapHeight, tile.durationBeats * pixelsPerBeat) : tapHeight;
         return (
@@ -139,5 +139,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     width: '25%',
+    opacity: 0,
   },
 });

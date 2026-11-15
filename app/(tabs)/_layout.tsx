@@ -1,7 +1,8 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, Sliders } from 'lucide-react-native';
+import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { ACTIVE_THEME } from '../../constants/theme';
+import { FONTS } from '../../src/theme/pixel';
 
 export default function TabLayout() {
   const { ui } = ACTIVE_THEME;
@@ -17,8 +18,9 @@ export default function TabLayout() {
           // No fixed height/padding: React Navigation adds the bottom safe-area
           // inset itself (e.g. the iPhone home indicator).
         },
-        tabBarActiveTintColor: '#38bdf8',
-        tabBarInactiveTintColor: '#94a3b8',
+        tabBarActiveTintColor: '#FF6B4A',
+        tabBarLabelStyle: { fontFamily: FONTS.body, fontSize: 15 },
+        tabBarInactiveTintColor: '#9aa7c2',
       }}
     >
       <Tabs.Screen
@@ -26,7 +28,16 @@ export default function TabLayout() {
         options={{
           title: 'Songs',
           tabBarIcon: ({ color, size }) => (
-            <Home size={size || 20} color={String(color)} />
+            <PixelIcon name="home" size={size || 22} color={String(color)} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="discover"
+        options={{
+          title: 'Discover',
+          tabBarIcon: ({ color, size }) => (
+            <PixelIcon name="discover" size={size || 22} color={String(color)} />
           ),
         }}
       />
@@ -35,7 +46,7 @@ export default function TabLayout() {
         options={{
           title: 'Editor',
           tabBarIcon: ({ color, size }) => (
-            <Sliders size={size || 20} color={String(color)} />
+            <PixelIcon name="editor" size={size || 22} color={String(color)} />
           ),
         }}
       />

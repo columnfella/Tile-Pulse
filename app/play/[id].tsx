@@ -36,10 +36,14 @@ import { GameBoardBackground } from '../../src/components/game/GameBoardBackgrou
 import { HitJudgmentBadge } from '../../src/components/game/HitJudgmentBadge';
 import { ComboDisplay } from '../../src/components/game/ComboDisplay';
 import { TileField, type TimedTile } from '../../src/components/game/TileField';
+import { useHitFlash } from '../../src/components/game/HitEffects';
+import { AnimatedBackground, isBackgroundId } from '../../src/components/backgrounds/AnimatedBackground';
+import { useDefaultBackground } from '../../src/services/settings';
 import { Countdown, LoadingOverlay } from '../../src/components/game/StartSequence';
 import { PressableScale } from '../../src/components/ui/PressableScale';
+import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { backdropIn, backdropOut, cardIn, cardOut } from '../../src/components/ui/motion';
-import { Pause, Play, RotateCcw, Home, Sparkles } from 'lucide-react-native';
+import { FONTS } from '../../src/theme/pixel';
 
 export default function PlayScreen() {
   const router = useRouter();
@@ -61,17 +65,14 @@ export default function PlayScreen() {
   // window twice per second) or when a tile's status changes.
   const songTime = useSharedValue(0);
   // Clock anchor mirrored from the audio engine; the UI thread extrapolates it
-  const clockPos = useSharedValue(0);
-  const clockWallMs = useSharedValue(0);
-  const clockRunning = useSharedValue(false);
-  const clockDuration = useSharedValue(15);
+  // One object so the UI thread never sees a half-updated anchor (no 1-frame jumps)
+  const clockAnchor = useSharedValue({ pos: 0, wallMs: 0, running: false, duration: 15 });
   const [displaySecond, setDisplaySecond] = useState<number>(0);
   const [windowStep, setWindowStep] = useState<number>(0);
   const [tileVersion, setTileVersion] = useState<number>(0);
   const bumpTiles = useCallback(() => setTileVersion((v) => v + 1), []);
   const nextMissIndexRef = useRef(0);
 
-  const [activeLanes, setActiveLanes] = useState<boolean[]>([false, false, false, false]);
 
   const [currentJudgment, setCurrentJudgment] = useState<HitJudgment | null>(null);
   const [judgmentTimeDiff, setJudgmentTimeDiff] = useState<number | undefined>(undefined);
@@ -89,10 +90,15 @@ export default function PlayScreen() {
   });
 
   const tileStatesRef = useRef<Map<string, ActiveTileState>>(new Map());
+  // Background flash on every hit (UI thread)
+  const { flash: hitFlash, triggerFlash } = useHitFlash();
   const activeHoldByLaneRef = useRef<Map<number, string>>(new Map());
+  // Last beat seen for each held note (for the per-beat pulse while holding)
+  const holdBeatRef = useRef<Map<string, number>>(new Map());
   const animFrameIdRef = useRef<number | null>(null);
 
   const insets = useScreenInsets();
+  const defaultBackground = useDefaultBackground();
   // Measured height of the play area (the real screen size once system bars are hidden)
   const [boardHeight, setBoardHeight] = useState<number>(0);
   const { geometry } = ACTIVE_THEME;
@@ -129,20 +135,18 @@ export default function PlayScreen() {
   useEffect(
     () =>
       audioService.subscribeClock((anchor) => {
-        clockPos.value = anchor.pos;
-        clockWallMs.value = anchor.wallMs;
-        clockDuration.value = anchor.duration;
-        clockRunning.value = anchor.running;
+        clockAnchor.value = { pos: anchor.pos, wallMs: anchor.wallMs, running: anchor.running, duration: anchor.duration };
       }),
-    [clockPos, clockWallMs, clockDuration, clockRunning]
+    [clockAnchor]
   );
 
   // Advance the song clock on the UI thread every display frame. Tile motion
   // reads this directly, so it stays smooth regardless of JS-thread load.
   useFrameCallback(() => {
-    songTime.value = clockRunning.value
-      ? Math.min(clockDuration.value, clockPos.value + (Date.now() - clockWallMs.value) / 1000)
-      : clockPos.value;
+    const a = clockAnchor.value;
+    songTime.value = a.running
+      ? Math.min(a.duration, a.pos + (Date.now() - a.wallMs) / 1000)
+      : a.pos;
   });
 
   // Only tiles near the playhead are mounted; the window advances every 0.5s
@@ -267,12 +271,6 @@ export default function PlayScreen() {
     (lane: 0 | 1 | 2 | 3) => {
       if (phase !== 'playing' || isPaused || isCompleted || !song) return;
 
-      setActiveLanes((prev) => {
-        const next = [...prev];
-        next[lane] = true;
-        return next;
-      });
-
       const curAudioTime = audioService.getCurrentTime();
 
       let targetTile: TimedTile | null = null;
@@ -301,6 +299,7 @@ export default function PlayScreen() {
             holdProgress: 1,
           });
           registerHit(targetTile.id, result.judgment, result.score, Math.round(timeDiffSec * 1000));
+          triggerFlash(result.judgment);
         } else {
           tileStatesRef.current.set(targetTile.id, {
             status: 'holding',
@@ -309,6 +308,7 @@ export default function PlayScreen() {
             holdStartTime: curAudioTime,
           });
           activeHoldByLaneRef.current.set(lane, targetTile.id);
+          triggerFlash(result.judgment);
         }
         bumpTiles();
       }
@@ -318,12 +318,6 @@ export default function PlayScreen() {
 
   const handleLanePressEnd = useCallback(
     (lane: 0 | 1 | 2 | 3) => {
-      setActiveLanes((prev) => {
-        const next = [...prev];
-        next[lane] = false;
-        return next;
-      });
-
       const holdingTileId = activeHoldByLaneRef.current.get(lane);
       if (holdingTileId && song) {
         activeHoldByLaneRef.current.delete(lane);
@@ -338,10 +332,12 @@ export default function PlayScreen() {
             state.status = 'hit';
             state.holdProgress = 1;
             registerHit(tile.id, 'PERFECT', 1000);
+            triggerFlash('PERFECT');
           } else {
             state.status = 'missed';
             state.holdProgress = progress;
             registerHit(tile.id, 'MISS', 0);
+            triggerFlash('MISS');
           }
           bumpTiles();
         }
@@ -382,10 +378,16 @@ export default function PlayScreen() {
           const progress = calculateHoldProgress(curTime, tile.noteTime, tile.durationSeconds);
           state.holdProgress = progress;
 
+          // A small background pulse on every beat you keep holding
+          const beat = Math.floor((curTime * song.bpm) / 60);
+          if (beat > (holdBeatRef.current.get(tileId) ?? Infinity)) triggerFlash(0.35);
+          holdBeatRef.current.set(tileId, beat);
+
           if (progress >= 1.0) {
             state.status = 'hit';
             activeHoldByLaneRef.current.delete(lane);
             registerHit(tile.id, 'PERFECT', 1000);
+            triggerFlash('PERFECT');
             tilesChanged = true;
           }
         }
@@ -401,6 +403,7 @@ export default function PlayScreen() {
         if (state?.status === 'pending' && isTilePastMissThreshold(t.noteTime, curTime, t.durationBeats, song.bpm)) {
           state.status = 'missed';
           registerHit(t.id, 'MISS', 0);
+          triggerFlash('MISS');
           tilesChanged = true;
         }
         const resolved = state?.status === 'hit' || state?.status === 'missed';
@@ -482,6 +485,7 @@ export default function PlayScreen() {
       songTime.value = 0;
       nextMissIndexRef.current = 0;
       activeHoldByLaneRef.current.clear();
+      holdBeatRef.current.clear();
       setDisplaySecond(0);
       setWindowStep(0);
       bumpTiles();
@@ -492,7 +496,10 @@ export default function PlayScreen() {
 
   const handleExitToHome = () => {
     audioService.stop();
-    router.replace('/(tabs)');
+    // Close the game screen to reveal the existing Songs tab (replace() rebuilt the
+    // tabs behind the fade, which showed as a flash)
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
   };
 
   const getRank = (accuracy: number) => {
@@ -514,7 +521,7 @@ export default function PlayScreen() {
       <Animated.View entering={FadeIn} style={styles.loadingContainer}>
         <Text style={styles.loadingText}>{loadError}</Text>
         <PressableScale style={[styles.modalSecondaryBtn, styles.errorBackBtn]} onPress={handleExitToHome}>
-          <Home size={14} color="#e2e8f0" />
+          <PixelIcon name="home" size={18} color="#e6ecf7" />
           <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
         </PressableScale>
       </Animated.View>
@@ -551,7 +558,7 @@ export default function PlayScreen() {
               scaleTo={0.88}
               accessibilityLabel="Pause game"
             >
-              <Pause size={16} color="#ffffff" />
+              <PixelIcon name="pause" size={14} color="#ffffff" />
             </PressableScale>
             <View>
               <Text style={styles.hudSongTitle} numberOfLines={1}>
@@ -579,10 +586,20 @@ export default function PlayScreen() {
       {/* 4-Lane Game Board */}
       <GameBoardBackground
         hitLineY={hitLineY}
-        activeLanes={activeLanes}
         onLanePressStart={handleLanePressStart}
         onLanePressEnd={handleLanePressEnd}
         showKeyLabels={Platform.OS === 'web'}
+        backdrop={
+          <>
+            <AnimatedBackground
+              id={isBackgroundId(song.background) ? song.background : defaultBackground}
+              bpm={song.bpm}
+              songTime={songTime}
+              flash={hitFlash}
+              opacity={0.5}
+            />
+          </>
+        }
       >
         {boardHeight > 0 && (
           <TileField
@@ -616,7 +633,7 @@ export default function PlayScreen() {
                 onPress={handleTogglePause}
                 accessibilityLabel="Resume playing"
               >
-                <Play size={15} color="#ffffff" fill="#ffffff" />
+                <PixelIcon name="play" size={14} color="#ffffff" />
                 <Text style={styles.modalPrimaryBtnText}>Resume</Text>
               </PressableScale>
 
@@ -625,7 +642,7 @@ export default function PlayScreen() {
                 onPress={handleRestart}
                 accessibilityLabel="Restart song"
               >
-                <RotateCcw size={14} color="#e2e8f0" />
+                <PixelIcon name="reset" size={14} color="#e6ecf7" />
                 <Text style={styles.modalSecondaryBtnText}>Restart</Text>
               </PressableScale>
 
@@ -634,7 +651,7 @@ export default function PlayScreen() {
                 onPress={handleExitToHome}
                 accessibilityLabel="Exit to Song List"
               >
-                <Home size={14} color="#94a3b8" />
+                <PixelIcon name="home" size={18} color="#9aa7c2" />
                 <Text style={styles.modalTertiaryBtnText}>Exit to Song List</Text>
               </PressableScale>
             </View>
@@ -689,7 +706,7 @@ export default function PlayScreen() {
                 onPress={handleRestart}
                 accessibilityLabel="Play Again"
               >
-                <RotateCcw size={14} color="#ffffff" />
+                <PixelIcon name="reset" size={14} color="#ffffff" />
                 <Text style={styles.modalPrimaryBtnText}>Play Again</Text>
               </PressableScale>
 
@@ -698,7 +715,7 @@ export default function PlayScreen() {
                 onPress={handleExitToHome}
                 accessibilityLabel="Back to Home"
               >
-                <Home size={14} color="#e2e8f0" />
+                <PixelIcon name="home" size={18} color="#e6ecf7" />
                 <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
               </PressableScale>
             </View>
@@ -723,14 +740,14 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#030712',
+    backgroundColor: '#05070d',
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    color: '#38bdf8',
-    fontSize: 14,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 20,
   },
   topHudContainer: {
     position: 'absolute',
@@ -757,38 +774,37 @@ const styles = StyleSheet.create({
   pauseBtn: {
     width: 36,
     height: 36,
-    borderRadius: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.8)',
+    borderRadius: 0,
+    backgroundColor: 'rgba(11, 18, 32, 0.85)',
+    borderWidth: 2,
+    borderColor: 'rgba(31, 46, 82, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   hudSongTitle: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 17,
     maxWidth: 130,
   },
   hudTimeText: {
-    color: '#94a3b8',
-    fontSize: 10,
-    fontFamily: 'monospace',
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 15,
   },
   hudRight: {
     alignItems: 'flex-end',
   },
   scoreLabel: {
-    color: '#38bdf8',
-    fontSize: 10,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 15,
     letterSpacing: 1.5,
   },
   scoreValue: {
     color: '#ffffff',
-    fontSize: 18,
-    fontFamily: 'monospace',
-    fontWeight: '900',
+    fontFamily: FONTS.pixel,
+    fontSize: 13,
   },
   tileWrapper: {
     position: 'absolute',
@@ -799,11 +815,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 4,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0b1220',
   },
   bottomProgressFill: {
     height: '100%',
-    backgroundColor: '#38bdf8',
+    backgroundColor: '#4d8dff',
   },
   errorBackBtn: {
     marginTop: 16,
@@ -821,22 +837,23 @@ const styles = StyleSheet.create({
   statusModalCard: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: '#0f172a',
-    borderRadius: 24,
-    borderWidth: 1,
+    backgroundColor: '#0b1220',
+    borderRadius: 0,
+    borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     padding: 24,
     alignItems: 'center',
   },
   statusModalTitle: {
-    fontSize: 20,
-    fontWeight: '900',
+    fontFamily: FONTS.pixel,
+    fontSize: 14,
     color: '#ffffff',
-    letterSpacing: -0.5,
+    letterSpacing: 0,
   },
   statusModalSub: {
-    fontSize: 12,
-    color: '#94a3b8',
+    fontFamily: FONTS.body,
+    fontSize: 17,
+    color: '#9aa7c2',
     marginTop: 4,
   },
   statusModalButtons: {
@@ -849,28 +866,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0284c7',
+    backgroundColor: '#FF6B4A',
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: 0,
   },
   modalPrimaryBtnText: {
     color: '#ffffff',
-    fontSize: 13,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 19,
   },
   modalSecondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#15203a',
     paddingVertical: 10,
-    borderRadius: 14,
+    borderRadius: 0,
   },
   modalSecondaryBtnText: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#cdd6ea',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   modalTertiaryBtn: {
     flexDirection: 'row',
@@ -880,31 +897,32 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   modalTertiaryBtnText: {
-    color: '#94a3b8',
-    fontSize: 12,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
   rankBadge: {
     width: 60,
     height: 60,
-    borderRadius: 18,
-    backgroundColor: '#f59e0b',
+    borderRadius: 0,
+    backgroundColor: '#FF6B4A',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
   rankText: {
-    fontSize: 26,
-    fontWeight: '900',
+    fontFamily: FONTS.pixel,
+    fontSize: 18,
     color: '#000000',
   },
   statsHeroGrid: {
     flexDirection: 'row',
     width: '100%',
     gap: 8,
-    backgroundColor: 'rgba(2, 6, 23, 0.7)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    backgroundColor: 'rgba(7, 11, 20, 0.7)',
+    borderRadius: 0,
+    borderWidth: 2,
+    borderColor: '#15203a',
     padding: 12,
     marginVertical: 14,
   },
@@ -913,23 +931,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statHeroLabel: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: '#94a3b8',
+    fontFamily: FONTS.body,
+    fontSize: 13,
+    color: '#9aa7c2',
     letterSpacing: 1,
   },
   statHeroScore: {
-    color: '#38bdf8',
-    fontSize: 18,
-    fontFamily: 'monospace',
-    fontWeight: '900',
+    color: '#4d8dff',
+    fontFamily: FONTS.pixel,
+    fontSize: 13,
     marginTop: 2,
   },
   statHeroAccuracy: {
-    color: '#34d399',
-    fontSize: 18,
-    fontFamily: 'monospace',
-    fontWeight: '900',
+    color: '#4d8dff',
+    fontFamily: FONTS.pixel,
+    fontSize: 13,
     marginTop: 2,
   },
   judgmentsBreakdownGrid: {
@@ -940,38 +956,37 @@ const styles = StyleSheet.create({
   },
   breakdownItem: {
     flex: 1,
-    backgroundColor: '#020617',
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    borderRadius: 10,
+    backgroundColor: '#070b14',
+    borderWidth: 2,
+    borderColor: '#15203a',
+    borderRadius: 0,
     padding: 6,
     alignItems: 'center',
   },
   perfectLabel: {
-    color: '#38bdf8',
-    fontSize: 8,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 12,
   },
   greatLabel: {
-    color: '#34d399',
-    fontSize: 8,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 12,
   },
   goodLabel: {
-    color: '#fbbf24',
-    fontSize: 8,
-    fontWeight: 'bold',
+    color: '#FF6B4A',
+    fontFamily: FONTS.body,
+    fontSize: 12,
   },
   missLabel: {
-    color: '#f87171',
-    fontSize: 8,
-    fontWeight: 'bold',
+    color: '#FF6B4A',
+    fontFamily: FONTS.body,
+    fontSize: 12,
   },
   breakdownCount: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
-    fontFamily: 'monospace',
+    fontFamily: FONTS.body,
+    fontSize: 17,
     marginTop: 2,
   },
 });

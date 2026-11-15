@@ -23,6 +23,8 @@ export interface Song {
   createdAt: number;
   durationSeconds?: number;
   artist?: string;
+  /** Animated background for this song; "default" (or missing) follows the app theme. */
+  background?: string;
   /** Original file on the device it was imported from (used to spot duplicates). */
   sourceUri?: string;
 }

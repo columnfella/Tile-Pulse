@@ -16,12 +16,22 @@
  */
 
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer, type AudioStatus } from 'expo-audio';
-import { renderStarterTrack } from '../audio/synth';
+import { renderPresetTrack } from '../audio/synth';
+import { FUR_ELISE, getPresetByAudioUri } from '../game/presets';
 import { writeGeneratedWav } from './audioFileStore';
 
 const LOAD_TIMEOUT_MS = 5000;
-const STATUS_INTERVAL_MS = 100;
-const DRIFT_TOLERANCE_SEC = 0.08;
+const STATUS_INTERVAL_MS = 200;
+/** Typical delay between the player's position and its status event arriving. */
+const STATUS_LATENCY_SEC = 0.03;
+/** Differences smaller than this are ignored (normal reporting jitter). */
+const DRIFT_DEADZONE_SEC = 0.04;
+/** Fraction of the remaining drift corrected per status event (smooth slew). */
+const DRIFT_SLEW = 0.15;
+/** Above this the clock snaps (seek, stall, audio glitch). */
+const HARD_RESYNC_SEC = 0.35;
+/** Largest single correction (8ms ≈ a few pixels), so slewing is never visible. */
+const MAX_SLEW_STEP_SEC = 0.008;
 const START_TIMEOUT_MS = 1200;
 
 /** Song clock anchor: at wall time `wallMs` the song was at `pos` seconds. */
@@ -127,8 +137,19 @@ class AudioEngine {
       return;
     }
 
-    if (status.playing && Math.abs(reported - this.getCurrentTime()) > DRIFT_TOLERANCE_SEC) {
+    if (!status.playing) return;
+
+    // Status events arrive a little late, so `reported` lags the true
+    // position by a few tens of ms. Snapping the clock to it made tiles jerk
+    // back and forth. Instead:
+    //  - big differences (seek, stall, audio glitch) snap immediately,
+    //  - small drift is eased out gradually, which is invisible on screen.
+    const error = reported + STATUS_LATENCY_SEC - this.getCurrentTime();
+    if (Math.abs(error) > HARD_RESYNC_SEC) {
       this.setAnchor(reported, true);
+    } else if (Math.abs(error) > DRIFT_DEADZONE_SEC) {
+      const step = Math.max(-MAX_SLEW_STEP_SEC, Math.min(MAX_SLEW_STEP_SEC, error * DRIFT_SLEW));
+      this.setAnchor(this.getCurrentTime() + step, true);
     }
   };
 
@@ -156,7 +177,11 @@ class AudioEngine {
     let uri = this.synthesizedUris.get(key);
     if (!uri) {
       const name = key.replace(/[^a-z0-9_]/gi, '_');
-      uri = await writeGeneratedWav(name, renderStarterTrack(bpm, duration));
+      const preset = getPresetByAudioUri(audioUri) ?? FUR_ELISE;
+      uri = await writeGeneratedWav(
+        name,
+        renderPresetTrack(preset.melody, bpm, duration, preset.beatsPerMeasure)
+      );
       this.synthesizedUris.set(key, uri);
     }
     return uri;

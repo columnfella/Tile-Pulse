@@ -6,7 +6,7 @@
  * a file (or Blob URL on web) and play them back through expo-audio.
  */
 
-import { STARTER_MELODY } from '../game/starterSong';
+import type { MelodyNote } from '../game/starterSong';
 
 export const SAMPLE_RATE = 22050;
 
@@ -80,19 +80,24 @@ export function encodeWav(samples: Float32Array): Uint8Array<ArrayBuffer> {
 
 
 
-/** Renders the built-in starter song (melody + metronome) as a full track. */
-export function renderStarterTrack(bpm: number, durationSeconds: number): Uint8Array<ArrayBuffer> {
+/** Renders a preset melody (plus a soft metronome) as a full track. */
+export function renderPresetTrack(
+  melody: MelodyNote[],
+  bpm: number,
+  durationSeconds: number,
+  beatsPerMeasure = 4
+): Uint8Array<ArrayBuffer> {
   const buf = new Float32Array(Math.ceil((durationSeconds + 0.5) * SAMPLE_RATE));
   const secondsPerBeat = 60 / bpm;
 
-  STARTER_MELODY.forEach((note) => {
+  melody.forEach((note) => {
     const duration = note.durationBeats > 0 ? note.durationBeats * secondsPerBeat : 0.35;
     addTone(buf, note.beat * secondsPerBeat, note.frequency, 'triangle', 0.4, 0.008, duration);
   });
 
   const totalBeats = Math.ceil(durationSeconds / secondsPerBeat);
   for (let b = 0; b <= totalBeats; b++) {
-    const isMeasureStart = b % 4 === 0;
+    const isMeasureStart = b % beatsPerMeasure === 0;
     addTone(
       buf,
       b * secondsPerBeat,

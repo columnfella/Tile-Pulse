@@ -12,8 +12,9 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import { FONTS } from '../../theme/pixel';
 
-const BAR_COLORS = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#0284c7'];
+const BAR_COLORS = ['#2f6bff', '#4d8dff', '#8fb8ff', '#FF6B4A'];
 
 /** One lane bar bouncing like an equalizer, offset by `index`. */
 function LaneBar({ index }: { index: number }) {
@@ -66,7 +67,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     zIndex: 1000,
     elevation: 1000,
-    backgroundColor: '#030712',
+    backgroundColor: '#05070d',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -80,18 +81,18 @@ const styles = StyleSheet.create({
   bar: {
     width: 14,
     height: 64,
-    borderRadius: 7,
+    borderRadius: 0,
   },
   title: {
     color: '#ffffff',
-    fontSize: 34,
-    fontWeight: '900',
-    letterSpacing: -1,
+    fontFamily: FONTS.pixel,
+    fontSize: 24,
+    letterSpacing: 0,
   },
   subtitle: {
-    color: '#64748b',
-    fontSize: 11,
-    fontWeight: '700',
+    color: '#6b7a99',
+    fontFamily: FONTS.body,
+    fontSize: 16,
     letterSpacing: 3,
     marginTop: 6,
   },

@@ -1,19 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Linking, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import {
-  Check,
-  CheckCheck,
-  FileAudio,
-  FolderOpen,
-  FolderSearch,
-  Music2,
-  Search,
-  Settings,
-  ShieldCheck,
-  X,
-} from 'lucide-react-native';
 import { PressableScale } from './PressableScale';
+import { PixelIcon } from './PixelIcon';
 import { backdropIn, backdropOut, cardIn, cardOut } from './motion';
 import {
   getAudioPermissionState,
@@ -25,6 +14,7 @@ import {
   type DeviceAudioFile,
 } from '../../services/documentPicker';
 import { formatAudioTime } from '../../game/engine';
+import { FONTS } from '../../theme/pixel';
 
 interface AudioLibrarySheetProps {
   /** Source URIs of songs already in the library (shown as "Added"). */
@@ -159,7 +149,7 @@ export function AudioLibrarySheet({
       case 'checking':
         return (
           <View style={styles.centerBox}>
-            <ActivityIndicator color="#38bdf8" />
+            <ActivityIndicator color="#4d8dff" />
           </View>
         );
 
@@ -167,7 +157,7 @@ export function AudioLibrarySheet({
         return (
           <Animated.View entering={FadeIn.duration(200)} style={styles.centerBox}>
             <View style={styles.bigIcon}>
-              <ShieldCheck size={28} color="#38bdf8" />
+              <PixelIcon name="shield" size={28} color="#4d8dff" />
             </View>
             <Text style={styles.infoTitle}>Find the music on your phone?</Text>
             <Text style={styles.infoText}>
@@ -179,7 +169,7 @@ export function AudioLibrarySheet({
               style={styles.primaryBtn}
               onPress={phase.blocked ? () => Linking.openSettings() : handleAllow}
             >
-              {phase.blocked ? <Settings size={14} color="#fff" /> : <ShieldCheck size={14} color="#fff" />}
+              {phase.blocked ? <PixelIcon name="gear" size={14} color="#fff" /> : <PixelIcon name="shield" size={14} color="#fff" />}
               <Text style={styles.primaryText}>{phase.blocked ? 'Open Settings' : 'Allow access'}</Text>
             </PressableScale>
           </Animated.View>
@@ -189,7 +179,7 @@ export function AudioLibrarySheet({
         return (
           <Animated.View entering={FadeIn.duration(200)} style={styles.centerBox}>
             <View style={styles.bigIcon}>
-              <FolderSearch size={28} color="#38bdf8" />
+              <PixelIcon name="folder" size={28} color="#4d8dff" />
             </View>
             <Text style={styles.infoTitle}>Music library not available here</Text>
             <Text style={styles.infoText}>
@@ -199,7 +189,7 @@ export function AudioLibrarySheet({
             </Text>
             {phase.note ? <Text style={styles.noteText}>{phase.note}</Text> : null}
             <PressableScale style={styles.primaryBtn} onPress={handleScanFolder}>
-              <FolderSearch size={14} color="#fff" />
+              <PixelIcon name="folder" size={14} color="#fff" />
               <Text style={styles.primaryText}>Choose a folder to scan</Text>
             </PressableScale>
           </Animated.View>
@@ -208,7 +198,7 @@ export function AudioLibrarySheet({
       case 'scanning':
         return (
           <View style={styles.centerBox}>
-            <ActivityIndicator color="#38bdf8" />
+            <ActivityIndicator color="#4d8dff" />
             <Text style={styles.infoText}>Scanning for songs…</Text>
           </View>
         );
@@ -216,7 +206,7 @@ export function AudioLibrarySheet({
       case 'importing':
         return (
           <View style={styles.centerBox}>
-            <ActivityIndicator color="#38bdf8" />
+            <ActivityIndicator color="#4d8dff" />
             <Text style={styles.infoTitle}>
               Adding {phase.done + 1} of {phase.total}…
             </Text>
@@ -255,9 +245,9 @@ export function AudioLibrarySheet({
                   onPress={() => toggle(item.uri)}
                 >
                   <View style={[styles.checkbox, checked && styles.checkboxOn]}>
-                    {checked && <Check size={12} color="#ffffff" strokeWidth={3} />}
+                    {checked && <PixelIcon name="check" size={14} color="#ffffff" />}
                   </View>
-                  <FileAudio size={16} color={added ? '#475569' : '#38bdf8'} />
+                  <PixelIcon name="note" size={14} color={added ? '#3a4a70' : '#4d8dff'} />
                   <Text style={[styles.fileName, added && styles.fileNameAdded]} numberOfLines={1}>
                     {item.name.replace(/\.[^/.]+$/, '')}
                   </Text>
@@ -281,12 +271,12 @@ export function AudioLibrarySheet({
       <Animated.View entering={cardIn} exiting={cardOut} style={styles.sheet}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            <Music2 size={16} color="#38bdf8" />
+            <PixelIcon name="note" size={14} color="#4d8dff" />
             <Text style={styles.title}>Songs on your phone</Text>
           </View>
           {phase.kind !== 'importing' && (
             <PressableScale scaleTo={0.85} onPress={onClose} accessibilityLabel="Close">
-              <X size={18} color="#94a3b8" />
+              <PixelIcon name="close" size={21} color="#9aa7c2" />
             </PressableScale>
           )}
         </View>
@@ -300,18 +290,18 @@ export function AudioLibrarySheet({
               </Text>
               {selectableFiles.length > 0 && (
                 <PressableScale scaleTo={0.92} style={styles.selectAllBtn} onPress={toggleAll}>
-                  <CheckCheck size={12} color="#38bdf8" />
+                  <PixelIcon name="check" size={14} color="#4d8dff" />
                   <Text style={styles.selectAllText}>{allSelected ? 'Clear' : 'Select all'}</Text>
                 </PressableScale>
               )}
             </View>
             <View style={styles.searchBox}>
-              <Search size={14} color="#64748b" />
+              <PixelIcon name="discover" size={18} color="#6b7a99" />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search songs"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#6b7a99"
                 style={styles.searchInput}
               />
             </View>
@@ -326,7 +316,7 @@ export function AudioLibrarySheet({
             disabled={selectedCount === 0}
             onPress={handleAddSelected}
           >
-            <Check size={15} color="#ffffff" strokeWidth={3} />
+            <PixelIcon name="check" size={14} color="#ffffff" />
             <Text style={styles.addText}>
               {selectedCount === 0
                 ? 'Select songs to add'
@@ -335,7 +325,7 @@ export function AudioLibrarySheet({
           </PressableScale>
         ) : phase.kind !== 'importing' ? (
           <PressableScale style={styles.secondaryBtn} onPress={onBrowseFiles}>
-            <FolderOpen size={14} color="#cbd5e1" />
+            <PixelIcon name="folder" size={14} color="#cdd6ea" />
             <Text style={styles.secondaryText}>Pick a single file instead</Text>
           </PressableScale>
         ) : null}
@@ -354,11 +344,11 @@ const styles = StyleSheet.create({
   sheet: {
     flex: 1,
     marginTop: 24,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0b1220',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    borderWidth: 2,
+    borderColor: '#15203a',
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
@@ -376,8 +366,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: FONTS.pixel,
+    fontSize: 11,
   },
   toolbarRow: {
     flexDirection: 'row',
@@ -387,8 +377,9 @@ const styles = StyleSheet.create({
   },
   sourceText: {
     flex: 1,
-    color: '#64748b',
-    fontSize: 11,
+    color: '#6b7a99',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   selectAllBtn: {
     flexDirection: 'row',
@@ -396,29 +387,30 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderRadius: 0,
+    backgroundColor: 'rgba(77, 141, 255, 0.12)',
   },
   selectAllText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontWeight: 'bold',
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#020617',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 12,
+    backgroundColor: '#070b14',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
+    borderRadius: 0,
     paddingHorizontal: 12,
     marginBottom: 8,
   },
   searchInput: {
     flex: 1,
     color: '#ffffff',
-    fontSize: 13,
+    fontFamily: FONTS.body,
+    fontSize: 19,
     paddingVertical: 10,
   },
   body: {
@@ -432,16 +424,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#020617',
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    borderRadius: 14,
+    backgroundColor: '#070b14',
+    borderWidth: 2,
+    borderColor: '#15203a',
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
   fileRowChecked: {
-    borderColor: '#0284c7',
-    backgroundColor: 'rgba(2, 132, 199, 0.12)',
+    borderColor: '#FF6B4A',
+    backgroundColor: 'rgba(255, 107, 74, 0.12)',
   },
   fileRowAdded: {
     opacity: 0.55,
@@ -449,35 +441,35 @@ const styles = StyleSheet.create({
   checkbox: {
     width: 20,
     height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: '#475569',
+    borderRadius: 0,
+    borderWidth: 2,
+    borderColor: '#3a4a70',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxOn: {
-    backgroundColor: '#0284c7',
-    borderColor: '#0284c7',
+    backgroundColor: '#FF6B4A',
+    borderColor: '#FF6B4A',
   },
   fileName: {
     flex: 1,
-    color: '#e2e8f0',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#e6ecf7',
+    fontFamily: FONTS.body,
+    fontSize: 19,
   },
   fileNameAdded: {
-    color: '#64748b',
+    color: '#6b7a99',
   },
   addedTag: {
-    color: '#64748b',
-    fontSize: 9,
-    fontWeight: 'bold',
+    color: '#6b7a99',
+    fontFamily: FONTS.body,
+    fontSize: 13,
     letterSpacing: 1,
   },
   fileDuration: {
-    color: '#64748b',
-    fontSize: 11,
-    fontFamily: 'monospace',
+    color: '#6b7a99',
+    fontFamily: FONTS.body,
+    fontSize: 16,
   },
   centerBox: {
     flex: 1,
@@ -489,27 +481,29 @@ const styles = StyleSheet.create({
   bigIcon: {
     width: 60,
     height: 60,
-    borderRadius: 20,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderRadius: 0,
+    backgroundColor: 'rgba(77, 141, 255, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   infoTitle: {
     color: '#ffffff',
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontFamily: FONTS.pixel,
+    fontSize: 11,
     textAlign: 'center',
   },
   infoText: {
-    color: '#94a3b8',
-    fontSize: 12,
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 17,
     textAlign: 'center',
     lineHeight: 18,
   },
   noteText: {
-    color: '#fbbf24',
-    fontSize: 11,
+    color: '#FF6B4A',
+    fontFamily: FONTS.body,
+    fontSize: 16,
     textAlign: 'center',
     lineHeight: 16,
   },
@@ -517,59 +511,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0284c7',
-    borderRadius: 14,
+    backgroundColor: '#FF6B4A',
+    borderRadius: 0,
     paddingHorizontal: 22,
     paddingVertical: 12,
     marginTop: 8,
   },
   primaryText: {
     color: '#ffffff',
-    fontSize: 13,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 19,
   },
   progressTrack: {
     width: 180,
     height: 4,
-    borderRadius: 2,
-    backgroundColor: '#1e293b',
+    borderRadius: 0,
+    backgroundColor: '#15203a',
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#38bdf8',
+    backgroundColor: '#4d8dff',
   },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0284c7',
-    borderRadius: 14,
+    backgroundColor: '#FF6B4A',
+    borderRadius: 0,
     paddingVertical: 14,
     marginTop: 8,
   },
   addBtnDisabled: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#15203a',
   },
   addText: {
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontFamily: FONTS.body,
+    fontSize: 20,
   },
   secondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#1e293b',
-    borderRadius: 14,
+    backgroundColor: '#15203a',
+    borderRadius: 0,
     paddingVertical: 12,
     marginTop: 8,
   },
   secondaryText: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#cdd6ea',
+    fontFamily: FONTS.body,
+    fontSize: 17,
   },
 });

@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, StyleSheet } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { comboBump } from '../ui/motion';
+import { FONTS } from '../../theme/pixel';
 
 interface ComboDisplayProps {
   combo: number;
@@ -40,17 +41,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   comboNumber: {
-    fontSize: 42,
-    fontWeight: '900',
+    fontFamily: FONTS.pixel,
+    fontSize: 29,
     color: '#ffffff',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    textShadowColor: '#FF6B4A',
+    textShadowOffset: { width: 3, height: 3 },
+    textShadowRadius: 0.1,
   },
   comboLabel: {
-    fontSize: 10,
-    fontWeight: '800',
+    fontFamily: FONTS.body,
+    fontSize: 15,
     letterSpacing: 3,
-    color: '#38bdf8',
+    color: '#4d8dff',
   },
 });

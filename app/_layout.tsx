@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Platform, View } from 'react-native';
+import * as SystemUI from 'expo-system-ui';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
+import { PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
+import { VT323_400Regular } from '@expo-google-fonts/vt323';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationBar } from 'expo-navigation-bar';
 import { audioService } from '../services/audio';
@@ -31,6 +35,7 @@ function useImmersiveMode() {
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const MIN_SPLASH_MS = 1400;
+const APP_BACKGROUND = '#05070d';
 
 /** Seeds storage; resolves after a minimum splash time. */
 async function initializeApp(): Promise<void> {
@@ -42,7 +47,14 @@ async function initializeApp(): Promise<void> {
 
 export default function RootLayout() {
   useImmersiveMode();
+
+  // Dark native root view, so nothing light can show between screen transitions
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(APP_BACKGROUND).catch(() => {});
+  }, []);
   const [isReady, setIsReady] = useState(false);
+  // Pixel fonts must be loaded before anything renders text
+  const [fontsLoaded, fontError] = useFonts({ PressStart2P_400Regular, VT323_400Regular });
 
   useEffect(() => {
     let cancelled = false;
@@ -60,14 +72,17 @@ export default function RootLayout() {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
+  // Keep the native splash up until the fonts are ready (a font error falls back to system fonts)
+  if (!fontsLoaded && !fontError) return null;
+
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: APP_BACKGROUND }}>
       <StatusBar hidden style="light" />
       <NavigationBar hidden style="light" />
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#030712' },
+          contentStyle: { backgroundColor: '#05070d' },
           animation: 'fade_from_bottom',
         }}
       >
@@ -86,6 +101,6 @@ export default function RootLayout() {
 
       {/* Animated startup screen; fades out once initialization finishes */}
       {!isReady && <AppSplash onReady={hideNativeSplash} />}
-    </>
+    </View>
   );
 }

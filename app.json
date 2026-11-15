@@ -5,9 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#05070d",
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#030712"
+      "backgroundColor": "#05070d"
     },
     "scheme": "tilepulse",
     "plugins": [
@@ -18,17 +19,20 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#030712",
+          "backgroundColor": "#05070d",
           "imageWidth": 120
         }
       ],
       [
         "expo-media-library",
         {
-          "granularPermissions": ["audio"],
+          "granularPermissions": [
+            "audio"
+          ],
           "isAccessMediaLocationEnabled": false
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
@@ -39,7 +43,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#030712"
+        "backgroundColor": "#05070d"
       },
       "package": "com.tilepulse.rhythm"
     },

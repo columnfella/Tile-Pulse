@@ -4,6 +4,7 @@ import Animated, { FadeOut } from 'react-native-reanimated';
 import { popIn } from '../ui/motion';
 import { HitJudgment } from '../../types/game';
 import { ACTIVE_THEME } from '../../constants/theme';
+import { FONTS } from '../../theme/pixel';
 
 interface HitJudgmentBadgeProps {
   judgment: HitJudgment | null;
@@ -47,8 +48,8 @@ export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, ti
           {
             color: config.color,
             textShadowColor: config.glow,
-            textShadowOffset: { width: 0, height: 0 },
-            textShadowRadius: 16,
+            textShadowOffset: { width: 3, height: 3 },
+            textShadowRadius: 0.1, // hard pixel shadow
           },
         ]}
       >
@@ -75,15 +76,14 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   judgmentText: {
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: 3,
+    fontFamily: FONTS.pixel,
+    fontSize: 18,
+    letterSpacing: 1,
   },
   timeDiffText: {
-    fontSize: 11,
-    fontFamily: 'monospace',
-    fontWeight: 'bold',
-    color: '#cbd5e1',
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    color: '#cdd6ea',
     marginTop: 2,
     opacity: 0.85,
   },

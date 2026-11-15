@@ -1,7 +1,30 @@
-import React from 'react';
+import React, { memo, useEffect } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
-import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import { FONTS, PIXEL } from '../../theme/pixel';
+import { TILE_STATES } from './TapTileView';
+
+const HEAD_HEIGHT = 40;
+const BEVEL = PIXEL.unit;
+
+/** Coral "being pressed" colours for the head. */
+const CORAL = { base: '#FF6B4A', light: '#ffb39f', dark: '#a83a22' } as const;
+/** Fill colours, top (leading edge) → bottom: coral → blue → navy. */
+const FILL_GRADIENT = ['#FF6B4A', '#2f6bff', '#123a9e'] as const;
+/** Resting body: deep navy → black. */
+const BODY_GRADIENT = ['#0b1a40', '#05070d'] as const;
 
 /** Live hold progress, computed on the UI thread from the song clock. */
 export interface LiveHoldProgress {
@@ -10,13 +33,28 @@ export interface LiveHoldProgress {
   duration: number; // seconds
 }
 
-function LiveFill({ live, color }: { live: LiveHoldProgress; color: string }) {
+/** The coloured fill plus a bright line marking how far you've held. */
+function FillContents() {
+  return (
+    <>
+      <LinearGradient colors={FILL_GRADIENT} style={StyleSheet.absoluteFill} />
+      <View style={styles.fillEdge} />
+    </>
+  );
+}
+
+/** Fill that rises from the head as the note is held (UI thread). */
+function LiveFill({ live }: { live: LiveHoldProgress }) {
   const { songTime, start, duration } = live;
   const style = useAnimatedStyle(() => {
     const p = duration > 0 ? (songTime.value - start) / duration : 1;
     return { height: `${Math.min(1, Math.max(0, p)) * 100}%` };
   });
-  return <Animated.View style={[styles.activeFillBar, { backgroundColor: color, opacity: 0.9 }, style]} />;
+  return (
+    <Animated.View style={[styles.fill, style]}>
+      <FillContents />
+    </Animated.View>
+  );
 }
 
 interface HoldTileViewProps {
@@ -33,169 +71,150 @@ interface HoldTileViewProps {
 }
 
 /**
- * React Native Decoupled Hold Tile Component
- * Renders both unheld body and active dynamic filling state as it passes the hit line.
- * Reads visual configuration exclusively from ACTIVE_THEME.
+ * Pixel-art hold tile with a physical "press" feel:
+ *  - Waiting: navy→black body, blue bevel, blue HOLD head.
+ *  - Holding: the tile squeezes in, the head sinks and turns coral with a
+ *    gentle pulse, and a coral→blue fill rises with a bright leading edge.
+ *  - Completed: fully filled. Missed: red.
  */
-export const HoldTileView: React.FC<HoldTileViewProps> = ({
+export const HoldTileView = memo(function HoldTileView({
   y,
   height,
-  lane,
   isHolding = false,
   holdProgress = 0,
   isHit = false,
   isMissed = false,
   theme = ACTIVE_THEME,
   live,
-}) => {
-  const { holdTile, geometry } = theme;
+}: HoldTileViewProps) {
+  // Press amount (springy) and the pulse while held — both UI thread
+  const press = useSharedValue(isHolding ? 1 : 0);
+  const pulse = useSharedValue(0);
 
-  if (isHit && holdProgress >= 1) {
-    return null;
-  }
+  useEffect(() => {
+    press.value = withSpring(isHolding ? 1 : 0, { damping: 13, stiffness: 320, mass: 0.6 });
+    if (isHolding) {
+      pulse.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) }),
+          withTiming(0.3, { duration: 220, easing: Easing.in(Easing.quad) })
+        ),
+        -1
+      );
+    } else {
+      cancelAnimation(pulse);
+      pulse.value = withTiming(0, { duration: 150 });
+    }
+  }, [isHolding, press, pulse]);
 
-  // Custom sprite hook
-  if (holdTile.imageSource) {
+  const tileStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleX: 1 - 0.07 * press.value }],
+  }));
+  const headStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: 3 * press.value }, { scaleY: 1 - 0.12 * press.value }],
+  }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: 0.55 * pulse.value }));
+
+  if (theme.holdTile.imageSource) {
     return (
-      <View
-        pointerEvents="none"
-        style={[
-          styles.container,
-          {
-            top: y,
-            height: height,
-            borderRadius: geometry.tileBorderRadius,
-            opacity: isMissed ? 0.35 : 1,
-          },
-        ]}
-      >
-        <Image
-          source={holdTile.imageSource}
-          style={[styles.sprite, { borderRadius: geometry.tileBorderRadius }]}
-          resizeMode="cover"
-        />
+      <View pointerEvents="none" style={[styles.body, { top: y, height, opacity: isMissed ? 0.5 : 1 }]}>
+        <Image source={theme.holdTile.imageSource} style={styles.sprite} resizeMode="stretch" />
       </View>
     );
   }
 
-  const clampedProgress = Math.min(1, Math.max(0, holdProgress));
-  const fillPercentage = clampedProgress * 100;
+  const pressed = isHolding || isHit;
+  const edge = isMissed ? TILE_STATES.missed : TILE_STATES.normal;
+  const head = isMissed ? TILE_STATES.missed : isHolding ? CORAL : isHit ? TILE_STATES.pressed : TILE_STATES.normal;
+  const progress = isHit ? 1 : Math.min(1, Math.max(0, holdProgress));
 
   return (
-    <View
+    <Animated.View
       pointerEvents="none"
       style={[
-        styles.container,
+        styles.body,
         {
           top: y,
-          height: height,
-          borderRadius: geometry.tileBorderRadius,
-          backgroundColor: holdTile.bodyColor,
-          borderColor: isHolding ? '#38bdf8' : isMissed ? '#64748b' : holdTile.bodyBorderColor,
-          borderWidth: geometry.borderWidth,
-          opacity: isMissed ? 0.35 : 1,
+          height,
+          backgroundColor: isMissed ? `${edge.base}55` : '#05070d',
+          // Pushed in while pressed: dark top/left, light bottom/right
+          borderTopColor: pressed ? edge.dark : edge.light,
+          borderLeftColor: pressed ? edge.dark : edge.light,
+          borderBottomColor: pressed ? edge.light : edge.dark,
+          borderRightColor: pressed ? edge.light : edge.dark,
         },
+        tileStyle,
       ]}
     >
-      {/* Dynamic Active Hold Filling Bar (fills upward from bottom head cap as player holds) */}
-      {isHolding && live ? (
-        <LiveFill live={live} color={holdTile.activeFillColor} />
-      ) : (
-        <View
-          style={[
-            styles.activeFillBar,
-            {
-              height: `${fillPercentage}%`,
-              backgroundColor: holdTile.activeFillColor,
-              opacity: isHolding ? 0.9 : 0.45,
-            },
-          ]}
-        />
+      {!isMissed && <LinearGradient colors={BODY_GRADIENT} style={StyleSheet.absoluteFill} />}
+
+      {/* Coral → blue fill with a bright leading edge */}
+      {!isMissed &&
+        (isHolding && live ? (
+          <LiveFill live={live} />
+        ) : progress > 0 ? (
+          <View style={[styles.fill, { height: `${progress * 100}%` }]}>
+            <FillContents />
+          </View>
+        ) : null)}
+
+      {/* Inner shadow across the top while pressed, for depth */}
+      {pressed && !isMissed && (
+        <LinearGradient colors={['#000000cc', '#00000000']} style={styles.innerShadow} pointerEvents="none" />
       )}
 
-      {/* Trailing Tail Cap (at the top) */}
-      <View
+      {/* Bevelled head: sinks, squashes and pulses while held */}
+      <Animated.View
         style={[
-          styles.tailCap,
+          styles.head,
           {
-            backgroundColor: holdTile.tailColor,
+            backgroundColor: head.base,
+            borderTopColor: isHolding ? head.dark : head.light,
+            borderLeftColor: isHolding ? head.dark : head.light,
+            borderBottomColor: isHolding ? head.light : head.dark,
+            borderRightColor: isHolding ? head.light : head.dark,
           },
-        ]}
-      />
-
-      {/* Leading Edge / Head Cap (The initial tap hit target at the bottom) */}
-      <View
-        style={[
-          styles.headCap,
-          {
-            backgroundColor: isHolding ? '#0284c7' : isMissed ? '#475569' : holdTile.headColor,
-          },
+          headStyle,
         ]}
       >
-        <Text style={styles.headText}>HOLD</Text>
-        {isHolding && !live && (
-          <Text style={styles.progressText}>
-            {Math.round(clampedProgress * 100)}%
-          </Text>
-        )}
-      </View>
-    </View>
+        {isHolding && <Animated.View style={[StyleSheet.absoluteFill, styles.headGlow, glowStyle]} />}
+        <Text style={[styles.headText, isHolding && styles.headTextHolding]}>HOLD</Text>
+      </Animated.View>
+    </Animated.View>
   );
-};
+});
 
 const styles = StyleSheet.create({
-  container: {
+  body: {
     position: 'absolute',
-    left: 4,
-    right: 4,
+    left: 3,
+    right: 3,
+    borderWidth: BEVEL,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 5,
-    elevation: 3,
   },
-  sprite: {
-    width: '100%',
-    height: '100%',
-  },
-  activeFillBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  tailCap: {
+  sprite: { width: '100%', height: '100%' },
+  fill: { position: 'absolute', bottom: 0, left: 0, right: 0, overflow: 'hidden' },
+  fillEdge: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+    height: 3,
+    backgroundColor: '#ffffff',
   },
-  headCap: {
+  innerShadow: { position: 'absolute', top: 0, left: 0, right: 0, height: 18 },
+  head: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 38,
-    flexDirection: 'row',
+    height: HEAD_HEIGHT - BEVEL,
+    borderWidth: BEVEL,
     alignItems: 'center',
     justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    overflow: 'hidden',
   },
-  headText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  progressText: {
-    color: '#bae6fd',
-    fontSize: 10,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
+  headGlow: { backgroundColor: '#ffffff' },
+  headText: { fontFamily: FONTS.pixel, fontSize: 8, color: '#000000', letterSpacing: 1 },
+  headTextHolding: { color: '#ffffff' },
 });
