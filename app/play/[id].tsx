@@ -4,10 +4,11 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Dimensions,
-  SafeAreaView,
-  Modal,
+  AppState,
+  Platform,
+  type LayoutChangeEvent,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Song, TileNote } from '../../types/song';
 import { HitJudgment, GameStats, ActiveTileState } from '../../types/game';
@@ -30,7 +31,7 @@ import { TapTileView } from '../../src/components/game/TapTileView';
 import { HoldTileView } from '../../src/components/game/HoldTileView';
 import { HitJudgmentBadge } from '../../src/components/game/HitJudgmentBadge';
 import { ComboDisplay } from '../../src/components/game/ComboDisplay';
-import { Pause, Play, RotateCcw, Home, Sparkles } from 'lucide-react';
+import { Pause, Play, RotateCcw, Home, Sparkles } from 'lucide-react-native';
 
 export default function PlayScreen() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function PlayScreen() {
   const [song, setSong] = useState<Song | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
   const [audioDuration, setAudioDuration] = useState<number>(15);
 
@@ -64,50 +66,67 @@ export default function PlayScreen() {
   const activeHoldByLaneRef = useRef<Map<number, string>>(new Map());
   const animFrameIdRef = useRef<number | null>(null);
 
-  const windowHeight = Dimensions.get('window').height || 640;
+  const insets = useSafeAreaInsets();
+  // Measured height of the play area (the real screen size once system bars are hidden)
+  const [boardHeight, setBoardHeight] = useState<number>(0);
   const { geometry } = ACTIVE_THEME;
   const pixelsPerBeat = geometry.pixelsPerBeat;
-  const hitLineY = Math.round(windowHeight * (geometry.hitLineYPercent / 100));
+  const hitLineY = Math.round(boardHeight * (geometry.hitLineYPercent / 100));
+
+  const handleRootLayout = (e: LayoutChangeEvent) => {
+    setBoardHeight(e.nativeEvent.layout.height);
+  };
 
   // Load song from storage
   useEffect(() => {
+    let cancelled = false;
+
     async function init() {
       const target = await storageService.getSongById(id || '');
-      if (target) {
-        setSong(target);
-        setAudioDuration(target.durationSeconds || 15);
-        setStats({
-          score: 0,
-          maxScore: target.tiles.length * 1000,
-          combo: 0,
-          maxCombo: 0,
-          perfectCount: 0,
-          greatCount: 0,
-          goodCount: 0,
-          missCount: 0,
-          totalNotes: target.tiles.length,
-          accuracy: 100,
-        });
-
-        const states = new Map<string, ActiveTileState>();
-        target.tiles.forEach((t) => {
-          states.set(t.id, {
-            status: 'pending',
-            heldBeats: 0,
-            holdProgress: 0,
-          });
-        });
-        tileStatesRef.current = states;
-
-        // Start audio playback
-        const uri = await storageService.getAudioUriForSong(target);
-        await audioService.loadTrack(target.id, uri, target.bpm, target.durationSeconds);
-        audioService.play(0);
+      if (cancelled) return;
+      if (!target) {
+        setLoadError('Song not found.');
+        return;
       }
+      setSong(target);
+      setAudioDuration(target.durationSeconds || 15);
+      setStats({
+        score: 0,
+        maxScore: target.tiles.length * 1000,
+        combo: 0,
+        maxCombo: 0,
+        perfectCount: 0,
+        greatCount: 0,
+        goodCount: 0,
+        missCount: 0,
+        totalNotes: target.tiles.length,
+        accuracy: 100,
+      });
+
+      const states = new Map<string, ActiveTileState>();
+      target.tiles.forEach((t) => {
+        states.set(t.id, {
+          status: 'pending',
+          heldBeats: 0,
+          holdProgress: 0,
+        });
+      });
+      tileStatesRef.current = states;
+
+      // Start audio playback
+      const uri = await storageService.getAudioUriForSong(target);
+      await audioService.loadTrack(target.id, uri, target.bpm, target.durationSeconds);
+      if (cancelled) return;
+      setAudioDuration(audioService.getDuration());
+      audioService.play(0);
     }
-    init();
+    init().catch((err) => {
+      console.warn('Failed to start song:', err);
+      if (!cancelled) setLoadError('Could not load this song\'s audio.');
+    });
 
     return () => {
+      cancelled = true;
       audioService.stop();
       if (animFrameIdRef.current) {
         cancelAnimationFrame(animFrameIdRef.current);
@@ -311,9 +330,11 @@ export default function PlayScreen() {
         }
       });
 
-      // Song completion
-      const songEndGrace = (song.durationSeconds || 15) + 1.0;
-      if (curTime >= songEndGrace && song.tiles.length > 0) {
+      // Song completion: the track finished, or we're past its end
+      const songEnded =
+        curTime >= audioService.getDuration() + 1.0 ||
+        (!audioService.getIsPlaying() && curTime > 0);
+      if (songEnded && song.tiles.length > 0) {
         setIsCompleted(true);
         audioService.stop();
         return;
@@ -340,6 +361,17 @@ export default function PlayScreen() {
       setIsPaused(true);
     }
   };
+
+  // Auto-pause when the app is sent to the background (home button, call, etc.)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' && audioService.getIsPlaying()) {
+        audioService.pause();
+        setIsPaused(true);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleRestart = () => {
     audioService.stop();
@@ -385,18 +417,32 @@ export default function PlayScreen() {
     return 'D';
   };
 
-  if (!song) {
+  if (!song || loadError) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading track...</Text>
+        <Text style={styles.loadingText}>{loadError ?? 'Loading track...'}</Text>
+        {loadError && (
+          <Pressable style={[styles.modalSecondaryBtn, styles.errorBackBtn]} onPress={handleExitToHome}>
+            <Home size={14} color="#e2e8f0" />
+            <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
+          </Pressable>
+        )}
       </View>
     );
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: ACTIVE_THEME.board.backgroundColor }]}>
+    <View
+      style={[styles.root, { backgroundColor: ACTIVE_THEME.board.backgroundColor }]}
+      onLayout={handleRootLayout}
+    >
       {/* Top HUD Cluster */}
-      <SafeAreaView style={styles.topHudContainer}>
+      <View
+        style={[
+          styles.topHudContainer,
+          { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right },
+        ]}
+      >
         <View style={styles.topHudRow}>
           <View style={styles.hudLeft}>
             <Pressable
@@ -423,7 +469,7 @@ export default function PlayScreen() {
             </Text>
           </View>
         </View>
-      </SafeAreaView>
+      </View>
 
       {/* Judgment & Combo Badges */}
       <HitJudgmentBadge judgment={currentJudgment} timeDiffMs={judgmentTimeDiff} />
@@ -436,9 +482,9 @@ export default function PlayScreen() {
         laneFlashes={laneFlashes}
         onLanePressStart={handleLanePressStart}
         onLanePressEnd={handleLanePressEnd}
-        showKeyLabels={true}
+        showKeyLabels={Platform.OS === 'web'}
       >
-        {song.tiles.map((tile) => {
+        {boardHeight > 0 && song.tiles.map((tile) => {
           const state = tileStatesRef.current.get(tile.id) || {
             status: 'pending',
             heldBeats: 0,
@@ -463,7 +509,7 @@ export default function PlayScreen() {
           );
           const tileTopY = tileBottomY - tileHeight;
 
-          if (tileTopY > windowHeight + 150 || tileBottomY < -200) {
+          if (tileTopY > boardHeight + 150 || tileBottomY < -200) {
             return null;
           }
 
@@ -524,8 +570,8 @@ export default function PlayScreen() {
         />
       </View>
 
-      {/* Pause Modal */}
-      <Modal visible={isPaused} transparent animationType="fade">
+      {/* Pause Overlay (in-screen instead of <Modal>, which re-shows the Android system bars) */}
+      {isPaused && (
         <View style={styles.modalBackdrop}>
           <View style={styles.statusModalCard}>
             <Text style={styles.statusModalTitle}>Game Paused</Text>
@@ -561,10 +607,10 @@ export default function PlayScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      )}
 
-      {/* Completion Overlay Modal */}
-      <Modal visible={isCompleted} transparent animationType="fade">
+      {/* Completion Overlay */}
+      {isCompleted && (
         <View style={styles.modalBackdrop}>
           <View style={styles.statusModalCard}>
             <View style={styles.rankBadge}>
@@ -625,7 +671,7 @@ export default function PlayScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      )}
     </View>
   );
 }
@@ -715,8 +761,14 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#38bdf8',
   },
+  errorBackBtn: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+  },
   modalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
+    zIndex: 100,
+    elevation: 100,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,15 +6,15 @@ import {
   Pressable,
   ScrollView,
   TextInput,
-  Modal,
-  SafeAreaView,
+  KeyboardAvoidingView,
   Alert,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Song } from '../../types/song';
 import { storageService } from '../../services/storage';
-import { pickAudioDocument } from '../../services/documentPicker';
+import { pickAudioDocument, type PickedAudioResult } from '../../services/documentPicker';
 import { ACTIVE_THEME } from '../../constants/theme';
 import {
   Upload,
@@ -27,13 +27,13 @@ import {
   X,
   FileAudio,
   Check,
-} from 'lucide-react';
+} from 'lucide-react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
   const [songs, setSongs] = useState<Song[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [selectedFileUri, setSelectedFileUri] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<PickedAudioResult | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string>('');
   const [songTitle, setSongTitle] = useState('');
   const [bpmInput, setBpmInput] = useState('120');
@@ -43,14 +43,16 @@ export default function HomeScreen() {
   const [tapTimestamps, setTapTimestamps] = useState<number[]>([]);
 
   const loadSongs = useCallback(async () => {
-    await storageService.initStorage();
     const list = await storageService.getSongs();
     setSongs(list);
   }, []);
 
-  useEffect(() => {
-    loadSongs();
-  }, [loadSongs]);
+  // Reload on focus so note counts reflect beatmaps saved in the Editor tab
+  useFocusEffect(
+    useCallback(() => {
+      loadSongs().catch((err) => console.warn('Failed to load songs:', err));
+    }, [loadSongs])
+  );
 
   const handleTapTempo = () => {
     const now = Date.now();
@@ -75,7 +77,7 @@ export default function HomeScreen() {
     try {
       const result = await pickAudioDocument();
       if (!result.canceled && result.uri) {
-        setSelectedFileUri(result.uri);
+        setSelectedFile(result);
         const name = result.name || 'Custom Song';
         setSelectedFileName(name);
         setSongTitle(name.replace(/\.[^/.]+$/, ''));
@@ -87,7 +89,7 @@ export default function HomeScreen() {
   };
 
   const handleSaveUpload = async () => {
-    if (!selectedFileUri) {
+    if (!selectedFile) {
       setErrorMsg('Please select an audio file.');
       return;
     }
@@ -109,10 +111,14 @@ export default function HomeScreen() {
       const songId = `song_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const [beatsPerMeasure, beatUnit] = timeSignature.split('/').map(Number);
 
+      // Copy the picked file into permanent app storage (the picker's copy
+      // lives in a cache folder the OS may clear at any time).
+      const audioUri = await storageService.importAudio(songId, selectedFile);
+
       const newSong: Song = {
         id: songId,
         title: cleanTitle,
-        audioUri: selectedFileUri,
+        audioUri,
         bpm: bpmNum,
         timeSignature: {
           beatsPerMeasure,
@@ -140,13 +146,16 @@ export default function HomeScreen() {
   };
 
   const handleDeleteSong = (songId: string, title: string) => {
-    const confirmDelete = async () => {
-      await storageService.deleteSong(songId);
-      await loadSongs();
+    const confirmDelete = () => {
+      storageService
+        .deleteSong(songId)
+        .then(loadSongs)
+        .catch((err) => console.warn('Failed to delete song:', err));
     };
 
     if (Platform.OS === 'web') {
-      if (window.confirm(`Delete "${title}"?`)) {
+      // Alert.alert is a no-op on web, so use the browser dialog there
+      if (globalThis.confirm?.(`Delete "${title}"?`)) {
         confirmDelete();
       }
     } else {
@@ -169,7 +178,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: ACTIVE_THEME.ui.cardBorder }]}>
         <View>
@@ -183,7 +192,7 @@ export default function HomeScreen() {
         <Pressable
           style={styles.uploadButton}
           onPress={() => {
-            setSelectedFileUri(null);
+            setSelectedFile(null);
             setSelectedFileName('');
             setSongTitle('');
             setBpmInput('120');
@@ -290,9 +299,12 @@ export default function HomeScreen() {
         })}
       </ScrollView>
 
-      {/* Upload Modal Form */}
-      <Modal visible={isUploadModalOpen} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
+      {/* Upload Form Overlay (in-screen instead of <Modal>, which re-shows the Android system bars) */}
+      {isUploadModalOpen && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalBackdrop}
+        >
           <View
             style={[
               styles.modalCard,
@@ -403,8 +415,8 @@ export default function HomeScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
-      </Modal>
+        </KeyboardAvoidingView>
+      )}
     </SafeAreaView>
   );
 }
@@ -583,7 +595,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
+    zIndex: 100,
+    elevation: 100,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',

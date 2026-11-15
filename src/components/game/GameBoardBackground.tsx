@@ -1,5 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform, Image } from 'react-native';
+import React, { useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Platform,
+  Image,
+  type GestureResponderEvent,
+} from 'react-native';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 
 interface GameBoardBackgroundProps {
@@ -14,6 +22,13 @@ interface GameBoardBackgroundProps {
 }
 
 export const LANE_KEYS = ['D', 'F', 'J', 'K'] as const;
+
+type Lane = 0 | 1 | 2 | 3;
+
+// React Native's responder system only lets one Pressable be touched at a
+// time, which breaks chords and holding one lane while tapping another. On
+// native we read raw multi-touch events instead and map each finger to a lane.
+const USE_MULTI_TOUCH = Platform.OS !== 'web';
 
 /**
  * 4-Lane React Native Rhythm Game Board Surface
@@ -32,8 +47,74 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
 }) => {
   const { board, feedback } = theme;
 
+  const boardRef = useRef<React.ComponentRef<typeof View>>(null);
+  const boardFrame = useRef({ x: 0, width: 1 });
+  const touchLanes = useRef(new Map<string, Lane>());
+
+  const handleLayout = () => {
+    boardRef.current?.measureInWindow((x, _y, width) => {
+      if (width > 0) boardFrame.current = { x, width };
+    });
+  };
+
+  const laneForX = (pageX: number): Lane => {
+    const { x, width } = boardFrame.current;
+    const idx = Math.floor(((pageX - x) / width) * 4);
+    return Math.max(0, Math.min(3, idx)) as Lane;
+  };
+
+  const handleTouchStart = (e: GestureResponderEvent) => {
+    for (const t of e.nativeEvent.changedTouches) {
+      const id = String(t.identifier);
+      if (touchLanes.current.has(id)) continue;
+      const lane = laneForX(t.pageX);
+      touchLanes.current.set(id, lane);
+      onLanePressStart?.(lane);
+    }
+  };
+
+  const handleTouchMove = (e: GestureResponderEvent) => {
+    for (const t of e.nativeEvent.changedTouches) {
+      const id = String(t.identifier);
+      const prev = touchLanes.current.get(id);
+      if (prev === undefined) continue;
+      const lane = laneForX(t.pageX);
+      if (lane !== prev) {
+        // Finger slid into another lane: release the old one, press the new one
+        touchLanes.current.set(id, lane);
+        if (![...touchLanes.current.values()].includes(prev)) onLanePressEnd?.(prev);
+        onLanePressStart?.(lane);
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: GestureResponderEvent) => {
+    for (const t of e.nativeEvent.changedTouches) {
+      const id = String(t.identifier);
+      const lane = touchLanes.current.get(id);
+      if (lane === undefined) continue;
+      touchLanes.current.delete(id);
+      // Only release if no other finger is still on this lane
+      if (![...touchLanes.current.values()].includes(lane)) onLanePressEnd?.(lane);
+    }
+  };
+
+  const touchHandlers = USE_MULTI_TOUCH
+    ? {
+        onTouchStart: handleTouchStart,
+        onTouchMove: handleTouchMove,
+        onTouchEnd: handleTouchEnd,
+        onTouchCancel: handleTouchEnd,
+      }
+    : {};
+
   return (
-    <View style={[styles.root, { backgroundColor: board.backgroundColor }]}>
+    <View
+      ref={boardRef}
+      onLayout={handleLayout}
+      style={[styles.root, { backgroundColor: board.backgroundColor }]}
+      {...touchHandlers}
+    >
       {/* Optional Background Texture / Image */}
       {board.backgroundImageSource && (
         <Image
@@ -64,8 +145,9 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                     : 'transparent',
                 },
               ]}
-              onPressIn={() => onLanePressStart?.(laneIndex)}
-              onPressOut={() => onLanePressEnd?.(laneIndex)}
+              disabled={USE_MULTI_TOUCH}
+              onPressIn={USE_MULTI_TOUCH ? undefined : () => onLanePressStart?.(laneIndex)}
+              onPressOut={USE_MULTI_TOUCH ? undefined : () => onLanePressEnd?.(laneIndex)}
             >
               {/* Lane Key Badge / Prompt at Hit Line */}
               {showKeyLabels && (

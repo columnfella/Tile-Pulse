@@ -1,326 +1,245 @@
 /**
- * High-Performance Audio Engine for TilePulse
- * 
- * Provides:
- * 1. Exact sample-accurate currentTime tracking (using Web Audio API AudioContext)
- * 2. Uploaded audio playback (Blob/URL)
- * 3. Polyphonic acoustic piano synthesizer (with natural harmonics & decay)
- * 4. Crisp tactile hit feedback sound effects (synthesized with zero latency)
- * 5. Scrubbing and preview playback for the Beatmap Editor
+ * Audio engine for TilePulse, built on expo-audio (iOS, Android and web).
+ *
+ * - Music tracks (uploaded files or the rendered starter song) play through
+ *   one main AudioPlayer.
+ * - Hit chimes and hold ticks are pre-rendered WAVs played from small player
+ *   pools so rapid taps can overlap.
+ * - getCurrentTime() is the game's master clock: it extrapolates between the
+ *   player's reported positions with a monotonic timer for smooth tile motion
+ *   and re-syncs whenever the player drifts.
  */
 
-import { STARTER_MELODY, P_FREQS } from '../game/starterSong';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { renderHitSound, renderHoldTick, renderStarterTrack } from '../audio/synth';
+import { writeGeneratedWav } from './audioFileStore';
+
+const LANE_FREQUENCIES = [261.63, 329.63, 392.0, 523.25]; // C4, E4, G4, C5
+const VOICES_PER_LANE = 2;
+const LOAD_TIMEOUT_MS = 5000;
+const DRIFT_TOLERANCE_SEC = 0.06;
+
+const now = () => (globalThis.performance?.now?.() ?? Date.now()) / 1000;
 
 class AudioEngine {
-  private ctx: AudioContext | null = null;
-  private audioEl: HTMLAudioElement | null = null;
-  private isSynthesized: boolean = false;
-  private isPlaying: boolean = false;
-  private startCtxTime: number = 0;
-  private pauseOffsetTime: number = 0;
-  private scheduledOscillators: { osc: OscillatorNode; gain: GainNode }[] = [];
-  private currentSongId: string | null = null;
-  private bpm: number = 120;
-  private customDuration: number = 0;
+  private track: AudioPlayer | null = null;
+  private trackSubscription: { remove: () => void } | null = null;
+  private hitVoices: AudioPlayer[][] = [];
+  private hitVoiceCursor = [0, 0, 0, 0];
+  private tickVoices: AudioPlayer[] = [];
+  private tickCursor = 0;
+  private sfxReady: Promise<void> | null = null;
+  private synthesizedUris = new Map<string, string>();
+
+  private isPlaying = false;
+  private duration = 15;
+  private pausedAt = 0;
+  // Clock anchor: track position `anchorPos` was observed at monotonic time `anchorTime`
+  private anchorPos = 0;
+  private anchorTime = 0;
+  private clockStarted = false;
+  private lastReportedPos = -1;
+  private loadToken = 0;
 
   constructor() {
-    // Lazy AudioContext initialization on first user interaction
+    setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'mixWithOthers' }).catch(
+      (err) => console.warn('Failed to set audio mode:', err)
+    );
   }
 
-  private ensureContext(): AudioContext {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioCtx();
+  /** Renders and loads the hit/tick sound effects once. Never rejects. */
+  public prepareEffects(): Promise<void> {
+    if (!this.sfxReady) {
+      this.sfxReady = (async () => {
+        try {
+          const laneUris = await Promise.all(
+            LANE_FREQUENCIES.map((f, i) => writeGeneratedWav(`hit_lane_${i}`, renderHitSound(f)))
+          );
+          this.hitVoices = laneUris.map((uri) =>
+            Array.from({ length: VOICES_PER_LANE }, () => createAudioPlayer(uri))
+          );
+          const tickUri = await writeGeneratedWav('hold_tick', renderHoldTick());
+          this.tickVoices = [createAudioPlayer(tickUri), createAudioPlayer(tickUri)];
+        } catch (err) {
+          console.warn('Failed to prepare sound effects:', err);
+        }
+      })();
     }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
-    return this.ctx;
+    return this.sfxReady;
   }
 
-  /**
-   * Loads an audio track either from a blob/URL or as synthesized music
-   */
-  public async loadTrack(songId: string, audioUri: string, bpm: number, durationSeconds?: number): Promise<void> {
+  private async resolveSource(audioUri: string, bpm: number, durationSeconds?: number): Promise<string> {
+    if (!audioUri.startsWith('synthesized:')) return audioUri;
+    const duration = durationSeconds || 15;
+    const key = `${audioUri}_${bpm}_${duration}`;
+    let uri = this.synthesizedUris.get(key);
+    if (!uri) {
+      const name = key.replace(/[^a-z0-9_]/gi, '_');
+      uri = await writeGeneratedWav(name, renderStarterTrack(bpm, duration));
+      this.synthesizedUris.set(key, uri);
+    }
+    return uri;
+  }
+
+  /** Loads a track (file URI or `synthesized:` starter song) and waits until it is playable. */
+  public async loadTrack(
+    _songId: string,
+    audioUri: string,
+    bpm: number,
+    durationSeconds?: number
+  ): Promise<void> {
+    const token = ++this.loadToken;
     this.stop();
-    this.currentSongId = songId;
-    this.bpm = bpm;
-    this.pauseOffsetTime = 0;
+    void this.prepareEffects();
 
-    if (audioUri.startsWith('synthesized:')) {
-      this.isSynthesized = true;
-      this.customDuration = durationSeconds || 15;
-      if (this.audioEl) {
-        this.audioEl.pause();
-        this.audioEl = null;
-      }
+    const source = await this.resolveSource(audioUri, bpm, durationSeconds);
+    if (token !== this.loadToken) return; // superseded by a newer load
+
+    this.trackSubscription?.remove();
+    if (!this.track) {
+      this.track = createAudioPlayer(source, { updateInterval: 100 });
     } else {
-      this.isSynthesized = false;
-      this.ensureContext();
-      if (!this.audioEl) {
-        this.audioEl = new Audio();
-        this.audioEl.crossOrigin = 'anonymous';
+      this.track.replace(source);
+    }
+    const player = this.track;
+
+    this.trackSubscription = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.didJustFinish) {
+        this.pausedAt = this.getCurrentTime();
+        this.isPlaying = false;
       }
-      this.audioEl.src = audioUri;
-      await new Promise<void>((resolve) => {
-        if (!this.audioEl) return resolve();
-        this.audioEl.oncanplay = () => resolve();
-        this.audioEl.onerror = () => resolve(); // fallback gracefully
-        this.audioEl.load();
-        setTimeout(resolve, 800); // safety fallback
-      });
-      this.customDuration = this.audioEl.duration || durationSeconds || 15;
-    }
+    });
+
+    await new Promise<void>((resolve) => {
+      const start = Date.now();
+      const check = () => {
+        if (player.isLoaded || token !== this.loadToken || Date.now() - start > LOAD_TIMEOUT_MS) {
+          resolve();
+        } else {
+          setTimeout(check, 30);
+        }
+      };
+      check();
+    });
+
+    this.duration = player.duration > 0 ? player.duration : durationSeconds || 15;
   }
 
-  /**
-   * Starts playback from an optional offset in seconds
-   */
+  /** Starts playback from an offset in seconds. */
   public play(startOffsetSeconds: number = 0): void {
-    const ctx = this.ensureContext();
+    if (!this.track) return;
+    const offset = Math.max(0, startOffsetSeconds);
+    this.pausedAt = offset;
+    this.anchorPos = offset;
+    this.anchorTime = now();
+    this.clockStarted = false;
+    this.lastReportedPos = -1;
     this.isPlaying = true;
-    this.pauseOffsetTime = Math.max(0, startOffsetSeconds);
-    this.startCtxTime = ctx.currentTime - this.pauseOffsetTime;
 
-    if (this.isSynthesized) {
-      this.scheduleSynthesizedPlayback(this.pauseOffsetTime);
-    } else if (this.audioEl) {
-      this.audioEl.currentTime = this.pauseOffsetTime;
-      this.audioEl.play().catch((err) => {
-        console.warn('Audio play prevented or interrupted:', err);
+    const player = this.track;
+    player
+      .seekTo(offset)
+      .catch(() => {})
+      .finally(() => {
+        if (this.isPlaying && this.track === player) player.play();
       });
-    }
   }
 
-  /**
-   * Pauses playback while preserving current position
-   */
   public pause(): void {
     if (!this.isPlaying) return;
-    this.pauseOffsetTime = this.getCurrentTime();
+    this.pausedAt = this.getCurrentTime();
     this.isPlaying = false;
-
-    if (this.isSynthesized) {
-      this.cancelScheduledSynth();
-    } else if (this.audioEl) {
-      this.audioEl.pause();
-    }
+    this.track?.pause();
   }
 
-  /**
-   * Stops playback and resets playhead to 0
-   */
   public stop(): void {
     this.isPlaying = false;
-    this.pauseOffsetTime = 0;
-    if (this.isSynthesized) {
-      this.cancelScheduledSynth();
-    } else if (this.audioEl) {
-      this.audioEl.pause();
-      this.audioEl.currentTime = 0;
+    this.pausedAt = 0;
+    if (this.track) {
+      this.track.pause();
+      this.track.seekTo(0).catch(() => {});
     }
   }
 
-  /**
-   * Seeks to a specific timestamp in seconds
-   */
   public seek(seconds: number): void {
     const wasPlaying = this.isPlaying;
-    if (wasPlaying) {
-      this.pause();
-    }
-    this.pauseOffsetTime = Math.max(0, seconds);
-    if (this.ctx) {
-      this.startCtxTime = this.ctx.currentTime - this.pauseOffsetTime;
-    }
-    if (this.audioEl) {
-      this.audioEl.currentTime = this.pauseOffsetTime;
-    }
-    if (wasPlaying) {
-      this.play(this.pauseOffsetTime);
-    }
+    if (wasPlaying) this.pause();
+    this.pausedAt = Math.max(0, seconds);
+    this.track?.seekTo(this.pausedAt).catch(() => {});
+    if (wasPlaying) this.play(this.pausedAt);
   }
 
-  /**
-   * Exact audio playback time in seconds.
-   * This is the master clock for the frame loop.
-   */
+  /** Current playback position in seconds — the master clock for the game loop. */
   public getCurrentTime(): number {
-    if (!this.isPlaying) {
-      return this.pauseOffsetTime;
+    if (!this.isPlaying || !this.track) return this.pausedAt;
+
+    const reported = this.track.currentTime;
+    const t = now();
+
+    if (!this.clockStarted) {
+      // Hold the clock until audio output has actually started, so tiles
+      // don't run ahead of the music during player startup latency.
+      // Positions outside [offset, offset + 0.5s] are stale (seek not finished yet).
+      const advanced = reported > this.anchorPos + 0.001 && reported < this.anchorPos + 0.5;
+      const timedOut = t - this.anchorTime > 1.0; // never stall the game indefinitely
+      if ((this.track.playing && advanced) || timedOut) {
+        this.clockStarted = true;
+        if (advanced) this.anchorPos = reported;
+        this.anchorTime = t;
+        this.lastReportedPos = reported;
+      }
+      return this.anchorPos;
     }
 
-    if (this.isSynthesized) {
-      if (!this.ctx) return this.pauseOffsetTime;
-      const elapsed = this.ctx.currentTime - this.startCtxTime;
-      return Math.max(0, elapsed);
-    } else if (this.audioEl) {
-      return this.audioEl.currentTime;
+    const estimate = this.anchorPos + (t - this.anchorTime);
+    if (reported !== this.lastReportedPos) {
+      this.lastReportedPos = reported;
+      if (Math.abs(reported - estimate) > DRIFT_TOLERANCE_SEC) {
+        this.anchorPos = reported;
+        this.anchorTime = t;
+        return reported;
+      }
     }
-
-    if (!this.ctx) return 0;
-    return Math.max(0, this.ctx.currentTime - this.startCtxTime);
+    return Math.min(estimate, this.duration);
   }
 
   public getDuration(): number {
-    if (this.isSynthesized) {
-      return this.customDuration || 15;
-    }
-    return this.audioEl?.duration || this.customDuration || 15;
+    return this.duration;
   }
 
   public getIsPlaying(): boolean {
     return this.isPlaying;
   }
 
-  /**
-   * Plays low-latency procedural acoustic piano note or feedback chime
-   */
+  private trigger(player: AudioPlayer | undefined, volume: number): void {
+    if (!player) return;
+    try {
+      player.volume = volume;
+      player.seekTo(0).catch(() => {});
+      player.play();
+    } catch {
+      // Player not ready yet; skip this sound
+    }
+  }
+
+  /** Plays a short piano chime for the lane. */
   public playHitSound(lane: 0 | 1 | 2 | 3, isPerfect: boolean = true): void {
-    try {
-      const ctx = this.ensureContext();
-      const now = ctx.currentTime;
-
-      // Pentatonic pitch frequencies mapped across 4 lanes
-      const laneFrequencies = [261.63, 329.63, 392.0, 523.25]; // C4, E4, G4, C5
-      const baseFreq = laneFrequencies[lane] || 440;
-
-      // Master note gain with quick attack and natural acoustic piano exponential decay
-      const gainNode = ctx.createGain();
-      gainNode.gain.setValueAtTime(0, now);
-      gainNode.gain.linearRampToValueAtTime(isPerfect ? 0.28 : 0.18, now + 0.005);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, now + (isPerfect ? 0.35 : 0.2));
-
-      // Fundamental oscillator
-      const osc1 = ctx.createOscillator();
-      osc1.type = 'triangle';
-      osc1.frequency.setValueAtTime(baseFreq, now);
-
-      // 2nd harmonic oscillator (gives piano brightness)
-      const osc2 = ctx.createOscillator();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(baseFreq * 2, now);
-
-      const harmonicGain = ctx.createGain();
-      harmonicGain.gain.setValueAtTime(0.12, now);
-      harmonicGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-
-      osc1.connect(gainNode);
-      osc2.connect(harmonicGain);
-      harmonicGain.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      osc1.start(now);
-      osc2.start(now);
-      osc1.stop(now + 0.38);
-      osc2.stop(now + 0.38);
-    } catch {
-      // AudioContext unavailable or blocked
+    const voices = this.hitVoices[lane];
+    if (!voices?.length) {
+      void this.prepareEffects();
+      return;
     }
+    const idx = this.hitVoiceCursor[lane];
+    this.hitVoiceCursor[lane] = (idx + 1) % voices.length;
+    this.trigger(voices[idx], isPerfect ? 1 : 0.6);
   }
 
-  /**
-   * Continuous hold note loop tick sound
-   */
-  public playHoldTick(progress: number): void {
-    try {
-      const ctx = this.ensureContext();
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(520 + progress * 300, now);
-      gain.gain.setValueAtTime(0.04, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.06);
-    } catch {
-      // Ignore
-    }
-  }
-
-  /**
-   * Schedules melody notes for synthesized tracks (e.g. starter song)
-   */
-  private scheduleSynthesizedPlayback(offsetSeconds: number): void {
-    const ctx = this.ensureContext();
-    const now = ctx.currentTime;
-    this.cancelScheduledSynth();
-
-    const secondsPerBeat = 60 / this.bpm;
-
-    STARTER_MELODY.forEach((note) => {
-      const noteTime = note.beat * secondsPerBeat;
-      const scheduledTime = now + (noteTime - offsetSeconds);
-
-      if (scheduledTime >= now - 0.05) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        // Rich piano-like timbre
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(note.frequency, Math.max(now, scheduledTime));
-
-        const duration = note.durationBeats > 0 
-          ? note.durationBeats * secondsPerBeat 
-          : 0.35;
-
-        const startTime = Math.max(now, scheduledTime);
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.24, startTime + 0.008);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(startTime);
-        osc.stop(startTime + duration + 0.05);
-
-        this.scheduledOscillators.push({ osc, gain });
-      }
-    });
-
-    // Also schedule subtle metronome/percussion accents for beat timing
-    const totalBeats = Math.ceil(this.customDuration / secondsPerBeat);
-    for (let b = 0; b <= totalBeats; b++) {
-      const beatTime = b * secondsPerBeat;
-      const schedTime = now + (beatTime - offsetSeconds);
-      if (schedTime >= now - 0.05) {
-        const isMeasureStart = b % 4 === 0;
-        const tickOsc = ctx.createOscillator();
-        const tickGain = ctx.createGain();
-        tickOsc.type = 'sine';
-        tickOsc.frequency.setValueAtTime(isMeasureStart ? 880 : 440, Math.max(now, schedTime));
-        
-        const startTime = Math.max(now, schedTime);
-        tickGain.gain.setValueAtTime(0, startTime);
-        tickGain.gain.linearRampToValueAtTime(isMeasureStart ? 0.06 : 0.02, startTime + 0.002);
-        tickGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.035);
-
-        tickOsc.connect(tickGain);
-        tickGain.connect(ctx.destination);
-        tickOsc.start(startTime);
-        tickOsc.stop(startTime + 0.04);
-
-        this.scheduledOscillators.push({ osc: tickOsc, gain: tickGain });
-      }
-    }
-  }
-
-  private cancelScheduledSynth(): void {
-    this.scheduledOscillators.forEach(({ osc, gain }) => {
-      try {
-        osc.stop();
-        osc.disconnect();
-        gain.disconnect();
-      } catch {
-        // Already stopped
-      }
-    });
-    this.scheduledOscillators = [];
+  /** Short tick while a hold tile is held. */
+  public playHoldTick(_progress: number): void {
+    if (!this.tickVoices.length) return;
+    const idx = this.tickCursor;
+    this.tickCursor = (idx + 1) % this.tickVoices.length;
+    this.trigger(this.tickVoices[idx], 0.5);
   }
 }
 

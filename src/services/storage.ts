@@ -1,67 +1,62 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Song } from '../types/song';
 import { STARTER_SONG } from '../game/starterSong';
+import type { PickedAudioResult } from './documentPicker';
+import {
+  saveImportedAudio,
+  resolveAudioUri,
+  deleteAudio,
+} from './audioFileStore';
 
 const SONGS_STORAGE_KEY = 'tilepulse_songs_v1';
-const DB_NAME = 'tilepulse_audio_db';
-const DB_VERSION = 1;
-const AUDIO_STORE_NAME = 'audio_files';
 
+/**
+ * Persists song metadata/beatmaps in AsyncStorage (works on iOS, Android and
+ * web) and delegates audio file storage to the platform-specific
+ * audioFileStore (file system on native, IndexedDB on web).
+ */
 class StorageService {
-  private dbPromise: Promise<IDBDatabase> | null = null;
-  private blobUrlMap = new Map<string, string>();
-
-  private getDB(): Promise<IDBDatabase> {
-    if (!this.dbPromise) {
-      this.dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = () => {
-          const db = req.result;
-          if (!db.objectStoreNames.contains(AUDIO_STORE_NAME)) {
-            db.createObjectStore(AUDIO_STORE_NAME);
-          }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    }
-    return this.dbPromise;
-  }
+  private cache: Song[] | null = null;
+  private initPromise: Promise<void> | null = null;
 
   /**
-   * Initializes storage and ensures starter song is loaded on first launch
+   * Seeds the starter song on first launch. Safe to call repeatedly and never
+   * rejects, so callers don't need to guard it.
    */
-  public async initStorage(): Promise<void> {
-    try {
-      await this.getDB();
-      const songs = await this.getSongs();
-      if (songs.length === 0) {
-        // Seed starter sample song
-        await this.saveSong(STARTER_SONG);
-      }
-    } catch (err) {
-      console.warn('Storage initialization fallback:', err);
-      // Fallback for private mode or limited environments
-      const raw = localStorage.getItem(SONGS_STORAGE_KEY);
-      if (!raw) {
-        localStorage.setItem(SONGS_STORAGE_KEY, JSON.stringify([STARTER_SONG]));
-      }
+  public initStorage(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = (async () => {
+        try {
+          const raw = await AsyncStorage.getItem(SONGS_STORAGE_KEY);
+          if (raw === null) {
+            await this.writeSongs([STARTER_SONG]);
+          }
+        } catch (err) {
+          console.warn('Storage initialization failed:', err);
+          this.cache = [STARTER_SONG];
+        }
+      })();
     }
+    return this.initPromise;
   }
 
   public async getSongs(): Promise<Song[]> {
+    await this.initStorage();
+    if (this.cache) return [...this.cache];
     try {
-      const raw = localStorage.getItem(SONGS_STORAGE_KEY);
-      if (!raw) return [];
-      const songs: Song[] = JSON.parse(raw);
-      return songs;
-    } catch {
-      return [STARTER_SONG];
+      const raw = await AsyncStorage.getItem(SONGS_STORAGE_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      this.cache = Array.isArray(parsed) ? (parsed as Song[]) : [];
+    } catch (err) {
+      console.warn('Failed to read songs, falling back to starter song:', err);
+      this.cache = [STARTER_SONG];
     }
+    return [...this.cache];
   }
 
   public async getSongById(id: string): Promise<Song | null> {
     const songs = await this.getSongs();
-    return songs.find((s) => s.id === id) || null;
+    return songs.find((s) => s.id === id) ?? null;
   }
 
   public async saveSong(song: Song): Promise<void> {
@@ -72,77 +67,30 @@ class StorageService {
     } else {
       songs.unshift(song);
     }
-    localStorage.setItem(SONGS_STORAGE_KEY, JSON.stringify(songs));
+    await this.writeSongs(songs);
   }
 
   public async deleteSong(id: string): Promise<void> {
     const songs = await this.getSongs();
-    const filtered = songs.filter((s) => s.id !== id);
-    localStorage.setItem(SONGS_STORAGE_KEY, JSON.stringify(filtered));
-
-    // Also delete audio blob from IndexedDB if stored
-    try {
-      const db = await this.getDB();
-      const tx = db.transaction(AUDIO_STORE_NAME, 'readwrite');
-      tx.objectStore(AUDIO_STORE_NAME).delete(id);
-    } catch {
-      // Ignore
-    }
-
-    if (this.blobUrlMap.has(id)) {
-      URL.revokeObjectURL(this.blobUrlMap.get(id)!);
-      this.blobUrlMap.delete(id);
-    }
+    const target = songs.find((s) => s.id === id);
+    await this.writeSongs(songs.filter((s) => s.id !== id));
+    if (target) await deleteAudio(id, target.audioUri);
   }
 
-  /**
-   * Stores an audio file blob into IndexedDB and returns a playable Object URL
-   */
-  public async saveAudioBlob(songId: string, blob: Blob): Promise<string> {
-    const db = await this.getDB();
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(AUDIO_STORE_NAME, 'readwrite');
-      const req = tx.objectStore(AUDIO_STORE_NAME).put(blob, songId);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
-
-    const objectUrl = URL.createObjectURL(blob);
-    this.blobUrlMap.set(songId, objectUrl);
-    return objectUrl;
+  /** Copies a picked audio file into persistent storage; returns the URI to store on the Song. */
+  public importAudio(songId: string, picked: PickedAudioResult): Promise<string> {
+    return saveImportedAudio(songId, picked);
   }
 
-  /**
-   * Retrieves an audio blob and returns or creates its Object URL
-   */
+  /** Returns a URI the audio player can load for this song. */
   public async getAudioUriForSong(song: Song): Promise<string> {
-    if (song.audioUri.startsWith('synthesized:')) {
-      return song.audioUri;
-    }
+    if (song.audioUri.startsWith('synthesized:')) return song.audioUri;
+    return resolveAudioUri(song.id, song.audioUri);
+  }
 
-    if (this.blobUrlMap.has(song.id)) {
-      return this.blobUrlMap.get(song.id)!;
-    }
-
-    try {
-      const db = await this.getDB();
-      const blob = await new Promise<Blob | null>((resolve, reject) => {
-        const tx = db.transaction(AUDIO_STORE_NAME, 'readonly');
-        const req = tx.objectStore(AUDIO_STORE_NAME).get(song.id);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-      });
-
-      if (blob) {
-        const url = URL.createObjectURL(blob);
-        this.blobUrlMap.set(song.id, url);
-        return url;
-      }
-    } catch (err) {
-      console.warn('Failed to retrieve audio blob from IndexedDB:', err);
-    }
-
-    return song.audioUri;
+  private async writeSongs(songs: Song[]): Promise<void> {
+    this.cache = songs;
+    await AsyncStorage.setItem(SONGS_STORAGE_KEY, JSON.stringify(songs));
   }
 }
 

@@ -5,11 +5,10 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  SafeAreaView,
-  Dimensions,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Song, TileNote } from '../../types/song';
 import { storageService } from '../../services/storage';
 import { audioService } from '../../services/audio';
@@ -24,7 +23,7 @@ import {
   Plus,
   Minus,
   Check,
-} from 'lucide-react';
+} from 'lucide-react-native';
 
 export default function EditorScreen() {
   const router = useRouter();
@@ -46,20 +45,32 @@ export default function EditorScreen() {
   const TOTAL_BEATS = 48;
   const gridHeight = TOTAL_BEATS * PIXELS_PER_BEAT;
 
-  // Load songs from storage
-  useEffect(() => {
-    async function load() {
-      const list = await storageService.getSongs();
-      setSongs(list);
-      const initialId = params.songId || (list[0]?.id ?? '');
-      setSelectedSongId(initialId);
-      const target = list.find((s) => s.id === initialId) || list[0];
-      if (target) {
-        setTiles(target.tiles || []);
-      }
-    }
-    load();
-  }, [params.songId]);
+  // Reload songs whenever the tab gains focus (tabs stay mounted, so songs
+  // added on the Home tab would otherwise never show up here). Stop the
+  // preview when leaving the tab so audio doesn't keep playing in the background.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      storageService
+        .getSongs()
+        .then((list) => {
+          if (cancelled) return;
+          setSongs(list);
+          setSelectedSongId((prev) => {
+            const wanted = params.songId || prev;
+            return list.some((s) => s.id === wanted) ? wanted : list[0]?.id ?? '';
+          });
+        })
+        .catch((err) => console.warn('Failed to load songs:', err));
+
+      return () => {
+        cancelled = true;
+        audioService.stop();
+        setIsPlayingPreview(false);
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      };
+    }, [params.songId])
+  );
 
   const currentSong = songs.find((s) => s.id === selectedSongId) || songs[0];
 
@@ -115,12 +126,22 @@ export default function EditorScreen() {
         cancelAnimationFrame(animFrameRef.current);
       }
     } else {
-      const uri = await storageService.getAudioUriForSong(currentSong);
-      await audioService.loadTrack(currentSong.id, uri, currentSong.bpm, currentSong.durationSeconds);
-      audioService.play(0);
-      setIsPlayingPreview(true);
-      animFrameRef.current = requestAnimationFrame(updatePreviewPlayhead);
+      try {
+        const uri = await storageService.getAudioUriForSong(currentSong);
+        await audioService.loadTrack(currentSong.id, uri, currentSong.bpm, currentSong.durationSeconds);
+        audioService.play(0);
+        setIsPlayingPreview(true);
+        animFrameRef.current = requestAnimationFrame(updatePreviewPlayhead);
+      } catch (err) {
+        console.warn('Preview playback failed:', err);
+        showToast('Could not play this song\'s audio.');
+      }
     }
+  };
+
+  const showToast = (message: string) => {
+    setSaveToast(message);
+    setTimeout(() => setSaveToast(null), 2500);
   };
 
   const handleSaveBeatmap = async () => {
@@ -129,9 +150,15 @@ export default function EditorScreen() {
       ...currentSong,
       tiles: [...tiles].sort((a, b) => a.beat - b.beat),
     };
-    await storageService.saveSong(updatedSong);
-    setSaveToast('Beatmap saved successfully!');
-    setTimeout(() => setSaveToast(null), 2500);
+    try {
+      await storageService.saveSong(updatedSong);
+      // Keep local list in sync so switching songs doesn't revert unsaved state
+      setSongs((prev) => prev.map((s) => (s.id === updatedSong.id ? updatedSong : s)));
+      showToast('Beatmap saved successfully!');
+    } catch (err) {
+      console.warn('Failed to save beatmap:', err);
+      showToast('Failed to save beatmap.');
+    }
   };
 
   const handleGridSlotPress = (lane: 0 | 1 | 2 | 3, beat: number) => {
@@ -184,7 +211,7 @@ export default function EditorScreen() {
 
   if (!currentSong) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No song loaded.</Text>
         </View>
@@ -193,7 +220,7 @@ export default function EditorScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
       {/* Top Header */}
       <View style={[styles.header, { borderBottomColor: ACTIVE_THEME.ui.cardBorder }]}>
         <View style={styles.headerControlsRow}>

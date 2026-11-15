@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, Sliders } from 'lucide-react';
+import { Home, Sliders } from 'lucide-react-native';
 import { ACTIVE_THEME } from '../../constants/theme';
 
 export default function TabLayout() {
@@ -13,9 +13,8 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: ui.surfaceBackground,
           borderTopColor: ui.cardBorder,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
+          // No fixed height/padding: React Navigation adds the bottom safe-area
+          // inset itself (e.g. the iPhone home indicator).
         },
         tabBarActiveTintColor: '#38bdf8',
         tabBarInactiveTintColor: '#94a3b8',
@@ -25,8 +24,8 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Songs',
-          tabBarIcon: ({ color, size }: { color: string; size?: number }) => (
-            <Home size={size || 20} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Home size={size || 20} color={String(color)} />
           ),
         }}
       />
@@ -34,8 +33,8 @@ export default function TabLayout() {
         name="editor"
         options={{
           title: 'Editor',
-          tabBarIcon: ({ color, size }: { color: string; size?: number }) => (
-            <Sliders size={size || 20} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Sliders size={size || 20} color={String(color)} />
           ),
         }}
       />
