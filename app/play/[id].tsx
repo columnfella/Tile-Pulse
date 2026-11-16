@@ -15,6 +15,7 @@ import Animated, {
   useAnimatedStyle,
   useFrameCallback,
   useSharedValue,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Song, type SlidePoint } from '../../types/song';
@@ -37,6 +38,7 @@ import { HitJudgmentBadge } from '../../src/components/game/HitJudgmentBadge';
 import { ComboDisplay } from '../../src/components/game/ComboDisplay';
 import { TileField, type TimedTile } from '../../src/components/game/TileField';
 import { useHitFlash } from '../../src/components/game/HitEffects';
+import { useCreateSignal, useSignal, type Signal } from '../../src/game/signal';
 import { AnimatedBackground, isBackgroundId } from '../../src/components/backgrounds/AnimatedBackground';
 import { useDefaultBackground } from '../../src/services/settings';
 import { Countdown, LoadingOverlay } from '../../src/components/game/StartSequence';
@@ -44,6 +46,84 @@ import { PressableScale } from '../../src/components/ui/PressableScale';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { backdropIn, backdropOut, cardIn, cardOut } from '../../src/components/ui/motion';
 import { FONTS } from '../../src/theme/pixel';
+
+interface JudgmentState {
+  judgment: HitJudgment | null;
+  timeDiffMs?: number;
+  hitId: number;
+}
+
+/* Small components that subscribe to one signal each, so a hit only re-renders them. */
+
+function SignalClock({ second }: { second: Signal<number> }) {
+  return <>{formatAudioTime(useSignal(second))}</>;
+}
+
+function ScoreValue({ stats, style }: { stats: Signal<GameStats>; style: object }) {
+  const { score } = useSignal(stats);
+  return <Text style={style}>{score.toString().padStart(6, '0')}</Text>;
+}
+
+function ComboFromSignal({ stats }: { stats: Signal<GameStats> }) {
+  return <ComboDisplay combo={useSignal(stats).combo} />;
+}
+
+function JudgmentFromSignal({ judgment }: { judgment: Signal<JudgmentState> }) {
+  const j = useSignal(judgment);
+  return <HitJudgmentBadge judgment={j.judgment} timeDiffMs={j.timeDiffMs} hitId={j.hitId} />;
+}
+
+const WINDOW_STEP_SEC = 0.5;
+
+/** Mounts only the tiles near the playhead; re-renders on its own when the window moves or a tile changes. */
+const WindowedTileField = React.memo(function WindowedTileField({
+  timeline,
+  bpm,
+  boardHeight,
+  boardWidth,
+  hitLineY,
+  pixelsPerBeat,
+  tapHeight,
+  songTime,
+  getTileState,
+  step,
+  version,
+}: {
+  timeline: TimedTile[];
+  bpm: number;
+  boardHeight: number;
+  boardWidth: number;
+  hitLineY: number;
+  pixelsPerBeat: number;
+  tapHeight: number;
+  songTime: SharedValue<number>;
+  getTileState: (id: string) => ActiveTileState | undefined;
+  step: Signal<number>;
+  version: Signal<number>;
+}) {
+  const windowStep = useSignal(step);
+  const tileVersion = useSignal(version);
+  const tiles = useMemo(() => {
+    const speed = (pixelsPerBeat * bpm) / 60;
+    const t = windowStep * WINDOW_STEP_SEC;
+    const lookahead = hitLineY / speed + WINDOW_STEP_SEC + 1;
+    const behind = (boardHeight - hitLineY) / speed + WINDOW_STEP_SEC + 0.5;
+    return timeline.filter((tile) => tile.endTime >= t - behind && tile.noteTime <= t + lookahead);
+  }, [timeline, bpm, boardHeight, hitLineY, pixelsPerBeat, windowStep]);
+  return (
+    <TileField
+      tiles={tiles}
+      bpm={bpm}
+      hitLineY={hitLineY}
+      pixelsPerBeat={pixelsPerBeat}
+      tapHeight={tapHeight}
+      songTime={songTime}
+      getTileState={getTileState}
+      version={tileVersion}
+      boardWidth={boardWidth}
+    />
+  );
+});
 
 export default function PlayScreen() {
   const router = useRouter();
@@ -55,8 +135,6 @@ export default function PlayScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   // loading → countdown → playing. Input and the game loop only run while playing.
   const [phase, setPhase] = useState<'loading' | 'countdown' | 'playing'>('loading');
-  // Incremented on every judgment so the badge re-pops each hit
-  const [hitId, setHitId] = useState<number>(0);
   const [audioDuration, setAudioDuration] = useState<number>(15);
 
   // Performance: the song clock lives in a shared value that the UI thread
@@ -67,16 +145,18 @@ export default function PlayScreen() {
   // Clock anchor mirrored from the audio engine; the UI thread extrapolates it
   // One object so the UI thread never sees a half-updated anchor (no 1-frame jumps)
   const clockAnchor = useSharedValue({ pos: 0, wallMs: 0, running: false, duration: 15 });
-  const [displaySecond, setDisplaySecond] = useState<number>(0);
-  const [windowStep, setWindowStep] = useState<number>(0);
-  const [tileVersion, setTileVersion] = useState<number>(0);
-  const bumpTiles = useCallback(() => setTileVersion((v) => v + 1), []);
+  // Fast-changing values live in signals: only the small components that show
+  // them re-render (HUD clock, score, combo, judgment badge, the tile field),
+  // never the whole screen — that keeps taps responsive.
+  const secondSig = useCreateSignal(0);
+  const stepSig = useCreateSignal(0);
+  const tileVersionSig = useCreateSignal(0);
+  const bumpTiles = useCallback(() => tileVersionSig.update((v) => v + 1), [tileVersionSig]);
   const nextMissIndexRef = useRef(0);
 
 
-  const [currentJudgment, setCurrentJudgment] = useState<HitJudgment | null>(null);
-  const [judgmentTimeDiff, setJudgmentTimeDiff] = useState<number | undefined>(undefined);
-  const [stats, setStats] = useState<GameStats>({
+  const judgmentSig = useCreateSignal<JudgmentState>({ judgment: null, timeDiffMs: undefined, hitId: 0 });
+  const statsSig = useCreateSignal<GameStats>({
     score: 0,
     maxScore: 0,
     combo: 0,
@@ -105,12 +185,14 @@ export default function PlayScreen() {
   const defaultBackground = useDefaultBackground();
   // Measured height of the play area (the real screen size once system bars are hidden)
   const [boardHeight, setBoardHeight] = useState<number>(0);
+  const [boardWidth, setBoardWidth] = useState<number>(0);
   const { geometry } = ACTIVE_THEME;
   const pixelsPerBeat = geometry.pixelsPerBeat;
   const hitLineY = Math.round(boardHeight * (geometry.hitLineYPercent / 100));
 
   const handleRootLayout = (e: LayoutChangeEvent) => {
     setBoardHeight(e.nativeEvent.layout.height);
+    setBoardWidth(e.nativeEvent.layout.width);
   };
 
   // Pre-computed timing data (sorted by start time) so per-frame and per-tap
@@ -170,16 +252,6 @@ const fingerFollowsSlide = (finger: number, path: SlidePoint[], at: number) => {
 };
 
 const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it ends
-  const WINDOW_STEP_SEC = 0.5;
-  const visibleTiles = useMemo(() => {
-    if (!song || boardHeight === 0) return [];
-    const speed = (pixelsPerBeat * song.bpm) / 60;
-    const t = windowStep * WINDOW_STEP_SEC;
-    const lookahead = hitLineY / speed + WINDOW_STEP_SEC + 1;
-    const behind = (boardHeight - hitLineY) / speed + WINDOW_STEP_SEC + 0.5;
-    return timeline.filter((tile) => tile.endTime >= t - behind && tile.noteTime <= t + lookahead);
-  }, [song, boardHeight, hitLineY, pixelsPerBeat, timeline, windowStep]);
-
   const getTileState = useCallback((tileId: string) => tileStatesRef.current.get(tileId), []);
 
   const progressStyle = useAnimatedStyle(() => ({
@@ -199,7 +271,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
       }
       setSong(target);
       setAudioDuration(target.durationSeconds || 15);
-      setStats({
+      statsSig.set({
         score: 0,
         maxScore: target.tiles.length * 1000,
         combo: 0,
@@ -249,11 +321,9 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 
   const registerHit = useCallback(
     (tileId: string, judgment: HitJudgment, score: number, timeDiffMs?: number) => {
-      setCurrentJudgment(judgment);
-      setJudgmentTimeDiff(timeDiffMs);
-      setHitId((n) => n + 1);
+      judgmentSig.update((prev) => ({ judgment, timeDiffMs, hitId: prev.hitId + 1 }));
 
-      setStats((prev) => {
+      statsSig.update((prev) => {
         const isHit = judgment !== 'MISS';
         const newCombo = isHit ? prev.combo + 1 : 0;
         const newMaxCombo = Math.max(prev.maxCombo, newCombo);
@@ -403,12 +473,12 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
       const second = Math.floor(curTime);
       if (second !== lastSecond) {
         lastSecond = second;
-        setDisplaySecond(second);
+        secondSig.set(second);
       }
       const step = Math.floor(curTime / WINDOW_STEP_SEC);
       if (step !== lastStep) {
         lastStep = step;
-        setWindowStep(step);
+        stepSig.set(step);
       }
 
       let tilesChanged = false;
@@ -545,7 +615,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         });
       });
       tileStatesRef.current = states;
-      setStats({
+      statsSig.set({
         score: 0,
         maxScore: song.tiles.length * 1000,
         combo: 0,
@@ -564,10 +634,10 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
       activeHoldByLaneRef.current.clear();
       activeSlidesRef.current.clear();
       holdBeatRef.current.clear();
-      setDisplaySecond(0);
-      setWindowStep(0);
+      secondSig.set(0);
+      stepSig.set(0);
       bumpTiles();
-      setCurrentJudgment(null);
+      judgmentSig.set({ judgment: null, timeDiffMs: undefined, hitId: 0 });
       setPhase('countdown');
     }
   };
@@ -606,6 +676,9 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
     );
   }
 
+  // Read at render time: the screen re-renders when the song completes
+  const stats = statsSig.get();
+
   if (!song) {
     return (
       <View style={styles.loadingContainer}>
@@ -643,23 +716,21 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 {song.title}
               </Text>
               <Text style={styles.hudTimeText}>
-                {formatAudioTime(displaySecond)} / {formatAudioTime(audioDuration)}
+                <SignalClock second={secondSig} /> / {formatAudioTime(audioDuration)}
               </Text>
             </View>
           </View>
 
           <View style={styles.hudRight}>
             <Text style={styles.scoreLabel}>SCORE</Text>
-            <Text style={styles.scoreValue}>
-              {stats.score.toString().padStart(6, '0')}
-            </Text>
+            <ScoreValue stats={statsSig} style={styles.scoreValue} />
           </View>
         </View>
       </Animated.View>
 
       {/* Judgment & Combo Badges */}
-      <HitJudgmentBadge judgment={currentJudgment} timeDiffMs={judgmentTimeDiff} hitId={hitId} />
-      <ComboDisplay combo={stats.combo} />
+      <JudgmentFromSignal judgment={judgmentSig} />
+      <ComboFromSignal stats={statsSig} />
 
       {/* 4-Lane Game Board */}
       <GameBoardBackground
@@ -680,15 +751,18 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         }
       >
         {boardHeight > 0 && (
-          <TileField
-            tiles={visibleTiles}
+          <WindowedTileField
+            timeline={timeline}
             bpm={song.bpm}
+            boardHeight={boardHeight}
+            boardWidth={boardWidth}
             hitLineY={hitLineY}
             pixelsPerBeat={pixelsPerBeat}
             tapHeight={geometry.defaultTapTileHeightPx}
             songTime={songTime}
             getTileState={getTileState}
-            version={tileVersion}
+            step={stepSig}
+            version={tileVersionSig}
           />
         )}
       </GameBoardBackground>
