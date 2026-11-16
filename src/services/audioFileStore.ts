@@ -29,6 +29,14 @@ export async function saveImportedAudio(songId: string, picked: PickedAudioResul
   return dest.uri;
 }
 
+/** Downloads audio from a URL (e.g. a community level) into the app's document directory. */
+export async function saveRemoteAudio(songId: string, url: string, extension: string): Promise<string> {
+  const dest = new File(audioDir(), `${songId}.${extension}`);
+  if (dest.exists) dest.delete();
+  const saved = await File.downloadFileAsync(url, dest);
+  return saved.uri;
+}
+
 export async function resolveAudioUri(_songId: string, storedUri: string): Promise<string> {
   return storedUri;
 }

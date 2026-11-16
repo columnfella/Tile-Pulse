@@ -1,618 +1,818 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Keyboard,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenView } from '../../src/components/ui/ScreenView';
 import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { listItemIn } from '../../src/components/ui/motion';
-import { ACTIVE_THEME } from '../../constants/theme';
 import { storageService } from '../../services/storage';
 import { formatAudioTime } from '../../game/engine';
 import {
-  getArtistTopTracks,
-  lookupSongTempo,
-  searchArtists,
-  searchTrackByArtist,
-  searchTracks,
-  type OnlineArtist,
-  type OnlineTrack,
-  type SongTempoInfo,
-} from '../../src/services/songInfo';
-import type { Song } from '../../types/song';
-import { FONTS } from '../../src/theme/pixel';
+  API_BASE,
+  ApiUnavailableError,
+  downloadLevel,
+  localIdForLevel,
+  searchLevels,
+  type CommunityLevel,
+  type Difficulty,
+  type LevelFilters,
+  type LevelSort,
+  type NoteFilter,
+  type SearchField,
+} from '../../src/services/communityApi';
+import { FONTS, PIXEL } from '../../src/theme/pixel';
 
-const SEARCH_DEBOUNCE_MS = 500;
+const SEARCH_DEBOUNCE_MS = 400;
+const PAGE_SIZE = 20;
 
-type Mode = 'song' | 'artist' | 'songByArtist';
+/* ------------------------------ filter options ----------------------------- */
 
-const MODES: { key: Mode; label: string; icon: PixelIconName }[] = [
-  { key: 'song', label: 'Song', icon: 'note' },
-  { key: 'artist', label: 'Artist', icon: 'person' },
-  { key: 'songByArtist', label: 'Song by artist', icon: 'mic' },
+const SEARCH_FIELDS: { key: SearchField; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'level', label: 'Level' },
+  { key: 'song', label: 'Song' },
+  { key: 'artist', label: 'Artist' },
+  { key: 'author', label: 'Mapper' },
 ];
 
-type TempoState =
+const SORTS: { key: LevelSort; label: string; icon?: PixelIconName }[] = [
+  { key: 'newest', label: 'New', icon: 'clock' },
+  { key: 'popular', label: 'Popular', icon: 'star' },
+  { key: 'easiest', label: 'Easiest' },
+  { key: 'hardest', label: 'Hardest' },
+  { key: 'shortest', label: 'Shortest' },
+  { key: 'longest', label: 'Longest' },
+  { key: 'title', label: 'A–Z' },
+];
+
+const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = [
+  { key: 'easy', label: 'Easy', color: '#9cc0ff' },
+  { key: 'normal', label: 'Normal', color: '#4d8dff' },
+  { key: 'hard', label: 'Hard', color: '#2f6bff' },
+  { key: 'expert', label: 'Expert', color: PIXEL.accent },
+];
+const DIFFICULTY_COLOR = Object.fromEntries(DIFFICULTIES.map((d) => [d.key, d.color])) as Record<Difficulty, string>;
+
+type Range = { min?: number; max?: number };
+const BPM_RANGES: { label: string; range: Range }[] = [
+  { label: 'Any', range: {} },
+  { label: '< 100', range: { max: 99.99 } },
+  { label: '100–140', range: { min: 100, max: 140 } },
+  { label: '140+', range: { min: 140.01 } },
+];
+const LENGTH_RANGES: { label: string; range: Range }[] = [
+  { label: 'Any', range: {} },
+  { label: '< 2 min', range: { max: 119 } },
+  { label: '2–4 min', range: { min: 120, max: 240 } },
+  { label: '4 min+', range: { min: 241 } },
+];
+const NOTE_FILTERS: { key: NoteFilter; label: string }[] = [
+  { key: 'any', label: 'Any' },
+  { key: 'taps', label: 'Taps only' },
+  { key: 'holds', label: 'Has holds' },
+];
+
+interface Filters {
+  difficulty: Difficulty[];
+  minLevel: number;
+  maxLevel: number;
+  bpm: number; // index into BPM_RANGES
+  length: number; // index into LENGTH_RANGES
+  notes: NoteFilter;
+  playableOnly: boolean; // levels with audio uploaded
+}
+
+const DEFAULT_FILTERS: Filters = {
+  difficulty: [],
+  minLevel: 1,
+  maxLevel: 20,
+  bpm: 0,
+  length: 0,
+  notes: 'any',
+  playableOnly: true,
+};
+
+function activeFilterCount(f: Filters): number {
+  return (
+    (f.difficulty.length > 0 ? 1 : 0) +
+    (f.minLevel !== 1 || f.maxLevel !== 20 ? 1 : 0) +
+    (f.bpm !== 0 ? 1 : 0) +
+    (f.length !== 0 ? 1 : 0) +
+    (f.notes !== 'any' ? 1 : 0) +
+    (f.playableOnly !== DEFAULT_FILTERS.playableOnly ? 1 : 0)
+  );
+}
+
+const formatPlays = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}K` : String(n));
+
+/* --------------------------------- pieces --------------------------------- */
+
+function Chip({
+  label,
+  active,
+  onPress,
+  icon,
+  color = PIXEL.accent2,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  icon?: PixelIconName;
+  color?: string;
+}) {
+  return (
+    <PressableScale
+      scaleTo={0.92}
+      onPress={onPress}
+      style={[styles.chip, active && { borderColor: color, backgroundColor: `${color}22` }]}
+      accessibilityState={{ selected: active }}
+    >
+      {icon ? <PixelIcon name={icon} size={7} color={active ? color : PIXEL.textDim} /> : null}
+      <Text style={[styles.chipText, active && { color }]}>{label}</Text>
+    </PressableScale>
+  );
+}
+
+function Stepper({ value, onChange, min, max }: { value: number; onChange: (v: number) => void; min: number; max: number }) {
+  return (
+    <View style={styles.stepper}>
+      <PressableScale scaleTo={0.85} style={styles.stepBtn} disabled={value <= min} onPress={() => onChange(value - 1)}>
+        <PixelIcon name="minus" size={7} color={value <= min ? '#3a4a70' : PIXEL.text} />
+      </PressableScale>
+      <Text style={styles.stepValue}>{value}</Text>
+      <PressableScale scaleTo={0.85} style={styles.stepBtn} disabled={value >= max} onPress={() => onChange(value + 1)}>
+        <PixelIcon name="plus" size={7} color={value >= max ? '#3a4a70' : PIXEL.text} />
+      </PressableScale>
+    </View>
+  );
+}
+
+/** Square pixel badge with the level number, tinted by difficulty. */
+function LevelBadge({ level, difficulty }: { level: number; difficulty: Difficulty }) {
+  const color = DIFFICULTY_COLOR[difficulty];
+  return (
+    <View style={[styles.badge, { borderColor: color }]}>
+      <View style={[styles.badgeTop, { backgroundColor: color }]}>
+        <Text style={styles.badgeTopText}>{difficulty.slice(0, 3).toUpperCase()}</Text>
+      </View>
+      <Text style={[styles.badgeLevel, { color }]}>{level}</Text>
+    </View>
+  );
+}
+
+/* --------------------------------- screen --------------------------------- */
+
+type LoadState =
+  | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'done'; info: SongTempoInfo }
+  | { status: 'offline' }
   | { status: 'error'; message: string };
 
-const formatFans = (n: number) =>
-  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M fans` : n >= 1_000 ? `${Math.round(n / 1_000)}K fans` : `${n} fans`;
-
 export default function DiscoverScreen() {
-  const [mode, setMode] = useState<Mode>('song');
-  const [query, setQuery] = useState(''); // song title (song mode) or artist name
-  const [songQuery, setSongQuery] = useState(''); // song title in "song by artist" mode
-  const [tracks, setTracks] = useState<OnlineTrack[]>([]);
-  const [artists, setArtists] = useState<OnlineArtist[]>([]);
-  const [openArtist, setOpenArtist] = useState<OnlineArtist | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [tempo, setTempo] = useState<Record<number, TempoState>>({});
-  const [librarySongs, setLibrarySongs] = useState<Song[]>([]);
-  const [applyFor, setApplyFor] = useState<number | null>(null);
-  const [banner, setBanner] = useState<string | null>(null);
+  const router = useRouter();
+  const [query, setQuery] = useState('');
+  const [field, setField] = useState<SearchField>('all');
+  const [sort, setSort] = useState<LevelSort>('newest');
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const [levels, setLevels] = useState<CommunityLevel[]>([]);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [load, setLoad] = useState<LoadState>({ status: 'loading' });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ text: string; error?: boolean } | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Which levels are already in the local library; collapse panels when leaving the tab
   useFocusEffect(
     useCallback(() => {
-      storageService.getSongs().then(setLibrarySongs).catch(() => {});
+      storageService
+        .getSongs()
+        .then((songs) => setDownloaded(new Set(songs.map((s) => s.id))))
+        .catch(() => {});
+      return () => {
+        setFiltersOpen(false);
+        setExpandedId(null);
+      };
     }, [])
   );
 
-  /** Runs a request with loading / error handling; ignores results of stale requests. */
-  const run = useCallback(
-    (controller: AbortController, task: () => Promise<void>) => {
-      setIsLoading(true);
-      setError(null);
-      task()
+  const apiFilters = useMemo<LevelFilters>(() => {
+    const bpm = BPM_RANGES[filters.bpm].range;
+    const len = LENGTH_RANGES[filters.length].range;
+    return {
+      q: query.trim() || undefined,
+      in: field,
+      sort,
+      difficulty: filters.difficulty,
+      minLevel: filters.minLevel !== 1 ? filters.minLevel : undefined,
+      maxLevel: filters.maxLevel !== 20 ? filters.maxLevel : undefined,
+      minBpm: bpm.min,
+      maxBpm: bpm.max,
+      minDurationSec: len.min,
+      maxDurationSec: len.max,
+      notes: filters.notes,
+      hasAudio: filters.playableOnly ? true : undefined,
+      limit: PAGE_SIZE,
+    };
+  }, [query, field, sort, filters]);
+
+  // First page whenever the search or filters change (debounced for typing)
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoad((s) => (s.status === 'idle' && levels.length > 0 ? s : { status: 'loading' }));
+    const timer = setTimeout(() => {
+      searchLevels(apiFilters, controller.signal)
+        .then((r) => {
+          if (controller.signal.aborted) return;
+          setLevels(r.levels);
+          setNextOffset(r.nextOffset);
+          setExpandedId(null);
+          setLoad({ status: 'idle' });
+        })
         .catch((err) => {
-          if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Search failed.');
+          if (controller.signal.aborted) return;
+          setLevels([]);
+          setNextOffset(null);
+          setLoad(
+            err instanceof ApiUnavailableError
+              ? { status: 'offline' }
+              : { status: 'error', message: err instanceof Error ? err.message : 'Search failed.' }
+          );
         })
         .finally(() => {
-          if (!controller.signal.aborted) setIsLoading(false);
+          if (!controller.signal.aborted) setRefreshing(false);
         });
-    },
-    []
-  );
-
-  // Debounced search whenever the inputs or mode change
-  useEffect(() => {
-    if (openArtist) return; // browsing an artist's songs
-    const q = query.trim();
-    const s = songQuery.trim();
-    const ready = mode === 'songByArtist' ? q.length >= 2 && s.length >= 1 : q.length >= 2;
-    setExpandedId(null);
-    if (!ready) {
-      setTracks([]);
-      setArtists([]);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      run(controller, async () => {
-        if (mode === 'artist') {
-          const r = await searchArtists(q, controller.signal);
-          if (!controller.signal.aborted) setArtists(r);
-        } else {
-          const r =
-            mode === 'song'
-              ? await searchTracks(q, controller.signal)
-              : await searchTrackByArtist(q, s, controller.signal);
-          if (!controller.signal.aborted) setTracks(r);
-        }
-      });
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [mode, query, songQuery, openArtist, run]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiFilters, reloadKey]);
 
-  // Load the selected artist's songs
-  useEffect(() => {
-    if (!openArtist) return;
-    const controller = new AbortController();
-    setTracks([]);
-    setExpandedId(null);
-    run(controller, async () => {
-      const r = await getArtistTopTracks(openArtist.id, controller.signal);
-      if (!controller.signal.aborted) setTracks(r);
-    });
-    return () => controller.abort();
-  }, [openArtist, run]);
-
-  const handleModeChange = (next: Mode) => {
-    if (next === mode) return;
-    setMode(next);
-    setOpenArtist(null);
-    setTracks([]);
-    setArtists([]);
-    setError(null);
+  const handleLoadMore = () => {
+    if (nextOffset === null || loadingMore || load.status !== 'idle') return;
+    setLoadingMore(true);
+    searchLevels({ ...apiFilters, offset: nextOffset })
+      .then((r) => {
+        setLevels((prev) => [...prev, ...r.levels.filter((l) => !prev.some((p) => p.id === l.id))]);
+        setNextOffset(r.nextOffset);
+      })
+      .catch(() => setNextOffset(null))
+      .finally(() => setLoadingMore(false));
   };
 
-  const showBanner = (msg: string) => {
+  const showBanner = (text: string, error = false) => {
     if (bannerTimer.current) clearTimeout(bannerTimer.current);
-    setBanner(msg);
+    setBanner({ text, error });
     bannerTimer.current = setTimeout(() => setBanner(null), 3000);
   };
 
-  const handleToggleTrack = (track: OnlineTrack) => {
-    Keyboard.dismiss();
-    setApplyFor(null);
-    if (expandedId === track.id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(track.id);
-    const existing = tempo[track.id];
-    if (existing && existing.status !== 'error') return;
-    setTempo((t) => ({ ...t, [track.id]: { status: 'loading' } }));
-    lookupSongTempo(track)
-      .then((info) => setTempo((t) => ({ ...t, [track.id]: { status: 'done', info } })))
-      .catch((err) =>
-        setTempo((t) => ({
-          ...t,
-          [track.id]: { status: 'error', message: err instanceof Error ? err.message : 'Lookup failed.' },
-        }))
+  const handleGet = async (level: CommunityLevel) => {
+    if (downloading) return;
+    setDownloading(level.id);
+    try {
+      const song = await downloadLevel(level);
+      setDownloaded((prev) => new Set(prev).add(song.id));
+      showBanner(`“${level.name}” added to your songs`);
+    } catch (err) {
+      showBanner(
+        err instanceof ApiUnavailableError ? 'Server is offline — try again later.' : err instanceof Error ? err.message : 'Download failed.',
+        true
       );
+    } finally {
+      setDownloading(null);
+    }
   };
 
-  /** Writes the looked-up BPM onto a song in the user's library. */
-  const handleApply = async (target: Song, bpm: number) => {
-    try {
-      await storageService.saveSong({ ...target, bpm });
-      setLibrarySongs((list) => list.map((s) => (s.id === target.id ? { ...s, bpm } : s)));
-      setApplyFor(null);
-      showBanner(`Set “${target.title}” to ${bpm} BPM`);
-    } catch {
-      showBanner('Could not update that song.');
-    }
-  };
+  const updateFilters = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+  const toggleDifficulty = (d: Difficulty) =>
+    updateFilters({
+      difficulty: filters.difficulty.includes(d) ? filters.difficulty.filter((x) => x !== d) : [...filters.difficulty, d],
+    });
+  const filterCount = activeFilterCount(filters);
 
   /* ------------------------------ rendering ------------------------------ */
 
-  const renderTempoPanel = (track: OnlineTrack) => {
-    const state = tempo[track.id];
-    if (!state || state.status === 'loading') {
-      return (
-        <View style={styles.panelRow}>
-          <ActivityIndicator size="small" color="#4d8dff" />
-          <Text style={styles.panelMuted}>Looking up tempo…</Text>
-        </View>
-      );
-    }
-    if (state.status === 'error') return <Text style={styles.panelError}>{state.message}</Text>;
+  const renderFilterPanel = () => (
+    <Animated.View entering={FadeInDown.duration(180)} exiting={FadeOut.duration(120)} style={styles.filterPanel}>
+      <Text style={styles.filterLabel}>DIFFICULTY</Text>
+      <View style={styles.chipRow}>
+        {DIFFICULTIES.map((d) => (
+          <Chip
+            key={d.key}
+            label={d.label}
+            color={d.color}
+            active={filters.difficulty.includes(d.key)}
+            onPress={() => toggleDifficulty(d.key)}
+          />
+        ))}
+      </View>
 
-    const { bpm, timeSignature, source } = state.info;
-    return (
-      <Animated.View entering={FadeIn.duration(200)}>
-        <View style={styles.statRow}>
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>BPM</Text>
-            <Text style={[styles.statValue, bpm === null && styles.statMissing]}>{bpm ?? 'Not found'}</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>TIME SIGNATURE</Text>
-            <Text style={[styles.statValue, timeSignature === null && styles.statMissing]}>
-              {timeSignature ?? 'Not found'}
-            </Text>
-          </View>
-        </View>
-        {source && <Text style={styles.sourceText}>BPM source: {source}</Text>}
+      <Text style={styles.filterLabel}>LEVEL</Text>
+      <View style={styles.levelRow}>
+        <Stepper
+          value={filters.minLevel}
+          min={1}
+          max={filters.maxLevel}
+          onChange={(v) => updateFilters({ minLevel: v })}
+        />
+        <Text style={styles.levelTo}>to</Text>
+        <Stepper
+          value={filters.maxLevel}
+          min={filters.minLevel}
+          max={20}
+          onChange={(v) => updateFilters({ maxLevel: v })}
+        />
+      </View>
 
-        {bpm !== null && librarySongs.length > 0 && (
-          <>
-            <PressableScale
-              scaleTo={0.96}
-              style={styles.applyBtn}
-              onPress={() => setApplyFor(applyFor === track.id ? null : track.id)}
-            >
-              <PixelIcon name="note" size={14} color="#4d8dff" />
-              <Text style={styles.applyText}>Use {bpm} BPM for a song in my library</Text>
-              {applyFor === track.id ? <PixelIcon name="chevronUp" size={14} color="#4d8dff" /> : <PixelIcon name="chevronDown" size={14} color="#4d8dff" />}
-            </PressableScale>
-            {applyFor === track.id && (
-              <Animated.View entering={FadeInDown.duration(180)} style={styles.applyList}>
-                {librarySongs.map((s) => (
-                  <PressableScale key={s.id} scaleTo={0.97} style={styles.applyRow} onPress={() => handleApply(s, bpm)}>
-                    <Text style={styles.applyRowTitle} numberOfLines={1}>
-                      {s.title}
-                    </Text>
-                    <Text style={styles.applyRowBpm}>
-                      {s.bpm} → {bpm}
-                    </Text>
-                  </PressableScale>
-                ))}
-              </Animated.View>
-            )}
-          </>
-        )}
-      </Animated.View>
-    );
-  };
+      <Text style={styles.filterLabel}>TEMPO (BPM)</Text>
+      <View style={styles.chipRow}>
+        {BPM_RANGES.map((r, i) => (
+          <Chip key={r.label} label={r.label} active={filters.bpm === i} onPress={() => updateFilters({ bpm: i })} />
+        ))}
+      </View>
 
-  const renderTrack = ({ item, index }: { item: OnlineTrack; index: number }) => {
+      <Text style={styles.filterLabel}>LENGTH</Text>
+      <View style={styles.chipRow}>
+        {LENGTH_RANGES.map((r, i) => (
+          <Chip key={r.label} label={r.label} active={filters.length === i} onPress={() => updateFilters({ length: i })} />
+        ))}
+      </View>
+
+      <Text style={styles.filterLabel}>NOTES</Text>
+      <View style={styles.chipRow}>
+        {NOTE_FILTERS.map((n) => (
+          <Chip key={n.key} label={n.label} active={filters.notes === n.key} onPress={() => updateFilters({ notes: n.key })} />
+        ))}
+      </View>
+
+      <View style={styles.filterFooter}>
+        <Chip
+          label="Playable only"
+          icon="check"
+          active={filters.playableOnly}
+          onPress={() => updateFilters({ playableOnly: !filters.playableOnly })}
+        />
+        <PressableScale
+          scaleTo={0.92}
+          style={styles.resetBtn}
+          disabled={filterCount === 0}
+          onPress={() => setFilters(DEFAULT_FILTERS)}
+        >
+          <PixelIcon name="reset" size={7} color={filterCount === 0 ? '#3a4a70' : PIXEL.accent} />
+          <Text style={[styles.resetText, filterCount === 0 && { color: '#3a4a70' }]}>Reset</Text>
+        </PressableScale>
+      </View>
+    </Animated.View>
+  );
+
+  const renderLevel = ({ item, index }: { item: CommunityLevel; index: number }) => {
     const expanded = expandedId === item.id;
+    const localId = localIdForLevel(item.id);
+    const isDownloaded = downloaded.has(localId);
+    const isDownloading = downloading === item.id;
+    const seconds = item.song.durationMs ? Math.round(item.song.durationMs / 1000) : null;
+
     return (
-      <Animated.View entering={listItemIn(index)}>
+      <Animated.View entering={listItemIn(index % PAGE_SIZE)}>
         <PressableScale
           scaleTo={0.98}
           style={[styles.card, expanded && styles.cardExpanded]}
-          onPress={() => handleToggleTrack(item)}
+          onPress={() => {
+            Keyboard.dismiss();
+            setExpandedId(expanded ? null : item.id);
+          }}
         >
           <View style={styles.cardTop}>
-            {item.coverUrl ? (
-              <Image source={{ uri: item.coverUrl }} style={styles.cover} />
-            ) : (
-              <View style={styles.cardIcon}>
-                <PixelIcon name="note" size={14} color="#4d8dff" />
-              </View>
-            )}
+            <LevelBadge level={item.level} difficulty={item.difficulty} />
             <View style={styles.cardInfo}>
               <Text style={styles.cardTitle} numberOfLines={1}>
-                {item.title}
+                {item.name}
               </Text>
-              <Text style={styles.cardMeta} numberOfLines={1}>
-                {item.artist}
-                {item.album ? ` · ${item.album}` : ''}
+              <Text style={styles.cardSong} numberOfLines={1}>
+                {item.song.title}
+                {item.song.artist ? ` · ${item.song.artist}` : ''}
+              </Text>
+              <Text style={styles.cardAuthor} numberOfLines={1}>
+                by {item.author.displayName}
               </Text>
             </View>
-            {item.durationSeconds ? (
-              <Text style={styles.cardLength}>{formatAudioTime(item.durationSeconds)}</Text>
+            {isDownloaded ? (
+              <View style={styles.ownedTag}>
+                <PixelIcon name="check" size={7} color={PIXEL.accent2} />
+              </View>
             ) : null}
           </View>
-          {expanded && <View style={styles.panel}>{renderTempoPanel(item)}</View>}
+
+          <View style={styles.statsRow}>
+            <Text style={styles.stat}>{Math.round(item.song.bpm)} BPM</Text>
+            <Text style={styles.statDot}>■</Text>
+            <Text style={styles.stat}>{seconds !== null ? formatAudioTime(seconds) : '--:--'}</Text>
+            <Text style={styles.statDot}>■</Text>
+            <Text style={styles.stat}>{item.noteCount} notes</Text>
+            <View style={styles.flex} />
+            <PixelIcon name="play" size={7} color="#6b7a99" />
+            <Text style={styles.stat}>{formatPlays(item.plays)}</Text>
+          </View>
+
+          {expanded && (
+            <Animated.View entering={FadeIn.duration(160)} style={styles.panel}>
+              <View style={styles.detailRow}>
+                <View style={styles.detailBox}>
+                  <Text style={styles.detailLabel}>HOLDS</Text>
+                  <Text style={styles.detailValue}>{item.holdCount}</Text>
+                </View>
+                <View style={styles.detailBox}>
+                  <Text style={styles.detailLabel}>TIME SIG</Text>
+                  <Text style={styles.detailValue}>
+                    {item.song.timeSignature.beatsPerMeasure}/{item.song.timeSignature.beatUnit}
+                  </Text>
+                </View>
+                <View style={styles.detailBox}>
+                  <Text style={styles.detailLabel}>VERSION</Text>
+                  <Text style={styles.detailValue}>v{item.version}</Text>
+                </View>
+              </View>
+
+              {isDownloaded ? (
+                <PressableScale scaleTo={0.96} style={styles.primaryBtn} onPress={() => router.push(`/play/${localId}`)}>
+                  <PixelIcon name="play" size={14} color="#000000" />
+                  <Text style={styles.primaryText}>PLAY</Text>
+                </PressableScale>
+              ) : (
+                <PressableScale
+                  scaleTo={0.96}
+                  style={[styles.primaryBtn, !item.song.audio && styles.primaryBtnDisabled]}
+                  disabled={!item.song.audio || isDownloading}
+                  onPress={() => handleGet(item)}
+                >
+                  {isDownloading ? (
+                    <ActivityIndicator size="small" color="#000000" />
+                  ) : (
+                    <PixelIcon name="download" size={14} color="#000000" />
+                  )}
+                  <Text style={styles.primaryText}>
+                    {!item.song.audio ? 'NO AUDIO YET' : isDownloading ? 'GETTING…' : 'GET LEVEL'}
+                  </Text>
+                </PressableScale>
+              )}
+            </Animated.View>
+          )}
         </PressableScale>
       </Animated.View>
     );
   };
 
-  const renderArtist = ({ item, index }: { item: OnlineArtist; index: number }) => (
-    <Animated.View entering={listItemIn(index)}>
-      <PressableScale
-        scaleTo={0.98}
-        style={styles.card}
-        onPress={() => {
-          Keyboard.dismiss();
-          setOpenArtist(item);
-        }}
-      >
-        <View style={styles.cardTop}>
-          {item.pictureUrl ? (
-            <Image source={{ uri: item.pictureUrl }} style={[styles.cover, styles.avatar]} />
-          ) : (
-            <View style={[styles.cardIcon, styles.avatar]}>
-              <PixelIcon name="person" size={14} color="#4d8dff" />
-            </View>
-          )}
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {item.name}
-            </Text>
-            <Text style={styles.cardMeta}>{formatFans(item.fans)}</Text>
-          </View>
-          <PixelIcon name="chevronRight" size={21} color="#3a4a70" />
-        </View>
-      </PressableScale>
-    </Animated.View>
-  );
-
-  const renderBody = () => {
-    const needsInput =
-      !openArtist &&
-      (mode === 'songByArtist' ? query.trim().length < 2 || songQuery.trim().length < 1 : query.trim().length < 2);
-
-    if (needsInput) {
+  const renderEmpty = () => {
+    if (load.status === 'loading') {
       return (
-        <View style={styles.centerBox}>
+        <View style={styles.center}>
+          <ActivityIndicator color={PIXEL.accent2} />
+          <Text style={styles.muted}>Loading levels…</Text>
+        </View>
+      );
+    }
+    if (load.status === 'offline') {
+      return (
+        <View style={styles.center}>
           <View style={styles.bigIcon}>
-            <PixelIcon name="globe" size={28} color="#4d8dff" />
+            <PixelIcon name="globe" size={28} color={PIXEL.accent} />
           </View>
-          <Text style={styles.infoTitle}>
-            {mode === 'artist' ? 'Find an artist' : mode === 'song' ? 'Find a song' : 'Find a song by an artist'}
-          </Text>
-          <Text style={styles.infoText}>
-            {mode === 'artist'
-              ? 'Pick an artist to see their songs, then tap a song to look up its tempo.'
-              : 'Tap a song to look up its BPM and apply it to a song in your library.'}
-          </Text>
+          <Text style={styles.infoTitle}>SERVER OFFLINE</Text>
+          <Text style={styles.muted}>Couldn’t reach the community server at</Text>
+          <Text style={styles.code}>{API_BASE}</Text>
+          <PressableScale scaleTo={0.94} style={styles.retryBtn} onPress={() => setReloadKey((k) => k + 1)}>
+            <PixelIcon name="reset" size={7} color={PIXEL.accent2} />
+            <Text style={styles.retryText}>Retry</Text>
+          </PressableScale>
         </View>
       );
     }
-    if (isLoading && tracks.length === 0 && artists.length === 0) {
+    if (load.status === 'error') {
       return (
-        <View style={styles.centerBox}>
-          <ActivityIndicator color="#4d8dff" />
+        <View style={styles.center}>
+          <Text style={styles.errorText}>{load.message}</Text>
         </View>
       );
     }
-    if (error) {
-      return (
-        <View style={styles.centerBox}>
-          <Text style={styles.panelError}>{error}</Text>
-        </View>
-      );
-    }
-
-    if (mode === 'artist' && !openArtist) {
-      if (artists.length === 0) {
-        return (
-          <View style={styles.centerBox}>
-            <Text style={styles.infoText}>No artists found.</Text>
-          </View>
-        );
-      }
-      return (
-        <FlatList
-          data={artists}
-          keyExtractor={(a) => String(a.id)}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.list}
-          renderItem={renderArtist}
-        />
-      );
-    }
-
-    if (tracks.length === 0) {
-      return (
-        <View style={styles.centerBox}>
-          <Text style={styles.infoText}>Not found — try a different spelling.</Text>
-        </View>
-      );
-    }
+    const hasQuery = query.trim().length > 0 || filterCount > 0;
     return (
-      <FlatList
-        data={tracks}
-        keyExtractor={(t) => String(t.id)}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.list}
-        renderItem={renderTrack}
-      />
+      <View style={styles.center}>
+        <View style={styles.bigIcon}>
+          <PixelIcon name="discover" size={28} color={PIXEL.accent2} />
+        </View>
+        <Text style={styles.infoTitle}>{hasQuery ? 'NO MATCHES' : 'NO LEVELS YET'}</Text>
+        <Text style={styles.muted}>
+          {hasQuery ? 'Try another search or loosen the filters.' : 'Community levels will show up here once players share them.'}
+        </Text>
+      </View>
     );
   };
 
   return (
-    <ScreenView style={[styles.root, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
-      <Animated.View entering={FadeInDown.duration(350)} style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
-        <Text style={styles.subtitle}>Look up any song’s tempo</Text>
-
-        {/* Search category */}
-        <View style={styles.modeRow}>
-          {MODES.map(({ key, label, icon }) => {
-            const active = mode === key;
-            return (
-              <PressableScale
-                key={key}
-                scaleTo={0.94}
-                style={[styles.modeBtn, active && styles.modeBtnActive]}
-                onPress={() => handleModeChange(key)}
-              >
-                <PixelIcon name={icon} size={14} color={active ? '#4d8dff' : '#9aa7c2'} />
-                <Text style={[styles.modeText, active && styles.modeTextActive]} numberOfLines={1}>
-                  {label}
-                </Text>
-              </PressableScale>
-            );
-          })}
+    <ScreenView style={styles.root}>
+      <Animated.View entering={FadeInDown.duration(300)} style={styles.header}>
+        <View style={styles.titleRow}>
+          <View>
+            <Text style={styles.title}>DISCOVER</Text>
+            <Text style={styles.subtitle}>Community levels</Text>
+          </View>
+          <PressableScale
+            scaleTo={0.9}
+            style={[styles.filterBtn, (filtersOpen || filterCount > 0) && styles.filterBtnActive]}
+            onPress={() => {
+              Keyboard.dismiss();
+              setFiltersOpen((o) => !o);
+            }}
+            accessibilityLabel="Filters"
+          >
+            <PixelIcon name="filter" size={14} color={filtersOpen || filterCount > 0 ? '#000000' : PIXEL.text} />
+            <Text style={[styles.filterBtnText, (filtersOpen || filterCount > 0) && { color: '#000000' }]}>
+              FILTERS{filterCount > 0 ? ` ${filterCount}` : ''}
+            </Text>
+          </PressableScale>
         </View>
 
-        {openArtist ? (
-          <Animated.View entering={FadeIn.duration(200)} style={styles.artistHeader}>
-            <PressableScale scaleTo={0.9} style={styles.backBtn} onPress={() => setOpenArtist(null)}>
-              <PixelIcon name="chevronLeft" size={14} color="#cdd6ea" />
-              <Text style={styles.backText}>Artists</Text>
+        <View style={styles.searchBox}>
+          <PixelIcon name="discover" size={14} color="#6b7a99" />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={
+              field === 'all' ? 'Search levels, songs, mappers…' : `Search by ${SEARCH_FIELDS.find((f) => f.key === field)!.label.toLowerCase()}…`
+            }
+            placeholderTextColor="#6b7a99"
+            style={styles.searchInput}
+            returnKeyType="search"
+            autoCorrect={false}
+            maxLength={60}
+          />
+          {query.length > 0 ? (
+            <PressableScale scaleTo={0.85} onPress={() => setQuery('')} accessibilityLabel="Clear search">
+              <PixelIcon name="close" size={14} color="#6b7a99" />
             </PressableScale>
-            <Text style={styles.artistName} numberOfLines={1}>
-              {openArtist.name}
-            </Text>
-          </Animated.View>
-        ) : (
-          <>
-            <View style={styles.searchBox}>
-              <PixelIcon name="discover" size={18} color="#6b7a99" />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder={mode === 'song' ? 'Song title…' : 'Artist name…'}
-                placeholderTextColor="#6b7a99"
-                style={styles.searchInput}
-                returnKeyType="search"
-                autoCorrect={false}
-              />
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#4d8dff" />
-              ) : query.length > 0 ? (
-                <PressableScale scaleTo={0.85} onPress={() => setQuery('')} accessibilityLabel="Clear">
-                  <PixelIcon name="close" size={14} color="#6b7a99" />
-                </PressableScale>
-              ) : null}
-            </View>
-            {mode === 'songByArtist' && (
-              <View style={[styles.searchBox, styles.searchBoxSecond]}>
-                <PixelIcon name="note" size={14} color="#6b7a99" />
-                <TextInput
-                  value={songQuery}
-                  onChangeText={setSongQuery}
-                  placeholder="Song title…"
-                  placeholderTextColor="#6b7a99"
-                  style={styles.searchInput}
-                  returnKeyType="search"
-                  autoCorrect={false}
-                />
-                {songQuery.length > 0 && (
-                  <PressableScale scaleTo={0.85} onPress={() => setSongQuery('')} accessibilityLabel="Clear song">
-                    <PixelIcon name="close" size={14} color="#6b7a99" />
-                  </PressableScale>
-                )}
-              </View>
-            )}
-          </>
-        )}
+          ) : null}
+        </View>
+
+        <View style={styles.fieldRow}>
+          {SEARCH_FIELDS.map((f) => (
+            <PressableScale
+              key={f.key}
+              scaleTo={0.94}
+              style={[styles.fieldBtn, field === f.key && styles.fieldBtnActive]}
+              onPress={() => setField(f.key)}
+            >
+              <Text style={[styles.fieldText, field === f.key && styles.fieldTextActive]} numberOfLines={1}>
+                {f.label}
+              </Text>
+            </PressableScale>
+          ))}
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortRow}>
+          <Text style={styles.sortLabel}>SORT</Text>
+          {SORTS.map((s) => (
+            <Chip key={s.key} label={s.label} icon={s.icon} active={sort === s.key} onPress={() => setSort(s.key)} />
+          ))}
+        </ScrollView>
+
+        {filtersOpen && renderFilterPanel()}
       </Animated.View>
 
       {banner && (
-        <Animated.View entering={FadeInDown.duration(220)} exiting={FadeOut.duration(220)} style={styles.banner}>
-          <PixelIcon name="check" size={14} color="#4d8dff" />
-          <Text style={styles.bannerText}>{banner}</Text>
+        <Animated.View
+          entering={FadeInDown.duration(200)}
+          exiting={FadeOut.duration(200)}
+          style={[styles.banner, banner.error && styles.bannerError]}
+        >
+          <PixelIcon name={banner.error ? 'close' : 'check'} size={14} color={banner.error ? PIXEL.accent : PIXEL.accent2} />
+          <Text style={[styles.bannerText, banner.error && { color: PIXEL.accent }]}>{banner.text}</Text>
         </Animated.View>
       )}
 
-      <View style={styles.body}>{renderBody()}</View>
-
-      <Text style={styles.attribution}>Search: Deezer · Tempo: Deezer, MusicBrainz & AcousticBrainz</Text>
+      <FlatList
+        data={load.status === 'idle' ? levels : []}
+        keyExtractor={(l) => l.id}
+        renderItem={renderLevel}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.list, (load.status !== 'idle' || levels.length === 0) && styles.listEmpty]}
+        ListEmptyComponent={renderEmpty}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={PIXEL.accent2} /> : undefined}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              setReloadKey((k) => k + 1);
+            }}
+            tintColor={PIXEL.accent2}
+            colors={[PIXEL.accent2]}
+            progressBackgroundColor={PIXEL.panel}
+          />
+        }
+      />
     </ScreenView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 14, letterSpacing: 0 },
-  subtitle: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 17, marginTop: 2 },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 4,
-    marginTop: 12,
-    padding: 3,
-    backgroundColor: '#0b1220',
-    borderWidth: 2,
-    borderColor: '#15203a',
-    borderRadius: 0,
-  },
-  modeBtn: {
-    flex: 1,
+  root: { flex: 1, backgroundColor: PIXEL.bg },
+  flex: { flex: 1 },
+  header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4, gap: 8 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 14 },
+  subtitle: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17, marginTop: 4 },
+  filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 8,
-    borderRadius: 0,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: PIXEL.panelLight,
+    borderWidth: 2,
+    borderColor: '#000000',
   },
-  modeBtnActive: { backgroundColor: 'rgba(77, 141, 255, 0.16)' },
-  modeText: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 17, },
-  modeTextActive: { color: '#4d8dff', fontWeight: 'bold' },
+  filterBtnActive: { backgroundColor: PIXEL.accent },
+  filterBtnText: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 8 },
+
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 10,
-    backgroundColor: '#0b1220',
+    backgroundColor: PIXEL.panel,
     borderWidth: 2,
     borderColor: '#1f2e52',
-    borderRadius: 0,
     paddingHorizontal: 12,
   },
-  searchBoxSecond: { marginTop: 8 },
-  searchInput: { flex: 1, color: '#ffffff', fontFamily: FONTS.body, fontSize: 20, paddingVertical: 11 },
-  artistHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, minHeight: 44 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6, paddingRight: 6 },
-  backText: { color: '#cdd6ea', fontFamily: FONTS.body, fontSize: 19, },
-  artistName: { flex: 1, color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11, textAlign: 'right' },
-  body: { flex: 1 },
-  list: { padding: 16, paddingTop: 8, gap: 8 },
-  card: {
-    backgroundColor: '#0b1220',
+  searchInput: { flex: 1, color: '#ffffff', fontFamily: FONTS.body, fontSize: 20, paddingVertical: 9 },
+
+  fieldRow: { flexDirection: 'row', gap: 3, padding: 3, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight },
+  fieldBtn: { flex: 1, alignItems: 'center', paddingVertical: 5 },
+  fieldBtnActive: { backgroundColor: 'rgba(77, 141, 255, 0.18)' },
+  fieldText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
+  fieldTextActive: { color: PIXEL.accent2 },
+
+  sortRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
+  sortLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7, marginRight: 2 },
+
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderWidth: 2,
-    borderColor: '#15203a',
-    borderRadius: 0,
-    padding: 12,
+    borderColor: PIXEL.panelLight,
+    backgroundColor: PIXEL.panel,
   },
-  cardExpanded: { borderColor: '#d9502f' },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 0,
-    backgroundColor: 'rgba(77, 141, 255, 0.12)',
+  chipText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+
+  filterPanel: {
+    backgroundColor: PIXEL.panel,
+    borderWidth: 2,
+    borderColor: PIXEL.accent,
+    padding: 10,
+    gap: 6,
+  },
+  filterLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
+  levelRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  levelTo: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stepBtn: {
+    width: 26,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cover: { width: 40, height: 40, borderRadius: 0, backgroundColor: '#15203a' },
-  avatar: { borderRadius: 0 },
-  cardInfo: { flex: 1 },
-  cardTitle: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 20, },
-  cardMeta: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 16, marginTop: 1 },
-  cardLength: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 16, },
-  panel: { marginTop: 12, paddingTop: 12, borderTopWidth: 2, borderTopColor: '#15203a' },
-  panelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  panelMuted: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 17 },
-  panelError: { color: '#FF6B4A', fontFamily: FONTS.body, fontSize: 17, textAlign: 'center' },
-  statRow: { flexDirection: 'row', gap: 8 },
-  statBox: {
-    flex: 1,
-    backgroundColor: '#070b14',
+    backgroundColor: PIXEL.panelLight,
     borderWidth: 2,
-    borderColor: '#15203a',
-    borderRadius: 0,
-    paddingVertical: 10,
-    alignItems: 'center',
+    borderColor: '#000000',
   },
-  statLabel: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 13, letterSpacing: 1 },
-  statValue: { color: '#4d8dff', fontFamily: FONTS.pixel, fontSize: 14, marginTop: 2 },
-  statMissing: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 19, marginTop: 6 },
-  sourceText: { color: '#3a4a70', fontFamily: FONTS.body, fontSize: 15, marginTop: 6, textAlign: 'center' },
-  applyBtn: {
+  stepValue: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 10, minWidth: 24, textAlign: 'center' },
+  filterFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
+  resetBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6, paddingVertical: 4 },
+  resetText: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
+
+  list: { padding: 16, paddingTop: 8, gap: 8 },
+  listEmpty: { flexGrow: 1 },
+  footerSpinner: { marginVertical: 12 },
+
+  card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 10 },
+  cardExpanded: { borderColor: PIXEL.accent },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  badge: { width: 46, height: 46, borderWidth: 2, backgroundColor: '#070b14', alignItems: 'center' },
+  badgeTop: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 2 },
+  badgeTopText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 6 },
+  badgeLevel: { fontFamily: FONTS.pixel, fontSize: 13, marginTop: 5 },
+  cardInfo: { flex: 1 },
+  cardTitle: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 21 },
+  cardSong: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 17 },
+  cardAuthor: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 15 },
+  ownedTag: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: PIXEL.accent2,
+    alignSelf: 'flex-start',
+  },
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    borderRadius: 0,
-    backgroundColor: 'rgba(77, 141, 255, 0.1)',
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 2,
+    borderTopColor: PIXEL.panelLight,
   },
-  applyText: { flex: 1, color: '#4d8dff', fontFamily: FONTS.body, fontSize: 17, },
-  applyList: { marginTop: 6, gap: 4 },
-  applyRow: {
+  stat: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
+  statDot: { color: '#3a4a70', fontSize: 6 },
+
+  panel: { marginTop: 8, gap: 8 },
+  detailRow: { flexDirection: 'row', gap: 6 },
+  detailBox: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    backgroundColor: '#070b14',
+    borderWidth: 2,
+    borderColor: PIXEL.panelLight,
+  },
+  detailLabel: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
+  detailValue: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 10, marginTop: 3 },
+  primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    borderRadius: 0,
-    backgroundColor: '#070b14',
+    paddingVertical: 10,
+    backgroundColor: PIXEL.accent2,
+    borderWidth: 2,
+    borderColor: '#000000',
   },
-  applyRowTitle: { flex: 1, color: '#e6ecf7', fontFamily: FONTS.body, fontSize: 17 },
-  applyRowBpm: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 16, },
-  centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 32 },
+  primaryBtnDisabled: { backgroundColor: PIXEL.panelLight },
+  primaryText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 10 },
+
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 32 },
   bigIcon: {
     width: 60,
     height: 60,
-    borderRadius: 0,
-    backgroundColor: 'rgba(77, 141, 255, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: PIXEL.panel,
+    borderWidth: 2,
+    borderColor: PIXEL.panelLight,
   },
-  infoTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11, },
-  infoText: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 17, textAlign: 'center', lineHeight: 18 },
+  infoTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11 },
+  muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
+  code: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 17 },
+  errorText: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderWidth: 2,
+    borderColor: PIXEL.accent2,
+  },
+  retryText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 18 },
+
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginHorizontal: 16,
-    marginBottom: 4,
+    marginTop: 4,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 0,
+    paddingVertical: 7,
     backgroundColor: '#0b1a33',
     borderWidth: 2,
-    borderColor: '#4d8dff',
+    borderColor: PIXEL.accent2,
   },
-  bannerText: { flex: 1, color: '#4d8dff', fontFamily: FONTS.body, fontSize: 16, },
-  attribution: { color: '#3a4a70', fontFamily: FONTS.body, fontSize: 13, textAlign: 'center', paddingVertical: 6 },
+  bannerError: { borderColor: PIXEL.accent, backgroundColor: '#1a0d0a' },
+  bannerText: { flex: 1, color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 17 },
 });

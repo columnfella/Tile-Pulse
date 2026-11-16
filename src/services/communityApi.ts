@@ -1,0 +1,150 @@
+/**
+ * Client for the TilePulse backend's community level browser (backend/src/routes/levels.js).
+ *
+ * Server address: EXPO_PUBLIC_API_URL if set, otherwise the computer running
+ * the Expo dev server on port 4000 (works for phones on the same Wi-Fi when the
+ * backend listens on HOST=0.0.0.0).
+ */
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import type { Song, TileNote } from '../types/song';
+import { storageService } from './storage';
+import { saveRemoteAudio } from './audioFileStore';
+
+const REQUEST_TIMEOUT_MS = 10_000;
+
+function resolveApiBase(): string {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
+  if (fromEnv) return fromEnv.replace(/\/+$/, '');
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:4000`;
+  }
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+  return `http://${host || '127.0.0.1'}:4000`;
+}
+
+export const API_BASE = resolveApiBase();
+
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
+export type LevelSort = 'newest' | 'popular' | 'easiest' | 'hardest' | 'shortest' | 'longest' | 'title';
+export type SearchField = 'all' | 'level' | 'song' | 'artist' | 'author';
+export type NoteFilter = 'any' | 'taps' | 'holds';
+
+export interface LevelFilters {
+  q?: string;
+  in?: SearchField;
+  difficulty?: Difficulty[];
+  minLevel?: number;
+  maxLevel?: number;
+  minBpm?: number;
+  maxBpm?: number;
+  minDurationSec?: number;
+  maxDurationSec?: number;
+  notes?: NoteFilter;
+  hasAudio?: boolean;
+  sort?: LevelSort;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CommunityLevel {
+  id: string;
+  name: string;
+  difficulty: Difficulty;
+  level: number;
+  noteCount: number;
+  holdCount: number;
+  plays: number;
+  version: number;
+  author: { id: string; displayName: string };
+  song: {
+    id: string;
+    title: string;
+    artist: string | null;
+    bpm: number;
+    timeSignature: { beatsPerMeasure: number; beatUnit: number };
+    durationMs: number | null;
+    audio: { mimeType: string; sizeBytes: number } | null;
+  };
+  createdAt: number;
+  updatedAt: number;
+}
+
+export class ApiUnavailableError extends Error {
+  constructor() {
+    super('Community server is offline.');
+    this.name = 'ApiUnavailableError';
+  }
+}
+
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS);
+  const onAbort = () => timeout.abort();
+  signal?.addEventListener('abort', onAbort);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1${path}`, { signal: timeout.signal, headers: { Accept: 'application/json' } });
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    throw new ApiUnavailableError();
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body?.error === 'string' ? body.error : `Request failed (${res.status})`);
+  return body as T;
+}
+
+export async function searchLevels(
+  filters: LevelFilters,
+  signal?: AbortSignal
+): Promise<{ levels: CommunityLevel[]; nextOffset: number | null }> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) continue;
+    params.set(key, Array.isArray(value) ? value.join(',') : String(value));
+  }
+  return getJson(`/levels?${params.toString()}`, signal);
+}
+
+const EXTENSIONS: Record<string, string> = {
+  'audio/mpeg': 'mp3',
+  'audio/wav': 'wav',
+  'audio/mp4': 'm4a',
+  'audio/aac': 'aac',
+  'audio/ogg': 'ogg',
+  'audio/flac': 'flac',
+};
+
+/** Local song id for a downloaded level (so downloading twice updates it instead of duplicating). */
+export const localIdForLevel = (levelId: string) => `community_${levelId}`;
+
+/** Downloads a level (notes + audio) into the local library and returns the saved song. */
+export async function downloadLevel(level: CommunityLevel): Promise<Song> {
+  const { level: full } = await getJson<{ level: CommunityLevel & { notes: Omit<TileNote, 'id'>[] } }>(
+    `/levels/${level.id}`
+  );
+  if (!full.song.audio) throw new Error('This level has no audio uploaded yet.');
+
+  const id = localIdForLevel(full.id);
+  const audioUri = await saveRemoteAudio(
+    id,
+    `${API_BASE}/api/v1/levels/${full.id}/audio`,
+    EXTENSIONS[full.song.audio.mimeType] ?? 'mp3'
+  );
+  const song: Song = {
+    id,
+    title: full.song.title,
+    artist: full.song.artist ?? undefined,
+    audioUri,
+    bpm: full.song.bpm,
+    timeSignature: full.song.timeSignature,
+    tiles: full.notes.map((n, i) => ({ ...n, id: `${id}_${i}` })),
+    createdAt: Date.now(),
+    durationSeconds: full.song.durationMs ? full.song.durationMs / 1000 : undefined,
+  };
+  await storageService.saveSong(song);
+  return song;
+}

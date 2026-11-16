@@ -10,6 +10,18 @@ export interface TileNote {
   durationBeats: number; // 0 = Normal Tap Tile, > 0 = Hold Tile
 }
 
+/**
+ * Editor guide line, recorded by tapping along with the music (like the
+ * guidelines in rhythm-game level editors). Stored in seconds of audio, so
+ * guides stay on the music even if the BPM is changed later.
+ */
+export interface GuideMark {
+  /** Position in the song, in seconds. */
+  t: number;
+  /** Guide colour/type index (see GUIDE_TYPES in the editor). */
+  type: number;
+}
+
 export interface Song {
   id: string;
   title: string;
@@ -27,4 +39,6 @@ export interface Song {
   background?: string;
   /** Original file on the device it was imported from (used to spot duplicates). */
   sourceUri?: string;
+  /** Editor-only guide lines (not shown in the game). */
+  guides?: GuideMark[];
 }

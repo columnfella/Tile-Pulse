@@ -23,7 +23,7 @@ import { ScreenView } from '../../src/components/ui/ScreenView';
 import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Song, TileNote } from '../../types/song';
+import { Song, TileNote, type GuideMark } from '../../types/song';
 import { storageService } from '../../services/storage';
 import { audioService } from '../../services/audio';
 import { ACTIVE_THEME } from '../../constants/theme';
@@ -32,6 +32,7 @@ import { PressableScale } from '../../src/components/ui/PressableScale';
 import { listItemIn } from '../../src/components/ui/motion';
 import { LANE_COLORS, LANE_LIGHT } from '../../src/theme/pixel';
 import { FONTS } from '../../src/theme/pixel';
+import { BpmLookupSheet } from '../../src/components/editor/BpmLookupSheet';
 
 const PIXELS_PER_BEAT = 96; // 1/4 snap cells are 24px, 1/2 cells 48px
 const TILE_GAP = 2; // px inset so neighbouring notes never visually touch
@@ -61,6 +62,25 @@ function gridBeatsFor(durationSeconds: number | null, bpm: number, tiles: TileNo
 
 type Lane = 0 | 1 | 2 | 3;
 type NoteType = 'tap' | 'hold';
+
+/** Guide line types for tap-recording (index = GuideMark.type). */
+const GUIDE_TYPES = [
+  { label: 'Beat', color: '#FF6B4A' },
+  { label: 'Accent', color: '#4d8dff' },
+  { label: 'Drop', color: '#ffffff' },
+  { label: 'Mark', color: '#ffd23f' },
+] as const;
+/** A tap on the grid within this many px of a guide removes it (in guide mode). */
+const GUIDE_HIT_PX = 12;
+const GUIDE_PANEL_HEIGHT = 132;
+
+/** 83.456 → "1:23.45" */
+const formatStamp = (sec: number) => {
+  const s = Math.max(0, sec);
+  const m = Math.floor(s / 60);
+  const rest = s - m * 60;
+  return `${m}:${rest < 10 ? '0' : ''}${rest.toFixed(2)}`;
+};
 
 /* ------------------------------------------------------------------------ *
  * Performance notes
@@ -168,6 +188,46 @@ const GridGuides = memo(function GridGuides({ beatsPerMeasure, subdivision, tota
     </View>
   );
 });
+
+interface GuideLinesProps {
+  guides: GuideMark[];
+  bpm: number;
+  totalBeats: number;
+  range: BeatRange;
+}
+
+/** Recorded guide lines (visible window only). */
+const GuideLines = memo(function GuideLines({ guides, bpm, totalBeats, range }: GuideLinesProps) {
+  const gridHeight = totalBeats * PIXELS_PER_BEAT;
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {guides.map((g, i) => {
+        const beat = (g.t * bpm) / 60;
+        if (beat < range.from - 1 || beat > range.to + 1 || beat > totalBeats) return null;
+        const color = GUIDE_TYPES[g.type]?.color ?? GUIDE_TYPES[0].color;
+        return (
+          <View key={`${g.t}_${i}`} style={[styles.guideLine, { top: beatToY(beat, gridHeight) - 1, backgroundColor: color }]}>
+            <View style={[styles.guideNotch, { backgroundColor: color }]} />
+          </View>
+        );
+      })}
+    </View>
+  );
+});
+
+/** Small clock that re-renders itself (not the whole editor) while audio plays. */
+function TimeReadout({ playing, fallbackSec, style }: { playing: boolean; fallbackSec: number; style?: object }) {
+  const [now, setNow] = useState(fallbackSec);
+  useEffect(() => {
+    if (!playing) {
+      setNow(fallbackSec);
+      return;
+    }
+    const id = setInterval(() => setNow(audioService.getCurrentTime()), 50);
+    return () => clearInterval(id);
+  }, [playing, fallbackSec]);
+  return <Text style={style}>{formatStamp(now)}</Text>;
+}
 
 interface EditorTileProps {
   tile: TileNote;
@@ -307,6 +367,15 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const [isPlayingPreview, setIsPlayingPreview] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [toast, setToast] = useState<string | null>(null);
+  // Paused preview: the playhead stays where the music stopped (seconds), until reset
+  const [pausedAtSec, setPausedAtSec] = useState<number | null>(null);
+  // Guide recording: tap along with the music to drop coloured guide lines
+  const [guides, setGuides] = useState<GuideMark[]>(song.guides ?? []);
+  const [guideMode, setGuideMode] = useState(false);
+  const [guidesVisible, setGuidesVisible] = useState(true);
+  const [clearArmed, setClearArmed] = useState(false);
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [snapOpen, setSnapOpen] = useState(false);
 
   // Undo / redo stacks of full snapshots (cheap: beatmaps are small)
   const pastRef = useRef<Snapshot[]>([]);
@@ -334,8 +403,8 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const viewportHeightRef = useRef(600);
 
   // Latest values for saving from timers / unmount
-  const latestRef = useRef({ tiles, bpm });
-  latestRef.current = { tiles, bpm };
+  const latestRef = useRef({ tiles, bpm, guides });
+  latestRef.current = { tiles, bpm, guides };
 
   // Playhead position driven on the UI thread
   const playheadY = useSharedValue(gridHeight);
@@ -355,6 +424,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
       ...songRef.current,
       bpm: latestRef.current.bpm,
       tiles: [...latestRef.current.tiles].sort((a, b) => a.beat - b.beat),
+      guides: latestRef.current.guides,
     }),
     []
   );
@@ -384,7 +454,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     setSaveStatus('saving');
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => void saveNow(), AUTOSAVE_DELAY_MS);
-  }, [tiles, bpm, saveNow]);
+  }, [tiles, bpm, guides, saveNow]);
 
   // Scroll to the start of the song (bottom of grid) when opened
   useEffect(() => {
@@ -405,8 +475,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
         if (cancelled || !measured || measured <= 0) return;
         setDurationSec(measured);
         const updated = { ...songRef.current, durationSeconds: measured };
-        await storageService.saveSong({ ...updated, bpm: latestRef.current.bpm, tiles: latestRef.current.tiles });
-        onSaved({ ...updated, bpm: latestRef.current.bpm, tiles: latestRef.current.tiles });
+        const latest = { bpm: latestRef.current.bpm, tiles: latestRef.current.tiles, guides: latestRef.current.guides };
+        await storageService.saveSong({ ...updated, ...latest });
+        onSaved({ ...updated, ...latest });
       } catch (err) {
         console.warn('Could not measure song length:', err);
       }
@@ -445,6 +516,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
       audioService.stop();
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         storageService.saveSong(buildSong()).catch((err) => console.warn('Final save failed:', err));
@@ -452,12 +524,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     };
   }, [buildSong]);
 
-  // Stop the preview when switching tabs
+  // Switching tabs pauses the preview (the playhead stays where it stopped)
   useFocusEffect(
     useCallback(
       () => () => {
+        const at = audioService.getIsPlaying() ? audioService.getCurrentTime() : null;
         audioService.stop();
         setIsPlayingPreview(false);
+        if (at !== null) setPausedAtSec(at);
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       },
       []
@@ -520,18 +594,25 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     toastTimerRef.current = setTimeout(() => setToast(null), 2500);
   }, []);
 
+  const secToY = (sec: number, gh: number = gridHeightRef.current) => gh - ((sec * bpm) / 60) * PIXELS_PER_BEAT;
+
+  /** Play ↔ pause. Pausing freezes the playhead at that moment; playing again resumes from there. */
   const handleTogglePreview = async () => {
     if (isPlayingPreview) {
+      const at = audioService.getCurrentTime();
       audioService.pause();
-      setIsPlayingPreview(false);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      setIsPlayingPreview(false);
+      setPausedAtSec(at);
+      playheadY.value = secToY(at);
       return;
     }
     try {
       const uri = await storageService.getAudioUriForSong(song);
       await audioService.loadTrack(song.id, uri, bpm, song.durationSeconds);
-      // Start from the marker set on the ruler
-      audioService.play((previewStartBeat * 60) / bpm);
+      // Resume from the pause point, otherwise start from the marker set on the ruler
+      audioService.play(pausedAtSec ?? (previewStartBeat * 60) / bpm);
+      setPausedAtSec(null);
       setIsPlayingPreview(true);
       animFrameRef.current = requestAnimationFrame(updatePreviewPlayhead);
     } catch (err) {
@@ -539,6 +620,54 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
       showToast("Could not play this song's audio.");
     }
   };
+
+  /** Leaves the paused state; the next Test starts from the ruler marker again. */
+  const handleResetPause = () => {
+    audioService.stop();
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    setIsPlayingPreview(false);
+    setPausedAtSec(null);
+    playheadY.value = beatToY(previewStartBeat, gridHeightRef.current);
+  };
+
+  // Keep the paused line on the same moment of music if the BPM / grid changes
+  useEffect(() => {
+    if (pausedAtSec !== null && !isPlayingPreview) playheadY.value = secToY(pausedAtSec, gridHeight);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pausedAtSec, bpm, gridHeight, isPlayingPreview]);
+
+  /* ------------------------------ guides ------------------------------ */
+
+  /** Pad tap while the music plays: drops a guide line at the current moment. */
+  const handleGuideTap = (type: number) => {
+    if (!audioService.getIsPlaying()) {
+      showToast('Press play, then tap along with the music');
+      return;
+    }
+    const t = audioService.getCurrentTime();
+    setGuides((g) => [...g, { t, type }]);
+  };
+
+  const handleUndoGuide = () => setGuides((g) => g.slice(0, -1));
+
+  /** Clearing needs a second tap within 2.5 s, so it can't happen by accident. */
+  const handleClearGuides = () => {
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    if (!clearArmed) {
+      setClearArmed(true);
+      clearTimerRef.current = setTimeout(() => setClearArmed(false), 2500);
+      return;
+    }
+    setClearArmed(false);
+    setGuides([]);
+    showToast('All guides removed');
+  };
+
+  const guideCounts = useMemo(() => {
+    const counts = GUIDE_TYPES.map(() => 0);
+    for (const g of guides) if (counts[g.type] !== undefined) counts[g.type]++;
+    return counts;
+  }, [guides]);
 
   const handlePlayBeatmap = async () => {
     // A song with no notes would start a game that never ends
@@ -549,6 +678,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     // Stop the Test preview so it doesn't keep playing under the game
     audioService.stop();
     setIsPlayingPreview(false);
+    setPausedAtSec(null);
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
 
     await saveNow(); // the game reads the beatmap from storage
@@ -604,6 +734,23 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   /** Single touch layer: converts the tap position into a lane and snapped beat. */
   const handleGridPress = (e: GestureResponderEvent) => {
     const { locationX, locationY } = e.nativeEvent;
+    // Guide mode: tapping right on a guide line removes it
+    if (guideMode && guidesVisible && guides.length > 0) {
+      let nearest = -1;
+      let best = GUIDE_HIT_PX;
+      guides.forEach((g, i) => {
+        const d = Math.abs(secToY(g.t) - locationY);
+        if (d <= best) {
+          best = d;
+          nearest = i;
+        }
+      });
+      if (nearest >= 0) {
+        setGuides((g) => g.filter((_, i) => i !== nearest));
+        showToast('Guide removed');
+        return;
+      }
+    }
     const lane = Math.max(0, Math.min(3, Math.floor((locationX / lanesWidthRef.current) * 4))) as Lane;
     const slotHeight = PIXELS_PER_BEAT * activeSubdivision;
     const slotIndex = Math.floor((gridHeight - locationY) / slotHeight);
@@ -687,6 +834,15 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     if (next !== bpm) commit({ bpm: next });
   };
 
+  // Online tempo lookup (small "BPM?" button next to the tempo control)
+  const [bpmLookupOpen, setBpmLookupOpen] = useState(false);
+  const handleApplyLookedUpBpm = (found: number) => {
+    setBpmLookupOpen(false);
+    const next = clampBpm(found);
+    if (next !== bpm) commit({ bpm: next });
+    showToast(next === found ? `Tempo set to ${next} BPM` : `Found ${found} BPM — clamped to ${next}`);
+  };
+
   /** Ruler tap: moves the point where "Test" starts playing from. */
   const handleRulerPress = useCallback(
     (e: GestureResponderEvent) => {
@@ -694,6 +850,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
       const index = Math.floor((gridHeightRef.current - e.nativeEvent.locationY) / cellPx);
       const beat = Math.max(0, Math.min(gridHeightRef.current / PIXELS_PER_BEAT - activeSubdivision, index * activeSubdivision));
       setPreviewStartBeat(beat);
+      setPausedAtSec(null); // a new start point replaces the pause point
       if (!isPlayingPreview) playheadY.value = beatToY(beat, gridHeightRef.current);
     },
     [activeSubdivision, isPlayingPreview, playheadY]
@@ -722,7 +879,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     scrollViewRef.current?.scrollTo({ y, animated: false });
     scrollYRef.current = y;
     updateRange(y);
-    if (!isPlayingPreview) playheadY.value = beatToY(previewStartBeat, gridHeight);
+    if (!isPlayingPreview) {
+      playheadY.value = pausedAtSec !== null ? secToY(pausedAtSec, gridHeight) : beatToY(previewStartBeat, gridHeight);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridHeight]);
   const beatsPerMeasure = song.timeSignature?.beatsPerMeasure || 4;
@@ -801,6 +960,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               <PressableScale scaleTo={0.85} style={styles.bpmBtn} onPress={() => handleStepBpm(1)} accessibilityLabel="Increase BPM">
                 <PixelIcon name="plus" size={14} color="#cdd6ea" />
               </PressableScale>
+              <PressableScale
+                scaleTo={0.85}
+                style={styles.bpmLookupBtn}
+                onPress={() => setBpmLookupOpen(true)}
+                accessibilityLabel="Look up this song's BPM online"
+              >
+                <Text style={styles.bpmLookupText}>BPM?</Text>
+              </PressableScale>
             </View>
           </View>
 
@@ -811,28 +978,56 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           >
             {isPlayingPreview ? <PixelIcon name="pause" size={14} color="#000000" /> : <PixelIcon name="play" size={14} color="#4d8dff" />}
             <Text style={[styles.previewBtnText, isPlayingPreview && { color: '#000000' }]}>
-              {isPlayingPreview ? 'Pause' : 'Test'}
+              {isPlayingPreview ? 'Pause' : pausedAtSec !== null ? 'Resume' : 'Test'}
             </Text>
           </PressableScale>
         </View>
 
-        {/* Row 3: snap + note type */}
+        {/* Row 3: snap (collapsed until tapped) · guides · note type */}
         <View style={styles.subdivisionsRow}>
-          <View style={styles.snapButtonsGroup}>
-            <Text style={styles.snapLabel}>SNAP:</Text>
-            {([1.0, 0.5, 0.25] as const).map((sub) => (
+          {snapOpen ? (
+            <Animated.View entering={FadeIn.duration(120)} style={styles.snapButtonsGroup}>
+              {([1.0, 0.5, 0.25] as const).map((sub) => (
+                <PressableScale
+                  key={sub}
+                  scaleTo={0.9}
+                  onPress={() => {
+                    setActiveSubdivision(sub);
+                    setSnapOpen(false);
+                  }}
+                  style={[styles.snapBadge, activeSubdivision === sub && styles.snapBadgeActive]}
+                >
+                  <Text style={[styles.snapBadgeText, activeSubdivision === sub && styles.snapBadgeTextActive]}>
+                    {sub === 1 ? '1/1' : sub === 0.5 ? '1/2' : '1/4'}
+                  </Text>
+                </PressableScale>
+              ))}
+              <PressableScale scaleTo={0.85} style={styles.snapClose} onPress={() => setSnapOpen(false)} accessibilityLabel="Close snap options">
+                <PixelIcon name="close" size={7} color="#9aa7c2" />
+              </PressableScale>
+            </Animated.View>
+          ) : (
+            <View style={styles.snapButtonsGroup}>
+              <PressableScale scaleTo={0.9} style={styles.snapToggle} onPress={() => setSnapOpen(true)} accessibilityLabel="Snap options">
+                <Text style={styles.snapLabel}>SNAP</Text>
+                <Text style={styles.snapToggleValue}>
+                  {activeSubdivision === 1 ? '1/1' : activeSubdivision === 0.5 ? '1/2' : '1/4'}
+                </Text>
+                <PixelIcon name="chevronDown" size={7} color="#9aa7c2" />
+              </PressableScale>
               <PressableScale
-                key={sub}
                 scaleTo={0.9}
-                onPress={() => setActiveSubdivision(sub)}
-                style={[styles.snapBadge, activeSubdivision === sub && styles.snapBadgeActive]}
+                style={[styles.guideToggle, guideMode && styles.guideToggleActive]}
+                onPress={() => setGuideMode((m) => !m)}
+                accessibilityLabel="Guide recording"
               >
-                <Text style={[styles.snapBadgeText, activeSubdivision === sub && styles.snapBadgeTextActive]}>
-                  {sub === 1 ? '1/1' : sub === 0.5 ? '1/2' : '1/4'}
+                <View style={[styles.recDot, guideMode && styles.recDotActive]} />
+                <Text style={[styles.guideToggleText, guideMode && { color: '#000000' }]}>
+                  GUIDES{guides.length > 0 ? ` ${guides.length}` : ''}
                 </Text>
               </PressableScale>
-            ))}
-          </View>
+            </View>
+          )}
 
           <View style={styles.segmented}>
             {(['tap', 'hold'] as const).map((type) => {
@@ -868,7 +1063,20 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             {saveStatus === 'saving' ? '· saving…' : saveStatus === 'error' ? '· not saved!' : '· saved'}
           </Text>
           <View style={styles.flexSpacer} />
-          {/* Where "Test" starts — tap the ruler numbers to move it */}
+          {/* Paused: shows where the music stopped; tap to go back to the start marker */}
+          {pausedAtSec !== null && !isPlayingPreview ? (
+            <PressableScale
+              scaleTo={0.92}
+              style={[styles.startChip, styles.pausedChip]}
+              onPress={handleResetPause}
+              accessibilityLabel="Clear pause and return to the test start"
+            >
+              <PixelIcon name="pause" size={7} color="#FF6B4A" />
+              <Text style={[styles.startChipText, { color: '#FF6B4A' }]}>Paused {formatStamp(pausedAtSec)}</Text>
+              <PixelIcon name="reset" size={14} color="#FF6B4A" />
+            </PressableScale>
+          ) : (
+          /* Where "Test" starts — tap the ruler numbers to move it */
           <PressableScale
             scaleTo={0.92}
             style={styles.startChip}
@@ -884,6 +1092,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             </Text>
             {previewStartBeat !== 0 && <PixelIcon name="reset" size={14} color="#4d8dff" />}
           </PressableScale>
+          )}
         </View>
       </Animated.View>
 
@@ -893,9 +1102,10 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           ref={scrollViewRef}
           style={styles.gridScroll}
           contentContainerStyle={{
-            height: gridHeight + GRID_PAD_TOP + GRID_PAD_BOTTOM,
+            // Extra room at the bottom while the guide pads cover it
+            height: gridHeight + GRID_PAD_TOP + GRID_PAD_BOTTOM + (guideMode ? GUIDE_PANEL_HEIGHT : 0),
             paddingTop: GRID_PAD_TOP,
-            paddingBottom: GRID_PAD_BOTTOM,
+            paddingBottom: GRID_PAD_BOTTOM + (guideMode ? GUIDE_PANEL_HEIGHT : 0),
           }}
           onScroll={handleGridScroll}
           scrollEventThrottle={32}
@@ -912,6 +1122,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
 
             <View style={[styles.lanesArea, { height: gridHeight }]} onLayout={handleLanesLayout}>
               <GridGuides beatsPerMeasure={beatsPerMeasure} subdivision={activeSubdivision} totalBeats={totalBeats} range={range} />
+              {guidesVisible && guides.length > 0 && (
+                <GuideLines guides={guides} bpm={bpm} totalBeats={totalBeats} range={range} />
+              )}
 
               {/* One touch target for the whole grid instead of hundreds of slots */}
               <Pressable style={StyleSheet.absoluteFill} onPress={handleGridPress} />
@@ -930,13 +1143,25 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               {/* Test start line */}
               <View pointerEvents="none" style={[styles.startLine, { top: beatToY(previewStartBeat, gridHeight) - 1 }]} />
 
-              {/* Moving Playhead Line */}
-              {isPlayingPreview && (
+              {/* Playhead: moves while playing, stays put while paused */}
+              {(isPlayingPreview || pausedAtSec !== null) && (
                 <Animated.View
                   entering={FadeIn.duration(150)}
                   pointerEvents="none"
                   style={[styles.playheadLine, playheadStyle]}
                 />
+              )}
+              {/* Timestamp flag on the paused line */}
+              {pausedAtSec !== null && !isPlayingPreview && (
+                <View
+                  pointerEvents="none"
+                  style={[styles.pausedFlag, { top: Math.max(0, secToY(pausedAtSec, gridHeight) - 22) }]}
+                >
+                  <PixelIcon name="pause" size={7} color="#000000" />
+                  <Text style={styles.pausedFlagText}>
+                    {formatStamp(pausedAtSec)} · b{((pausedAtSec * bpm) / 60).toFixed(2)}
+                  </Text>
+                </View>
               )}
             </View>
           </View>
@@ -969,6 +1194,71 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           </Animated.View>
         )}
 
+        {/* Guide recording pads: play the music and tap along */}
+        {guideMode && (
+          <Animated.View entering={FadeInUp.duration(180)} exiting={FadeOutUp.duration(120)} style={styles.guidePanel}>
+            <View style={styles.guideControls}>
+              <PressableScale
+                scaleTo={0.9}
+                style={[styles.guidePlayBtn, isPlayingPreview && styles.guidePlayBtnActive]}
+                onPress={handleTogglePreview}
+                accessibilityLabel={isPlayingPreview ? 'Pause' : 'Play'}
+              >
+                <PixelIcon name={isPlayingPreview ? 'pause' : 'play'} size={14} color={isPlayingPreview ? '#000000' : '#4d8dff'} />
+              </PressableScale>
+              <TimeReadout
+                playing={isPlayingPreview}
+                fallbackSec={pausedAtSec ?? (previewStartBeat * 60) / bpm}
+                style={styles.guideTime}
+              />
+              <View style={styles.flexSpacer} />
+              <PressableScale scaleTo={0.9} style={styles.guideSmallBtn} disabled={guides.length === 0} onPress={handleUndoGuide} accessibilityLabel="Remove last guide">
+                <PixelIcon name="undo" size={14} color={guides.length === 0 ? '#3a4a70' : '#e6ecf7'} />
+              </PressableScale>
+              <PressableScale scaleTo={0.9} style={styles.guideSmallBtn} onPress={() => setGuidesVisible((v) => !v)} accessibilityLabel="Show or hide guides">
+                <Text style={styles.guideSmallText}>{guidesVisible ? 'HIDE' : 'SHOW'}</Text>
+              </PressableScale>
+              <PressableScale
+                scaleTo={0.9}
+                style={[styles.guideSmallBtn, clearArmed && styles.guideClearArmed]}
+                disabled={guides.length === 0}
+                onPress={handleClearGuides}
+                accessibilityLabel="Clear all guides"
+              >
+                <PixelIcon name="trash" size={14} color={guides.length === 0 ? '#3a4a70' : clearArmed ? '#000000' : '#FF6B4A'} />
+                {clearArmed && <Text style={[styles.guideSmallText, { color: '#000000' }]}>SURE?</Text>}
+              </PressableScale>
+              <PressableScale scaleTo={0.9} style={styles.guideSmallBtn} onPress={() => setGuideMode(false)} accessibilityLabel="Close guides">
+                <PixelIcon name="close" size={14} color="#e6ecf7" />
+              </PressableScale>
+            </View>
+            <View style={styles.guidePads}>
+              {GUIDE_TYPES.map((g, i) => (
+                <Pressable
+                  key={g.label}
+                  onPressIn={() => handleGuideTap(i)}
+                  style={({ pressed }) => [
+                    styles.guidePad,
+                    { borderColor: g.color },
+                    pressed && { backgroundColor: g.color },
+                  ]}
+                  accessibilityLabel={`Add ${g.label} guide`}
+                >
+                  {({ pressed }) => (
+                    <>
+                      <Text style={[styles.guidePadLabel, { color: pressed ? '#000000' : g.color }]}>{g.label.toUpperCase()}</Text>
+                      <Text style={[styles.guidePadCount, pressed && { color: '#000000' }]}>{guideCounts[i]}</Text>
+                    </>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.guideHint}>
+              {isPlayingPreview ? 'Tap the pads on the beat' : 'Play, then tap along · tap a line on the grid to remove it'}
+            </Text>
+          </Animated.View>
+        )}
+
         {/* Toast */}
         {toast && (
           <Animated.View entering={FadeInUp.springify().damping(16)} exiting={FadeOutUp.duration(200)} style={styles.toastCard}>
@@ -977,6 +1267,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           </Animated.View>
         )}
       </View>
+
+      <BpmLookupSheet
+        visible={bpmLookupOpen}
+        initialQuery={[song.title, song.artist].filter(Boolean).join(' ')}
+        currentBpm={bpm}
+        onApply={handleApplyLookedUpBpm}
+        onClose={() => setBpmLookupOpen(false)}
+      />
     </ScreenView>
   );
 }
@@ -1287,6 +1585,174 @@ const styles = StyleSheet.create({
     color: '#4d8dff',
     fontWeight: 'bold',
   },
+  snapToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#0b1220',
+    borderWidth: 2,
+    borderColor: '#15203a',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  snapToggleValue: {
+    color: '#4d8dff',
+    fontFamily: FONTS.body,
+    fontSize: 16,
+  },
+  snapClose: {
+    padding: 6,
+  },
+  guideToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#0b1220',
+    borderWidth: 2,
+    borderColor: '#15203a',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  guideToggleActive: {
+    backgroundColor: '#FF6B4A',
+    borderColor: '#000000',
+  },
+  guideToggleText: {
+    color: '#cdd6ea',
+    fontFamily: FONTS.body,
+    fontSize: 16,
+  },
+  recDot: {
+    width: 6,
+    height: 6,
+    backgroundColor: '#FF6B4A',
+  },
+  recDotActive: {
+    backgroundColor: '#000000',
+  },
+  pausedChip: {
+    backgroundColor: 'rgba(255, 107, 74, 0.12)',
+    borderColor: 'rgba(255, 107, 74, 0.5)',
+  },
+  pausedFlag: {
+    position: 'absolute',
+    right: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FF6B4A',
+    borderWidth: 2,
+    borderColor: '#000000',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  pausedFlagText: {
+    color: '#000000',
+    fontFamily: FONTS.body,
+    fontSize: 15,
+  },
+  guideLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 2,
+    opacity: 0.9,
+  },
+  guideNotch: {
+    position: 'absolute',
+    left: 0,
+    top: -3,
+    width: 8,
+    height: 8,
+  },
+  guidePanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: GUIDE_PANEL_HEIGHT,
+    zIndex: 45,
+    elevation: 9,
+    backgroundColor: 'rgba(11, 18, 32, 0.97)',
+    borderTopWidth: 2,
+    borderTopColor: '#FF6B4A',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 6,
+    gap: 6,
+  },
+  guideControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  guidePlayBtn: {
+    width: 32,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#4d8dff',
+    backgroundColor: 'rgba(77, 141, 255, 0.12)',
+  },
+  guidePlayBtnActive: {
+    backgroundColor: '#4d8dff',
+    borderColor: '#000000',
+  },
+  guideTime: {
+    color: '#ffffff',
+    fontFamily: FONTS.pixel,
+    fontSize: 10,
+    marginLeft: 4,
+  },
+  guideSmallBtn: {
+    height: 30,
+    minWidth: 30,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: '#15203a',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  guideSmallText: {
+    color: '#e6ecf7',
+    fontFamily: FONTS.body,
+    fontSize: 15,
+  },
+  guideClearArmed: {
+    backgroundColor: '#FF6B4A',
+  },
+  guidePads: {
+    flexDirection: 'row',
+    gap: 6,
+    flex: 1,
+  },
+  guidePad: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    backgroundColor: '#05070d',
+  },
+  guidePadLabel: {
+    fontFamily: FONTS.pixel,
+    fontSize: 7,
+  },
+  guidePadCount: {
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 15,
+    marginTop: 2,
+  },
+  guideHint: {
+    color: '#6b7a99',
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    textAlign: 'center',
+  },
   noteTypeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1571,6 +2037,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#15203a',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bpmLookupBtn: {
+    height: 20,
+    paddingHorizontal: 5,
+    marginLeft: 2,
+    borderWidth: 1,
+    borderColor: '#FF6B4A',
+    backgroundColor: 'rgba(255, 107, 74, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bpmLookupText: {
+    color: '#FF6B4A',
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    lineHeight: 16,
   },
   bpmText: {
     color: '#4d8dff',

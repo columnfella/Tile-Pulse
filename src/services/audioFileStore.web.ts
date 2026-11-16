@@ -41,6 +41,13 @@ function request<T>(mode: IDBTransactionMode, op: (store: IDBObjectStore) => IDB
   );
 }
 
+/** Downloads audio from a URL (e.g. a community level) into IndexedDB. */
+export async function saveRemoteAudio(songId: string, url: string, _extension: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  return saveImportedAudio(songId, { canceled: false, file: await res.blob() } as PickedAudioResult);
+}
+
 export async function saveImportedAudio(songId: string, picked: PickedAudioResult): Promise<string> {
   let blob = picked.file;
   if (!blob && picked.uri) blob = await (await fetch(picked.uri)).blob();
