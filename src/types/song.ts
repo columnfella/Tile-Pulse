@@ -8,6 +8,20 @@ export interface TileNote {
   lane: 0 | 1 | 2 | 3;
   beat: number;          // Start beat (e.g., 1.0, 1.5, 2.0)
   durationBeats: number; // 0 = Normal Tap Tile, > 0 = Hold Tile
+  /**
+   * Slide tile: a hold whose position moves across the lanes along this path.
+   * Needs at least 2 points and durationBeats > 0. Each bend is a point, so a
+   * single tile can change direction as often as you like.
+   */
+  path?: SlidePoint[];
+}
+
+/** One corner of a slide tile's path. */
+export interface SlidePoint {
+  /** Beats after the tile's start (0 … durationBeats). */
+  t: number;
+  /** Lane position of the tile's left edge: 0 = lane 1 … 3 = lane 4; halves allowed. */
+  x: number;
 }
 
 /**
@@ -41,4 +55,14 @@ export interface Song {
   sourceUri?: string;
   /** Editor-only guide lines (not shown in the game). */
   guides?: GuideMark[];
+  /** Cover picture stored on the device (shown on the song's card). */
+  coverUri?: string;
+  /** Set when the song was downloaded from Discover. */
+  community?: {
+    levelId: string;
+    name: string;
+    difficulty: 'easy' | 'normal' | 'hard' | 'expert';
+    level: number;
+    author: string;
+  };
 }

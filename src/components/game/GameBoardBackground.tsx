@@ -15,6 +15,11 @@ interface GameBoardBackgroundProps {
   hitLineY: number;
   onLanePressStart?: (lane: 0 | 1 | 2 | 3) => void;
   onLanePressEnd?: (lane: 0 | 1 | 2 | 3) => void;
+  /**
+   * Horizontal position of every finger on the board, in lanes (0 = left
+   * edge, 4 = right edge). Reported on every touch change; used by slides.
+   */
+  onFingersChange?: (fingers: number[]) => void;
   theme?: ThemeConfig;
   showKeyLabels?: boolean;
   children?: React.ReactNode;
@@ -40,8 +45,10 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   hitLineY,
   onLanePressStart,
   onLanePressEnd,
+  onFingersChange,
   theme = ACTIVE_THEME,
-  showKeyLabels = true,
+  // No hit line any more (tap tiles anywhere), so no key badges sitting on it
+  showKeyLabels = false,
   children,
   backdrop,
 }) => {
@@ -50,6 +57,8 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   const boardRef = useRef<React.ComponentRef<typeof View>>(null);
   const boardFrame = useRef({ x: 0, width: 1 });
   const touchLanes = useRef(new Map<string, Lane>());
+  const fingerX = useRef(new Map<string, number>());
+  const emitFingers = () => onFingersChange?.([...fingerX.current.values()]);
 
   // Hit feedback is a background flash (see useHitFlash), not a lane highlight
   const pressLane = (lane: Lane) => onLanePressStart?.(lane);
@@ -61,11 +70,12 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
     });
   };
 
-  const laneForX = (pageX: number): Lane => {
+  /** pageX → position in lanes (0 … 4). */
+  const lanesForPageX = (pageX: number) => {
     const { x, width } = boardFrame.current;
-    const idx = Math.floor(((pageX - x) / width) * 4);
-    return Math.max(0, Math.min(3, idx)) as Lane;
+    return Math.max(0, Math.min(4, ((pageX - x) / width) * 4));
   };
+  const laneForX = (pageX: number): Lane => Math.min(3, Math.floor(lanesForPageX(pageX))) as Lane;
 
   const handleTouchStart = (e: GestureResponderEvent) => {
     for (const t of e.nativeEvent.changedTouches) {
@@ -73,8 +83,10 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
       if (touchLanes.current.has(id)) continue;
       const lane = laneForX(t.pageX);
       touchLanes.current.set(id, lane);
+      fingerX.current.set(id, lanesForPageX(t.pageX));
       pressLane(lane);
     }
+    emitFingers();
   };
 
   const handleTouchMove = (e: GestureResponderEvent) => {
@@ -82,6 +94,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
       const id = String(t.identifier);
       const prev = touchLanes.current.get(id);
       if (prev === undefined) continue;
+      fingerX.current.set(id, lanesForPageX(t.pageX));
       const lane = laneForX(t.pageX);
       if (lane !== prev) {
         // Finger slid into another lane: release the old one, press the new one
@@ -90,6 +103,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
         pressLane(lane);
       }
     }
+    emitFingers();
   };
 
   const handleTouchEnd = (e: GestureResponderEvent) => {
@@ -98,9 +112,11 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
       const lane = touchLanes.current.get(id);
       if (lane === undefined) continue;
       touchLanes.current.delete(id);
+      fingerX.current.delete(id);
       // Only release if no other finger is still on this lane
       if (![...touchLanes.current.values()].includes(lane)) releaseLane(lane);
     }
+    emitFingers();
   };
 
   const touchHandlers = USE_MULTI_TOUCH
@@ -146,8 +162,24 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                 },
               ]}
               disabled={USE_MULTI_TOUCH}
-              onPressIn={USE_MULTI_TOUCH ? undefined : () => pressLane(laneIndex)}
-              onPressOut={USE_MULTI_TOUCH ? undefined : () => releaseLane(laneIndex)}
+              onPressIn={
+                USE_MULTI_TOUCH
+                  ? undefined
+                  : () => {
+                      fingerX.current.set(`lane${laneIndex}`, laneIndex + 0.5);
+                      pressLane(laneIndex);
+                      emitFingers();
+                    }
+              }
+              onPressOut={
+                USE_MULTI_TOUCH
+                  ? undefined
+                  : () => {
+                      fingerX.current.delete(`lane${laneIndex}`);
+                      releaseLane(laneIndex);
+                      emitFingers();
+                    }
+              }
             >
               {/* Lane Key Badge / Prompt at Hit Line */}
               {showKeyLabels && (
@@ -194,37 +226,6 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
         {children}
       </View>
 
-      {/* Horizontal Hit Line (Near bottom of screen) */}
-      <View
-        pointerEvents="none"
-        style={[
-          styles.hitLine,
-          {
-            top: hitLineY,
-            height: board.hitLineThickness,
-            backgroundColor: board.hitLineColor,
-            shadowColor: board.hitLineGlowColor,
-            shadowOpacity: 0.85,
-            shadowRadius: 10,
-            elevation: 8,
-          },
-        ]}
-      >
-        <View style={styles.hitPipLeft} />
-        <View style={styles.hitPipRight} />
-      </View>
-
-      {/* Hit Zone Highlight Band */}
-      <View
-        pointerEvents="none"
-        style={[
-          styles.hitZoneBand,
-          {
-            top: hitLineY - 24,
-            backgroundColor: board.hitZoneOverlayColor,
-          },
-        ]}
-      />
     </View>
   );
 };

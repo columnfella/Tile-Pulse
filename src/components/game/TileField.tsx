@@ -5,6 +5,8 @@ import type { TileNote } from '../../types/song';
 import type { ActiveTileState } from '../../types/game';
 import { TapTileView } from './TapTileView';
 import { HoldTileView } from './HoldTileView';
+import { SlideTileView } from './SlideTileView';
+import { isSlideTile } from '../../game/engine';
 
 export interface TimedTile extends TileNote {
   noteTime: number; // seconds
@@ -19,6 +21,8 @@ interface TileFieldProps {
   hitLineY: number;
   pixelsPerBeat: number;
   tapHeight: number;
+  /** Width of the whole board in px (slide tiles span all lanes). */
+  boardWidth?: number;
   /** Song time in seconds, advanced on the UI thread every frame. */
   songTime: SharedValue<number>;
   getTileState: (id: string) => ActiveTileState | undefined;
@@ -31,10 +35,14 @@ const DEFAULT_STATE: ActiveTileState = { status: 'pending', heldBeats: 0, holdPr
 interface MovingTileProps {
   tile: TimedTile;
   holdProgress: number;
+  /** Song time when the hold was pressed (the fill grows from then). */
+  holdStart?: number;
   status: ActiveTileState['status'];
   speed: number;
   hitLineY: number;
   height: number;
+  pixelsPerBeat: number;
+  boardWidth?: number;
   songTime: SharedValue<number>;
 }
 
@@ -48,9 +56,12 @@ const MovingTile = memo(function MovingTile({
   tile,
   status,
   holdProgress,
+  holdStart,
   speed,
   hitLineY,
   height,
+  pixelsPerBeat,
+  boardWidth,
   songTime,
 }: MovingTileProps) {
   const noteTime = tile.noteTime;
@@ -64,6 +75,31 @@ const MovingTile = memo(function MovingTile({
   }));
 
   const isHold = tile.durationBeats > 0;
+  const isSlide = isSlideTile(tile);
+
+  if (isSlide) {
+    return (
+      <Animated.View pointerEvents="none" style={[styles.tile, styles.slide, { height }, style]}>
+        <SlideTileView
+          id={tile.id}
+          path={tile.path!}
+          durationBeats={tile.durationBeats}
+          height={height}
+          pixelsPerBeat={pixelsPerBeat}
+          laneWidth={(boardWidth ?? 0) / 4}
+          isHolding={status === 'holding'}
+          isHit={status === 'hit'}
+          isMissed={status === 'missed'}
+          holdProgress={holdProgress}
+          live={
+            status === 'holding'
+              ? { songTime, start: holdStart ?? tile.noteTime, duration: tile.durationSeconds }
+              : undefined
+          }
+        />
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View
@@ -81,7 +117,7 @@ const MovingTile = memo(function MovingTile({
           isMissed={status === 'missed'}
           live={
             status === 'holding'
-              ? { songTime, start: tile.noteTime, duration: tile.durationSeconds }
+              ? { songTime, start: holdStart ?? tile.noteTime, duration: tile.durationSeconds }
               : undefined
           }
         />
@@ -104,6 +140,7 @@ export const TileField = memo(function TileField({
   hitLineY,
   pixelsPerBeat,
   tapHeight,
+  boardWidth,
   songTime,
   getTileState,
 }: TileFieldProps) {
@@ -115,17 +152,24 @@ export const TileField = memo(function TileField({
         const state = getTileState(tile.id) ?? DEFAULT_STATE;
         // Hit tiles stay on screen in a darker "pressed" state and scroll away;
         // missed tiles turn red.
-        const height =
-          tile.durationBeats > 0 ? Math.max(tapHeight, tile.durationBeats * pixelsPerBeat) : tapHeight;
+        // Slides are exactly as tall as their path, so bends land on the beat grid
+        const height = isSlideTile(tile)
+          ? tile.durationBeats * pixelsPerBeat
+          : tile.durationBeats > 0
+            ? Math.max(tapHeight, tile.durationBeats * pixelsPerBeat)
+            : tapHeight;
         return (
           <MovingTile
             key={tile.id}
             tile={tile}
             holdProgress={state.holdProgress}
+            holdStart={state.holdStartTime}
             status={state.status}
             speed={speed}
             hitLineY={hitLineY}
             height={height}
+            pixelsPerBeat={pixelsPerBeat}
+            boardWidth={boardWidth}
             songTime={songTime}
           />
         );
@@ -141,4 +185,5 @@ const styles = StyleSheet.create({
     width: '25%',
     opacity: 0,
   },
+  slide: { left: 0, width: '100%' },
 });

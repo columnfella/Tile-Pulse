@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   AppState,
-  Platform,
   type LayoutChangeEvent,
 } from 'react-native';
 import { useScreenInsets } from '../../src/components/ui/useScreenInsets';
@@ -18,15 +17,16 @@ import Animated, {
   useSharedValue,
 } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Song } from '../../types/song';
+import { Song, type SlidePoint } from '../../types/song';
 import { HitJudgment, GameStats, ActiveTileState } from '../../types/game';
 import { ACTIVE_THEME } from '../../constants/theme';
 import {
   calculateNoteTimeSeconds,
   evaluateHitJudgment,
   isWithinHitWindow,
-  isTilePastMissThreshold,
   calculateHoldProgress,
+  isSlideTile,
+  slideRange,
   calculateOverallAccuracy,
   formatAudioTime,
 } from '../../src/game/engine';
@@ -93,6 +93,10 @@ export default function PlayScreen() {
   // Background flash on every hit (UI thread)
   const { flash: hitFlash, triggerFlash } = useHitFlash();
   const activeHoldByLaneRef = useRef<Map<number, string>>(new Map());
+  // Slides being followed: tile id → when the finger left the path (null = on it)
+  const activeSlidesRef = useRef<Map<string, { offSince: number | null }>>(new Map());
+  // Every finger's horizontal position on the board, in lanes (0 … 4)
+  const fingersRef = useRef<number[]>([]);
   // Last beat seen for each held note (for the per-beat pulse while holding)
   const holdBeatRef = useRef<Map<string, number>>(new Map());
   const animFrameIdRef = useRef<number | null>(null);
@@ -126,7 +130,13 @@ export default function PlayScreen() {
 
   const tilesByLane = useMemo(() => {
     const lanes: TimedTile[][] = [[], [], [], []];
-    timeline.forEach((t) => lanes[t.lane].push(t));
+    timeline.forEach((t) => {
+      lanes[t.lane].push(t);
+      // A slide starting between two lanes can be pressed from either one
+      const x0 = isSlideTile(t) ? t.path![0].x : t.lane;
+      const right = Math.ceil(x0 - 1e-6);
+      if (right !== t.lane && right >= 0 && right <= 3) lanes[right].push(t);
+    });
     return lanes;
   }, [timeline]);
 
@@ -150,6 +160,16 @@ export default function PlayScreen() {
   });
 
   // Only tiles near the playhead are mounted; the window advances every 0.5s
+  /**
+ * Is a finger (lanes, 0–4) on the slide around beat `at` of its path? Looks a
+ * little ahead and behind, so steep and sideways parts are easy to follow.
+ */
+const fingerFollowsSlide = (finger: number, path: SlidePoint[], at: number) => {
+  const { min, max } = slideRange(path, at - 0.25, at + 0.25);
+  return finger >= min - 0.35 && finger <= max + 1.35;
+};
+
+const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it ends
   const WINDOW_STEP_SEC = 0.5;
   const visibleTiles = useMemo(() => {
     if (!song || boardHeight === 0) return [];
@@ -273,24 +293,35 @@ export default function PlayScreen() {
 
       const curAudioTime = audioService.getCurrentTime();
 
-      let targetTile: TimedTile | null = null;
-      let minDiff = Infinity;
+      // A finger sliding along a slide into the next lane isn't a new tap
+      for (const [slideId] of activeSlidesRef.current) {
+        const slide = tilesById.get(slideId);
+        const st = tileStatesRef.current.get(slideId);
+        if (!slide || !st || !slide.path) continue;
+        const p = calculateHoldProgress(curAudioTime, st.holdStartTime ?? slide.noteTime, slide.durationSeconds);
+        if (fingerFollowsSlide(lane + 0.5, slide.path, p * slide.durationBeats)) return;
+      }
 
+      // Free tapping (like the classic game): any tile that's on screen can be
+      // tapped — the lowest unplayed one in the lane is hit, wherever it is.
+      const speed = (pixelsPerBeat * song.bpm) / 60;
+      const enterLead = hitLineY / speed; // seconds before noteTime that the tile appears at the top
+      let targetTile: TimedTile | null = null;
       for (const t of tilesByLane[lane]) {
-        if (t.noteTime > curAudioTime + 0.5) break; // sorted: the rest are too far ahead
+        if (t.noteTime - curAudioTime > enterLead) break; // sorted: the rest aren't on screen yet
         const state = tileStatesRef.current.get(t.id);
-        if (state && (state.status === 'pending' || state.status === 'holding')) {
-          const diff = Math.abs(curAudioTime - t.noteTime);
-          if (diff < minDiff && isWithinHitWindow(curAudioTime - t.noteTime)) {
-            minDiff = diff;
-            targetTile = t;
-          }
+        if (state && state.status === 'pending') {
+          targetTile = t; // earliest pending tile = lowest on screen
+          break;
         }
       }
 
       if (targetTile) {
         const timeDiffSec = curAudioTime - targetTile.noteTime;
-        const result = evaluateHitJudgment(timeDiffSec);
+        // Taps near the line keep their timing grade; earlier taps still count as a hit
+        const result = isWithinHitWindow(timeDiffSec)
+          ? evaluateHitJudgment(timeDiffSec)
+          : { judgment: 'GREAT' as HitJudgment, score: 750 };
 
         if (targetTile.durationBeats === 0) {
           tileStatesRef.current.set(targetTile.id, {
@@ -298,7 +329,12 @@ export default function PlayScreen() {
             heldBeats: 0,
             holdProgress: 1,
           });
-          registerHit(targetTile.id, result.judgment, result.score, Math.round(timeDiffSec * 1000));
+          registerHit(
+            targetTile.id,
+            result.judgment,
+            result.score,
+            isWithinHitWindow(timeDiffSec) ? Math.round(timeDiffSec * 1000) : undefined
+          );
           triggerFlash(result.judgment);
         } else {
           tileStatesRef.current.set(targetTile.id, {
@@ -307,14 +343,20 @@ export default function PlayScreen() {
             holdProgress: 0,
             holdStartTime: curAudioTime,
           });
-          activeHoldByLaneRef.current.set(lane, targetTile.id);
+          // Slides are followed by finger position (not lane), so a finger can move across lanes
+          if (isSlideTile(targetTile)) activeSlidesRef.current.set(targetTile.id, { offSince: null });
+          else activeHoldByLaneRef.current.set(lane, targetTile.id);
           triggerFlash(result.judgment);
         }
         bumpTiles();
       }
     },
-    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, bumpTiles]
+    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, tilesById, bumpTiles, pixelsPerBeat, hitLineY]
   );
+
+  const handleFingersChange = useCallback((fingers: number[]) => {
+    fingersRef.current = fingers;
+  }, []);
 
   const handleLanePressEnd = useCallback(
     (lane: 0 | 1 | 2 | 3) => {
@@ -326,7 +368,8 @@ export default function PlayScreen() {
 
         if (tile && state && state.status === 'holding') {
           const curTime = audioService.getCurrentTime();
-          const progress = calculateHoldProgress(curTime, tile.noteTime, tile.durationSeconds);
+          // Progress counts from the moment the hold was pressed
+          const progress = calculateHoldProgress(curTime, state.holdStartTime ?? tile.noteTime, tile.durationSeconds);
 
           if (progress >= 0.85) {
             state.status = 'hit';
@@ -375,7 +418,7 @@ export default function PlayScreen() {
         const tile = tilesById.get(tileId);
         const state = tileStatesRef.current.get(tileId);
         if (tile && state && state.status === 'holding') {
-          const progress = calculateHoldProgress(curTime, tile.noteTime, tile.durationSeconds);
+          const progress = calculateHoldProgress(curTime, state.holdStartTime ?? tile.noteTime, tile.durationSeconds);
           state.holdProgress = progress;
 
           // A small background pulse on every beat you keep holding
@@ -393,14 +436,48 @@ export default function PlayScreen() {
         }
       });
 
+      // Slides: keep a finger on the path. Briefly slipping off is forgiven;
+      // staying off ends the slide (a hit if it was mostly done).
+      activeSlidesRef.current.forEach((track, tileId) => {
+        const tile = tilesById.get(tileId);
+        const state = tileStatesRef.current.get(tileId);
+        if (!tile || !tile.path || !state || state.status !== 'holding') {
+          activeSlidesRef.current.delete(tileId);
+          return;
+        }
+        const progress = calculateHoldProgress(curTime, state.holdStartTime ?? tile.noteTime, tile.durationSeconds);
+        state.holdProgress = progress;
+        const at = progress * tile.durationBeats;
+        const onPath = fingersRef.current.some((f) => fingerFollowsSlide(f, tile.path!, at));
+        track.offSince = onPath ? null : (track.offSince ?? curTime);
+
+        const beat = Math.floor((curTime * song.bpm) / 60);
+        if (onPath && beat > (holdBeatRef.current.get(tileId) ?? Infinity)) triggerFlash(0.35);
+        holdBeatRef.current.set(tileId, beat);
+
+        const slippedOff = track.offSince !== null && curTime - track.offSince > SLIDE_GRACE_SEC;
+        if (progress >= 1 || slippedOff) {
+          activeSlidesRef.current.delete(tileId);
+          const success = progress >= 0.85;
+          state.status = success ? 'hit' : 'missed';
+          if (success) state.holdProgress = 1;
+          registerHit(tile.id, success ? 'PERFECT' : 'MISS', success ? 1000 : 0);
+          triggerFlash(success ? 'PERFECT' : 'MISS');
+          tilesChanged = true;
+        }
+      });
+
       // Check missed notes. Tiles are sorted by start time; a pointer skips the
       // leading run of already-resolved tiles so we never rescan the whole map.
+      // A tile is only missed once it reaches the bottom of the screen (it then
+      // turns red as it slides out), not when it passes the hit line.
+      const offScreenDelay = Math.max(0.2, (boardHeight - hitLineY) / ((pixelsPerBeat * song.bpm) / 60));
       let advancing = true;
       for (let j = nextMissIndexRef.current; j < timeline.length; j++) {
         const t = timeline[j];
         if (t.noteTime > curTime) break; // the rest haven't started yet
         const state = tileStatesRef.current.get(t.id);
-        if (state?.status === 'pending' && isTilePastMissThreshold(t.noteTime, curTime, t.durationBeats, song.bpm)) {
+        if (state?.status === 'pending' && curTime > t.noteTime + offScreenDelay) {
           state.status = 'missed';
           registerHit(t.id, 'MISS', 0);
           triggerFlash('MISS');
@@ -433,7 +510,7 @@ export default function PlayScreen() {
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [phase, isPaused, isCompleted, song, registerHit, timeline, tilesById, bumpTiles]);
+  }, [phase, isPaused, isCompleted, song, registerHit, timeline, tilesById, bumpTiles, boardHeight, hitLineY, pixelsPerBeat]);
 
   const handleTogglePause = () => {
     if (isPaused) {
@@ -485,6 +562,7 @@ export default function PlayScreen() {
       songTime.value = 0;
       nextMissIndexRef.current = 0;
       activeHoldByLaneRef.current.clear();
+      activeSlidesRef.current.clear();
       holdBeatRef.current.clear();
       setDisplaySecond(0);
       setWindowStep(0);
@@ -588,7 +666,7 @@ export default function PlayScreen() {
         hitLineY={hitLineY}
         onLanePressStart={handleLanePressStart}
         onLanePressEnd={handleLanePressEnd}
-        showKeyLabels={Platform.OS === 'web'}
+        onFingersChange={handleFingersChange}
         backdrop={
           <>
             <AnimatedBackground

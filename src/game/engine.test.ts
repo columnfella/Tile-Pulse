@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { slideStrips, slideOutline } from './engine';
 import {
   calculateNoteTimeSeconds,
   calculateTileY,
@@ -11,6 +12,10 @@ import {
   snapToGrid,
   getMeasureInfo,
   calculateOverallAccuracy,
+  isSlideTile,
+  normalizeSlidePath,
+  slideXAt,
+  isFingerOnSlide,
 } from './engine';
 
 test('calculateNoteTimeSeconds maps musical beat to audio seconds accurately', () => {
@@ -148,4 +153,56 @@ test('calculateOverallAccuracy computes weighted percentage correctly', () => {
   };
   // (8 * 1.0 + 2 * 0.75) / 10 = 9.5 / 10 = 95.0%
   assert.equal(calculateOverallAccuracy(stats), 95);
+});
+
+test('isSlideTile needs a hold with a 2+ point path', () => {
+  assert.equal(isSlideTile({ durationBeats: 2, path: [{ t: 0, x: 0 }, { t: 2, x: 3 }] }), true);
+  assert.equal(isSlideTile({ durationBeats: 0, path: [{ t: 0, x: 0 }, { t: 2, x: 3 }] }), false);
+  assert.equal(isSlideTile({ durationBeats: 2, path: [{ t: 0, x: 0 }] }), false);
+  assert.equal(isSlideTile({ durationBeats: 2 }), false);
+});
+
+test('normalizeSlidePath sorts, clamps, and pins the ends', () => {
+  const out = normalizeSlidePath([{ t: 1.5, x: 9 }, { t: 0.2, x: -1 }, { t: 0.5, x: 2 }], 2);
+  assert.deepEqual(out, [
+    { t: 0, x: 0 },
+    { t: 0.5, x: 2 },
+    { t: 1.5, x: 3 },
+    { t: 2, x: 3 },
+  ]);
+});
+
+test('slideXAt interpolates along every bend', () => {
+  const path = [{ t: 0, x: 0 }, { t: 1, x: 2 }, { t: 2, x: 1 }];
+  assert.equal(slideXAt(path, -1), 0);
+  assert.equal(slideXAt(path, 0.5), 1);
+  assert.equal(slideXAt(path, 1), 2);
+  assert.equal(slideXAt(path, 1.5), 1.5);
+  assert.equal(slideXAt(path, 5), 1);
+});
+
+test('isFingerOnSlide allows a little slack around the tile', () => {
+  assert.equal(isFingerOnSlide(1.5, 1), true);
+  assert.equal(isFingerOnSlide(2.3, 1), true);
+  assert.equal(isFingerOnSlide(2.5, 1), false);
+  assert.equal(isFingerOnSlide(0.6, 1), false);
+});
+
+test('normalizeSlidePath keeps sideways moves (two points at the same beat)', () => {
+  const out = normalizeSlidePath([{ t: 0, x: 0 }, { t: 1, x: 0 }, { t: 1, x: 3 }, { t: 1, x: 2 }, { t: 2, x: 2 }], 2);
+  // A third point at the same beat replaces the end of the sideways move
+  assert.deepEqual(out, [{ t: 0, x: 0 }, { t: 1, x: 0 }, { t: 1, x: 2 }, { t: 2, x: 2 }]);
+});
+
+test('slideStrips widen to cover a sideways move, and the outline is continuous', () => {
+  const path = [{ t: 0, x: 0 }, { t: 1, x: 0 }, { t: 1, x: 2 }, { t: 2, x: 2 }];
+  const strips = slideStrips(path, 2, 8, 4); // 16px tall, 4 bands
+  assert.equal(strips.length, 4);
+  assert.deepEqual([strips[0].left, strips[0].right], [0, 1]); // bottom: lane 1
+  assert.deepEqual([strips[1].left, strips[1].right], [0, 3]); // band at the sideways move spans lanes 1–3
+  assert.deepEqual([strips[3].left, strips[3].right], [2, 3]); // top: lane 3
+  const edges = slideOutline(strips);
+  // The wide band's exposed bottom (lanes 2–3) and top (lanes 1–2) get border pieces
+  assert.ok(edges.some((e) => e.side === 'bottom' && e.from === 1 && e.to === 3));
+  assert.ok(edges.some((e) => e.side === 'top' && e.from === 0 && e.to === 2));
 });

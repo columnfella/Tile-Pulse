@@ -5,9 +5,13 @@ import { PRESET_SONGS } from '../game/presets';
 import type { PickedAudioResult } from './documentPicker';
 import {
   saveImportedAudio,
+  saveRemoteAudio,
   resolveAudioUri,
   deleteAudio,
 } from './audioFileStore';
+
+/** Covers live next to the audio files under their own key. */
+const coverKey = (songId: string) => `${songId}__cover`;
 
 const SONGS_STORAGE_KEY = 'tilepulse_songs_v1';
 const SEEDED_PRESETS_KEY = 'tilepulse_seeded_presets_v1';
@@ -97,6 +101,7 @@ class StorageService {
     const target = songs.find((s) => s.id === id);
     await this.writeSongs(songs.filter((s) => s.id !== id));
     if (target) await deleteAudio(id, target.audioUri);
+    if (target?.coverUri) await deleteAudio(coverKey(id), target.coverUri);
   }
 
   /** Copies a picked audio file into persistent storage; returns the URI to store on the Song. */
@@ -128,6 +133,73 @@ class StorageService {
     };
     await this.saveSong(song);
     return song;
+  }
+
+  /**
+   * Creates a new song from an audio file (Editor → Create song). The audio,
+   * and the optional cover picture, are copied into the app's own storage.
+   */
+  public async createSong(input: {
+    title: string;
+    artist?: string;
+    audio: { name: string; uri: string; durationSeconds?: number; file?: Blob };
+    bpm: number;
+    timeSignature: { beatsPerMeasure: number; beatUnit: number };
+    cover?: { uri: string; name?: string };
+  }): Promise<Song> {
+    const id = `song_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const audioUri = await saveImportedAudio(id, {
+      canceled: false,
+      name: input.audio.name,
+      uri: input.audio.uri,
+      file: input.audio.file,
+    });
+    const coverUri = input.cover ? await this.saveCoverFile(id, input.cover.uri, input.cover.name) : undefined;
+    const song: Song = {
+      id,
+      title: input.title,
+      artist: input.artist || undefined,
+      audioUri,
+      bpm: input.bpm,
+      timeSignature: input.timeSignature,
+      tiles: [],
+      createdAt: Date.now(),
+      durationSeconds: input.audio.durationSeconds && input.audio.durationSeconds > 0 ? input.audio.durationSeconds : undefined,
+      sourceUri: input.audio.uri,
+      coverUri,
+    };
+    await this.saveSong(song);
+    return song;
+  }
+
+  /** Copies a picked picture into app storage as the song's cover. */
+  public saveCoverFile(songId: string, uri: string, name?: string): Promise<string> {
+    const ext = name?.match(/.([a-z0-9]+)$/i)?.[1] ?? 'jpg';
+    return saveImportedAudio(coverKey(songId), { canceled: false, name: `cover.${ext}`, uri });
+  }
+
+  /** Downloads a cover picture (e.g. a community level's) into app storage. */
+  public saveRemoteCover(songId: string, url: string): Promise<string> {
+    return saveRemoteAudio(coverKey(songId), url, 'img');
+  }
+
+  /** Replaces or removes a song's cover picture. */
+  public async setSongCover(song: Song, picked: { uri: string; name?: string } | null): Promise<Song> {
+    if (song.coverUri) await deleteAudio(coverKey(song.id), song.coverUri);
+    const coverUri = picked ? await this.saveCoverFile(song.id, picked.uri, picked.name) : undefined;
+    const updated = { ...song, coverUri };
+    await this.saveSong(updated);
+    return updated;
+  }
+
+  /** A URI an <Image> can show for the song's cover (null when it has none). */
+  public async getCoverUri(song: Song): Promise<string | null> {
+    if (!song.coverUri) return null;
+    try {
+      return await resolveAudioUri(coverKey(song.id), song.coverUri);
+    } catch {
+      return null;
+    }
   }
 
   /** Returns a URI the audio player can load for this song. */

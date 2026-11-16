@@ -21,6 +21,7 @@ import { formatAudioTime } from '../../game/engine';
 import {
   API_BASE,
   ApiUnavailableError,
+  coverUrl,
   downloadLevel,
   localIdForLevel,
   searchLevels,
@@ -32,6 +33,7 @@ import {
   type SearchField,
 } from '../../src/services/communityApi';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
+import { CoverBanner, LevelBadge } from '../../src/components/ui/LevelCardParts';
 
 const SEARCH_DEBOUNCE_MS = 400;
 const PAGE_SIZE = 20;
@@ -62,7 +64,6 @@ const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = [
   { key: 'hard', label: 'Hard', color: '#2f6bff' },
   { key: 'expert', label: 'Expert', color: PIXEL.accent },
 ];
-const DIFFICULTY_COLOR = Object.fromEntries(DIFFICULTIES.map((d) => [d.key, d.color])) as Record<Difficulty, string>;
 
 type Range = { min?: number; max?: number };
 const BPM_RANGES: { label: string; range: Range }[] = [
@@ -154,19 +155,6 @@ function Stepper({ value, onChange, min, max }: { value: number; onChange: (v: n
       <PressableScale scaleTo={0.85} style={styles.stepBtn} disabled={value >= max} onPress={() => onChange(value + 1)}>
         <PixelIcon name="plus" size={7} color={value >= max ? '#3a4a70' : PIXEL.text} />
       </PressableScale>
-    </View>
-  );
-}
-
-/** Square pixel badge with the level number, tinted by difficulty. */
-function LevelBadge({ level, difficulty }: { level: number; difficulty: Difficulty }) {
-  const color = DIFFICULTY_COLOR[difficulty];
-  return (
-    <View style={[styles.badge, { borderColor: color }]}>
-      <View style={[styles.badgeTop, { backgroundColor: color }]}>
-        <Text style={styles.badgeTopText}>{difficulty.slice(0, 3).toUpperCase()}</Text>
-      </View>
-      <Text style={[styles.badgeLevel, { color }]}>{level}</Text>
     </View>
   );
 }
@@ -391,6 +379,7 @@ export default function DiscoverScreen() {
     const isDownloaded = downloaded.has(localId);
     const isDownloading = downloading === item.id;
     const seconds = item.song.durationMs ? Math.round(item.song.durationMs / 1000) : null;
+    const cover = coverUrl(item);
 
     return (
       <Animated.View entering={listItemIn(index % PAGE_SIZE)}>
@@ -402,7 +391,8 @@ export default function DiscoverScreen() {
             setExpandedId(expanded ? null : item.id);
           }}
         >
-          <View style={styles.cardTop}>
+          {cover ? <CoverBanner uri={cover} tall={expanded} /> : null}
+          <View style={[styles.cardTop, cover ? styles.cardTopOverCover : null]}>
             <LevelBadge level={item.level} difficulty={item.difficulty} />
             <View style={styles.cardInfo}>
               <Text style={styles.cardTitle} numberOfLines={1}>
@@ -415,6 +405,11 @@ export default function DiscoverScreen() {
               <Text style={styles.cardAuthor} numberOfLines={1}>
                 by {item.author.displayName}
               </Text>
+              {item.shader ? (
+                <Text style={styles.shaderTag} numberOfLines={1}>
+                  ✦ {item.shader.name} shader
+                </Text>
+              ) : null}
             </View>
             {isDownloaded ? (
               <View style={styles.ownedTag}>
@@ -718,7 +713,12 @@ const styles = StyleSheet.create({
   listEmpty: { flexGrow: 1 },
   footerSpinner: { marginVertical: 12 },
 
-  card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 10 },
+  card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 10, overflow: 'hidden' },
+  // Cover sits behind the top of the card (bleeds to the card edges)
+  coverBanner: { position: 'absolute', top: 0, left: 0, right: 0, height: 96 },
+  coverBannerTall: { height: 150 },
+  cardTopOverCover: { marginTop: 44 },
+  shaderTag: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 15 },
   cardExpanded: { borderColor: PIXEL.accent },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   badge: { width: 46, height: 46, borderWidth: 2, backgroundColor: '#070b14', alignItems: 'center' },

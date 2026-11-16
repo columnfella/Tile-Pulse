@@ -26,6 +26,8 @@ interface AudioLibrarySheetProps {
   /** Fall back to the system picker for a single file. */
   onBrowseFiles: () => void;
   onClose: () => void;
+  /** Pick exactly one song (Create song form) instead of importing several. */
+  single?: boolean;
 }
 
 type Phase =
@@ -48,6 +50,7 @@ export function AudioLibrarySheet({
   onImported,
   onBrowseFiles,
   onClose,
+  single = false,
 }: AudioLibrarySheetProps) {
   const [phase, setPhase] = useState<Phase>({ kind: 'checking' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -116,6 +119,7 @@ export function AudioLibrarySheet({
 
   const toggle = (uri: string) =>
     setSelected((prev) => {
+      if (single) return prev.has(uri) ? new Set() : new Set([uri]);
       const next = new Set(prev);
       if (next.has(uri)) next.delete(uri);
       else next.add(uri);
@@ -288,7 +292,7 @@ export function AudioLibrarySheet({
                 {phase.files.length} songs
                 {phase.folderName ? ` in “${phase.folderName}”` : ' found'}
               </Text>
-              {selectableFiles.length > 0 && (
+              {!single && selectableFiles.length > 0 && (
                 <PressableScale scaleTo={0.92} style={styles.selectAllBtn} onPress={toggleAll}>
                   <PixelIcon name="check" size={14} color="#4d8dff" />
                   <Text style={styles.selectAllText}>{allSelected ? 'Clear' : 'Select all'}</Text>
@@ -318,9 +322,13 @@ export function AudioLibrarySheet({
           >
             <PixelIcon name="check" size={14} color="#ffffff" />
             <Text style={styles.addText}>
-              {selectedCount === 0
-                ? 'Select songs to add'
-                : `Add ${selectedCount} song${selectedCount === 1 ? '' : 's'}`}
+              {single
+                ? selectedCount === 0
+                  ? 'Select a song'
+                  : 'Use this song'
+                : selectedCount === 0
+                  ? 'Select songs to add'
+                  : `Add ${selectedCount} song${selectedCount === 1 ? '' : 's'}`}
             </Text>
           </PressableScale>
         ) : phase.kind !== 'importing' ? (

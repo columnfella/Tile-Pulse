@@ -23,16 +23,30 @@ import { ScreenView } from '../../src/components/ui/ScreenView';
 import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Song, TileNote, type GuideMark } from '../../types/song';
+import { Song, TileNote, type GuideMark, type SlidePoint } from '../../types/song';
 import { storageService } from '../../services/storage';
 import { audioService } from '../../services/audio';
 import { ACTIVE_THEME } from '../../constants/theme';
-import { snapToGrid, getMeasureInfo } from '../../src/game/engine';
+import {
+  snapToGrid,
+  getMeasureInfo,
+  isSlideTile,
+  normalizeSlidePath,
+  slideXAt,
+  slideStrips,
+  slideOutline,
+  snapSlideX,
+  defaultSlidePath,
+  MAX_SLIDE_POINTS,
+} from '../../src/game/engine';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { listItemIn } from '../../src/components/ui/motion';
 import { LANE_COLORS, LANE_LIGHT } from '../../src/theme/pixel';
 import { FONTS } from '../../src/theme/pixel';
 import { BpmLookupSheet } from '../../src/components/editor/BpmLookupSheet';
+import { SlideBody, SLIDE_COLORS } from '../../src/components/game/SlideBody';
+import { UploadSheet } from '../../src/components/editor/UploadSheet';
+import { CreateSongSheet } from '../../src/components/editor/CreateSongSheet';
 
 const PIXELS_PER_BEAT = 96; // 1/4 snap cells are 24px, 1/2 cells 48px
 const TILE_GAP = 2; // px inset so neighbouring notes never visually touch
@@ -61,7 +75,11 @@ function gridBeatsFor(durationSeconds: number | null, bpm: number, tiles: TileNo
 }
 
 type Lane = 0 | 1 | 2 | 3;
-type NoteType = 'tap' | 'hold';
+type NoteType = 'tap' | 'hold' | 'slide';
+/** Length of a newly placed slide (beats). */
+const DEFAULT_SLIDE_BEATS = 2;
+/** A slide's lane (for hit lists / overlap checks) is the lane its head starts in. */
+const laneOfX = (x: number) => Math.max(0, Math.min(3, Math.floor(x + 1e-6))) as 0 | 1 | 2 | 3;
 
 /** Guide line types for tap-recording (index = GuideMark.type). */
 const GUIDE_TYPES = [
@@ -229,6 +247,53 @@ function TimeReadout({ playing, fallbackSec, style }: { playing: boolean; fallba
   return <Text style={style}>{formatStamp(now)}</Text>;
 }
 
+interface EditorSlideProps {
+  tile: TileNote;
+  gridHeight: number;
+  isSelected: boolean;
+  /** Index of the selected bend point (when the slide is selected). */
+  selectedPoint: number | null;
+}
+
+/**
+ * A slide in the editor, drawn like in the game (continuous bevel + rail),
+ * with a square on every point. Taps go to the grid's touch layer.
+ */
+const EditorSlide = memo(function EditorSlide({ tile, gridHeight, isSelected, selectedPoint }: EditorSlideProps) {
+  const path = tile.path!;
+  const total = tile.durationBeats * PIXELS_PER_BEAT;
+  const strips = useMemo(() => slideStrips(path, tile.durationBeats, PIXELS_PER_BEAT, 6), [path, tile.durationBeats]);
+  const edges = useMemo(() => slideOutline(strips), [strips]);
+  const top = beatToY(tile.beat + tile.durationBeats, gridHeight);
+
+  return (
+    <View pointerEvents="none" style={[styles.slideBox, { top, height: total }]}>
+      <SlideBody strips={strips} edges={edges} colors={isSelected ? SLIDE_COLORS.selected : SLIDE_COLORS.normal} bevel={3} />
+      {path.map((pt, i) => {
+        const chosen = isSelected && selectedPoint === i;
+        const size = i === 0 ? 18 : chosen ? 18 : 12;
+        return (
+          <View
+            key={`p${i}`}
+            style={[
+              styles.slidePoint,
+              i === 0 && styles.slideHead,
+              chosen && styles.slidePointChosen,
+              {
+                width: size,
+                height: size,
+                marginLeft: -size / 2,
+                left: `${(pt.x + 0.5) * 25}%`,
+                top: total - pt.t * PIXELS_PER_BEAT - size / 2,
+              },
+            ]}
+          />
+        );
+      })}
+    </View>
+  );
+});
+
 interface EditorTileProps {
   tile: TileNote;
   /** Height of one grid cell in beats (the current snap size). */
@@ -284,19 +349,24 @@ interface SongPickerProps {
   songs: Song[];
   loaded: boolean;
   onPick: (id: string) => void;
+  onCreate: () => void;
 }
 
-function SongPicker({ songs, loaded, onPick }: SongPickerProps) {
+function SongPicker({ songs, loaded, onPick, onCreate }: SongPickerProps) {
   return (
     <ScreenView style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
       <Animated.View entering={FadeIn.duration(250)} style={styles.pickerHeader}>
         <Text style={styles.pickerTitle}>Beatmap Editor</Text>
-        <Text style={styles.pickerSub}>Choose a song to edit</Text>
+        <Text style={styles.pickerSub}>Create a new song or choose one to edit</Text>
+        <PressableScale scaleTo={0.96} style={styles.createSongBtn} onPress={onCreate} accessibilityLabel="Create a new song">
+          <PixelIcon name="plus" size={14} color="#000000" />
+          <Text style={styles.createSongText}>CREATE SONG</Text>
+        </PressableScale>
       </Animated.View>
 
       {loaded && songs.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No songs yet — add some from the Songs tab.</Text>
+          <Text style={styles.emptyText}>No songs yet — tap Create song to make your first one.</Text>
         </View>
       ) : (
         <FlatList
@@ -364,6 +434,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   // Beat where the Test preview starts (set by tapping the ruler)
   const [previewStartBeat, setPreviewStartBeat] = useState<number>(0);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [slidePoint, setSlidePoint] = useState<number | null>(null);
+  // A different note selected: the pad starts at that slide's end again
+  useEffect(() => setSlidePoint(null), [selectedTileId]);
   const [isPlayingPreview, setIsPlayingPreview] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [toast, setToast] = useState<string | null>(null);
@@ -702,9 +775,15 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const handleGridSlotPress = (lane: Lane, beat: number) => {
     const cell = activeSubdivision;
     // Strict grid: a tap inside any note's footprint targets that note
-    const existing = tiles.find(
-      (t) => t.lane === lane && beat >= t.beat - 1e-6 && beat < noteEnd(t, cell) - 1e-6
-    );
+    const existing = tiles.find((t) => {
+      if (beat < t.beat - 1e-6 || beat >= noteEnd(t, cell) - 1e-6) return false;
+      if (isSlideTile(t)) {
+        // Slides: hit if the tapped lane overlaps where the slide is at that beat
+        const x = slideXAt(t.path!, beat - t.beat + cell / 2);
+        return lane >= x - 0.5 && lane < x + 1;
+      }
+      return t.lane === lane;
+    });
 
     if (existing) {
       if (selectedTileId === existing.id) {
@@ -719,16 +798,189 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     // Holds are clamped so they never run into the next note in the lane
     const room = nextNoteStart(lane, beat) - beat;
     if (room < cell - 1e-6) return; // no free cell here
+    const id = `tile_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    if (noteType === 'slide') {
+      // Slides cross lanes, so only the grid's end limits their length
+      const durationBeats = Math.max(cell, Math.min(DEFAULT_SLIDE_BEATS, totalBeats - beat));
+      const newSlide: TileNote = { id, lane, beat, durationBeats, path: defaultSlidePath(lane, durationBeats) };
+      commit({ tiles: [...tiles, newSlide] });
+      setSelectedTileId(id);
+      showToast('Tap the grid to bend the slide · tap a bend again to remove it');
+      return;
+    }
     const durationBeats =
       noteType === 'hold' ? Math.max(cell, Math.min(DEFAULT_HOLD_BEATS, room)) : 0;
-    const newTile: TileNote = {
-      id: `tile_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      lane,
-      beat,
-      durationBeats,
-    };
+    const newTile: TileNote = { id, lane, beat, durationBeats };
     commit({ tiles: [...tiles, newTile] });
     setSelectedTileId(newTile.id);
+  };
+
+  /** Replaces a slide's path (cleaned up) and keeps its lane/duration consistent. */
+  const setSlidePath = (
+    target: TileNote,
+    path: SlidePoint[],
+    durationBeats = target.durationBeats,
+    beat = target.beat
+  ): SlidePoint[] | null => {
+    if (durationBeats < 1 / 16) return null;
+    const clean = normalizeSlidePath(path, durationBeats);
+    if (clean.length < 2) return null;
+    commit({
+      tiles: tiles.map((t) =>
+        t.id === target.id ? { ...t, beat, durationBeats, path: clean, lane: laneOfX(clean[0].x) } : t
+      ),
+    });
+    return clean;
+  };
+
+  /** Selects the point of `path` at (t, x), e.g. after extending to it. */
+  const selectPointAt = (path: SlidePoint[] | null, t: number, x: number) => {
+    if (!path) return;
+    let idx = -1;
+    path.forEach((pt, i) => {
+      if (Math.abs(pt.t - t) < 1e-6 && pt.x === x) idx = i;
+    });
+    setSlidePoint(idx >= 0 ? idx : path.length - 1);
+  };
+
+  /** Keeps a beat of the grid on screen (e.g. the end of a slide you're extending). */
+  const scrollToBeat = (beat: number) => {
+    const y = beatToY(beat, gridHeight) + GRID_PAD_TOP;
+    const viewTop = scrollYRef.current;
+    const viewBottom = viewTop + viewportHeightRef.current;
+    if (y < viewTop + 90 || y > viewBottom - 160) {
+      const next = Math.max(0, y - viewportHeightRef.current / 2);
+      scrollViewRef.current?.scrollTo({ y: next, animated: true });
+    }
+  };
+
+  type SlideDir = 'up' | 'upLeft' | 'upRight' | 'left' | 'right' | 'down';
+  const DIR_STEP: Record<SlideDir, [number, number]> = {
+    up: [1, 0],
+    upLeft: [1, -1],
+    upRight: [1, 1],
+    left: [0, -1],
+    right: [0, 1],
+    down: [-1, 0],
+  };
+
+  /**
+   * Direction pad for the selected slide:
+   *  - end point: extend the slide that way (same direction again = longer
+   *    segment, a new direction = a new bend); down shortens it,
+   *  - head point: move the whole slide,
+   *  - any other point: nudge that bend.
+   * Sideways steps are half a lane; up/down steps are one snap cell.
+   */
+  const handleSlidePad = (dir: SlideDir) => {
+    if (!selectedTile || !selectedIsSlide) return;
+    const target = selectedTile;
+    const path = target.path!;
+    const cell = activeSubdivision;
+    const [dtSign, dxSign] = DIR_STEP[dir];
+    const dt = dtSign * cell;
+    const dx = dxSign * 0.5;
+    const i = activePoint;
+    const last = path.length - 1;
+
+    // Head: move the whole slide
+    if (i === 0) {
+      const beat = target.beat + dt;
+      const xs = path.map((pt) => pt.x + dx);
+      if (beat < 0 || beat + target.durationBeats > totalBeats + 1e-6 || xs.some((x) => x < 0 || x > 3)) return;
+      setSlidePath(target, path.map((pt, k) => ({ ...pt, x: xs[k] })), target.durationBeats, beat);
+      setSlidePoint(0);
+      scrollToBeat(beat);
+      return;
+    }
+
+    // A middle bend: nudge it, staying between its neighbours in time
+    if (i < last) {
+      const pt = path[i];
+      const t = pt.t + dt;
+      const x = pt.x + dx;
+      if (x < 0 || x > 3 || t < path[i - 1].t || t > path[i + 1].t) return;
+      selectPointAt(setSlidePath(target, path.map((q, k) => (k === i ? { t, x } : q))), t, x);
+      return;
+    }
+
+    // End point: extend / shorten
+    const endPt = path[last];
+    const prev = path[last - 1];
+    if (dir === 'down') {
+      if (endPt.t - prev.t < 1e-6) {
+        // Undo a sideways step
+        if (path.length <= 2) return;
+        const rest = path.slice(0, -1);
+        selectPointAt(setSlidePath(target, rest, rest[rest.length - 1].t), rest[rest.length - 1].t, rest[rest.length - 1].x);
+        return;
+      }
+      const t = endPt.t - cell;
+      if (t <= prev.t + 1e-6) {
+        // The last segment is used up: drop it
+        if (path.length <= 2) return;
+        const rest = path.slice(0, -1);
+        selectPointAt(setSlidePath(target, rest, prev.t), prev.t, prev.x);
+        return;
+      }
+      const x = snapSlideX(slideXAt(path, t));
+      selectPointAt(setSlidePath(target, [...path.slice(0, -1), { t, x }], t), t, x);
+      return;
+    }
+
+    const t = endPt.t + dt;
+    const x = endPt.x + dx;
+    if (x < 0 || x > 3 || target.beat + t > totalBeats + 1e-6) return;
+    // Same direction as the last segment: lengthen it instead of adding a bend
+    const segDt = Math.sign(Math.round((endPt.t - prev.t) * 1000));
+    const segDx = Math.sign(endPt.x - prev.x);
+    const sameDir = segDt === dtSign && segDx === dxSign && (dtSign === 0 || Math.abs(endPt.x - prev.x) / (endPt.t - prev.t) === 0.5 / cell || dxSign === 0);
+    let next: SlidePoint[];
+    if (sameDir && path.length > 2) next = [...path.slice(0, -1), { t, x }];
+    else if (dtSign === 0 && segDt === 0 && segDx === -dxSign) {
+      // Going back over a sideways step: shorten it (or remove it)
+      next = x === prev.x ? path.slice(0, -1) : [...path.slice(0, -1), { t, x }];
+    } else {
+      if (path.length >= MAX_SLIDE_POINTS) {
+        showToast(`A slide can have up to ${MAX_SLIDE_POINTS} points`);
+        return;
+      }
+      next = [...path, { t, x }];
+    }
+    const newEnd = next[next.length - 1];
+    selectPointAt(setSlidePath(target, next, newEnd.t), newEnd.t, newEnd.x);
+    scrollToBeat(target.beat + newEnd.t);
+  };
+
+  /** Adds a bend halfway along the segment after the selected point (or before the end). */
+  const handleAddBend = () => {
+    if (!selectedTile || !selectedIsSlide) return;
+    const path = selectedTile.path!;
+    const i = Math.min(activePoint, path.length - 2);
+    const a = path[i];
+    const b = path[i + 1];
+    if (b.t - a.t < 2 / 16) {
+      showToast('Make this part longer to add a bend');
+      return;
+    }
+    if (path.length >= MAX_SLIDE_POINTS) return;
+    const t = snapToGrid((a.t + b.t) / 2, 1 / 16);
+    const x = snapSlideX(slideXAt(path, t));
+    selectPointAt(setSlidePath(selectedTile, [...path.slice(0, i + 1), { t, x }, ...path.slice(i + 1)]), t, x);
+  };
+
+  /** Removes the selected bend (the head can't be removed). */
+  const handleRemovePoint = () => {
+    if (!selectedTile || !selectedIsSlide) return;
+    const path = selectedTile.path!;
+    const i = activePoint;
+    if (i === 0 || path.length <= 2) {
+      showToast(i === 0 ? 'The head can’t be removed — delete the slide instead' : 'A slide needs at least 2 points');
+      return;
+    }
+    const rest = path.filter((_, k) => k !== i);
+    const duration = i === path.length - 1 ? rest[rest.length - 1].t : selectedTile.durationBeats;
+    if (setSlidePath(selectedTile, rest, duration)) setSlidePoint(Math.min(i, rest.length - 1));
   };
 
   /** Single touch layer: converts the tap position into a lane and snapped beat. */
@@ -752,6 +1004,28 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
       }
     }
     const lane = Math.max(0, Math.min(3, Math.floor((locationX / lanesWidthRef.current) * 4))) as Lane;
+    const selectedSlide = tiles.find((t) => t.id === selectedTileId && isSlideTile(t));
+    if (selectedSlide) {
+      // Tap a point of the selected slide to pick it for the direction pad
+      const laneW = lanesWidthRef.current / 4;
+      let best = -1;
+      let bestDist = 26; // px
+      selectedSlide.path!.forEach((pt, i) => {
+        const px = (pt.x + 0.5) * laneW;
+        const py = beatToY(selectedSlide.beat + pt.t, gridHeight);
+        const d = Math.hypot(px - locationX, py - locationY);
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      });
+      if (best >= 0) {
+        setSlidePoint(best);
+        return;
+      }
+      // Anywhere else: leave the slide and treat it as a normal grid tap
+      setSelectedTileId(null);
+    }
     const slotHeight = PIXELS_PER_BEAT * activeSubdivision;
     const slotIndex = Math.floor((gridHeight - locationY) / slotHeight);
     const beat = Math.max(0, Math.min(totalBeats - activeSubdivision, slotIndex * activeSubdivision));
@@ -769,12 +1043,38 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     setNoteType(type);
     const target = tiles.find((t) => t.id === selectedTileId);
     if (!target) return;
+    const wasSlide = isSlideTile(target);
+    if (type === 'slide') {
+      if (wasSlide) return;
+      const durationBeats = Math.max(target.durationBeats, Math.min(DEFAULT_SLIDE_BEATS, totalBeats - target.beat));
+      commit({
+        tiles: tiles.map((t) =>
+          t.id === target.id ? { ...t, durationBeats, path: defaultSlidePath(target.lane, durationBeats) } : t
+        ),
+      });
+      return;
+    }
     if (type === 'tap' && target.durationBeats === 0) return;
-    if (type === 'hold' && target.durationBeats > 0) return;
+    if (type === 'hold' && target.durationBeats > 0 && !wasSlide) return;
     const room = nextNoteStart(target.lane, target.beat, target.id) - target.beat;
     const durationBeats =
-      type === 'tap' ? 0 : Math.max(activeSubdivision, Math.min(DEFAULT_HOLD_BEATS, room));
-    commit({ tiles: tiles.map((t) => (t.id === target.id ? { ...t, durationBeats } : t)) });
+      type === 'tap'
+        ? 0
+        : Math.max(activeSubdivision, Math.min(wasSlide ? target.durationBeats : DEFAULT_HOLD_BEATS, room));
+    commit({
+      tiles: tiles.map((t) => {
+        if (t.id !== target.id) return t;
+        const plain: TileNote = { id: t.id, lane: t.lane, beat: t.beat, durationBeats }; // drops any slide path
+        return plain;
+      }),
+    });
+  };
+
+  /** Flips the selected slide left and right. */
+  const handleMirrorSlide = () => {
+    const target = tiles.find((t) => t.id === selectedTileId);
+    if (!target || !isSlideTile(target)) return;
+    setSlidePath(target, target.path!.map((pt) => ({ ...pt, x: 3 - pt.x })));
   };
 
   /** Lengthens/shortens the selected hold by one grid cell, never overlapping the next note. */
@@ -782,6 +1082,18 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     const target = tiles.find((t) => t.id === selectedTileId);
     if (!target) return;
     const cell = activeSubdivision;
+    if (isSlideTile(target)) {
+      const next = Math.round((target.durationBeats + direction * cell) / cell) * cell;
+      if (next < cell - 1e-6 || target.beat + next > totalBeats) return;
+      const path = target.path!;
+      // Longer: the last segment stretches. Shorter: the path is cut at the new end.
+      const trimmed =
+        next > target.durationBeats
+          ? path.map((pt, i) => (i === path.length - 1 ? { ...pt, t: next } : pt))
+          : [...path.filter((pt) => pt.t < next - 1e-6), { t: next, x: snapSlideX(slideXAt(path, next)) }];
+      setSlidePath(target, trimmed, next);
+      return;
+    }
     const room = nextNoteStart(target.lane, target.beat, target.id) - target.beat;
     const next = Math.round((target.durationBeats + direction * cell) / cell) * cell;
     // Shrinking below one cell turns the hold back into a tap note
@@ -834,6 +1146,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     if (next !== bpm) commit({ bpm: next });
   };
 
+  // Upload menu: publishes this song's beatmap as a community level
+  const [uploadSong, setUploadSong] = useState<Song | null>(null);
+  const handleOpenUpload = async () => {
+    if (isPlayingPreview) await handleTogglePreview(); // pause the preview
+    await saveNow(); // upload exactly what's saved
+    setUploadSong(buildSong());
+  };
+
   // Online tempo lookup (small "BPM?" button next to the tempo control)
   const [bpmLookupOpen, setBpmLookupOpen] = useState(false);
   const handleApplyLookedUpBpm = (found: number) => {
@@ -857,6 +1177,13 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   );
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
+  const selectedIsSlide = selectedTile ? isSlideTile(selectedTile) : false;
+  // Room under the grid for the panels that cover its bottom
+  const bottomPanelsHeight = (guideMode ? GUIDE_PANEL_HEIGHT : 0) + (selectedIsSlide ? 120 : 0);
+  // Which point of the selected slide the direction pad works on (defaults to its end)
+  const slidePointCount = selectedIsSlide ? selectedTile!.path!.length : 0;
+  const activePoint =
+    selectedIsSlide && slidePoint !== null && slidePoint < slidePointCount ? slidePoint : slidePointCount - 1;
 
   // Only notes inside the visible window are mounted
   const visibleTiles = useMemo(
@@ -908,6 +1235,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           </View>
 
           <View style={styles.historyGroup}>
+            <PressableScale
+              scaleTo={0.85}
+              style={[styles.iconBtn, styles.uploadBtn]}
+              onPress={handleOpenUpload}
+              accessibilityLabel="Upload level"
+            >
+              <PixelIcon name="upload" size={14} color="#000000" />
+            </PressableScale>
             <PressableScale
               scaleTo={0.85}
               disabled={!canUndo}
@@ -1030,19 +1365,30 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           )}
 
           <View style={styles.segmented}>
-            {(['tap', 'hold'] as const).map((type) => {
-              const active = noteType === type;
+            {(['tap', 'hold', 'slide'] as const).map((type) => {
+              const active = selectedTile
+                ? (type === 'slide' && selectedIsSlide) ||
+                  (type === 'hold' && !selectedIsSlide && selectedTile.durationBeats > 0) ||
+                  (type === 'tap' && selectedTile.durationBeats === 0)
+                : noteType === type;
               return (
                 <PressableScale
                   key={type}
                   scaleTo={0.94}
                   onPress={() => handleSelectNoteType(type)}
                   style={[styles.segment, active && styles.segmentActive]}
-                  accessibilityLabel={type === 'tap' ? 'Place tap notes' : 'Place hold notes'}
+                  accessibilityLabel={`Place ${type} notes`}
                 >
-                  <View style={[styles.segmentIcon, type === 'hold' && styles.segmentIconHold, active && styles.segmentIconActive]} />
+                  <View
+                    style={[
+                      styles.segmentIcon,
+                      type === 'hold' && styles.segmentIconHold,
+                      type === 'slide' && styles.segmentIconSlide,
+                      active && styles.segmentIconActive,
+                    ]}
+                  />
                   <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                    {type === 'tap' ? 'Tap' : 'Hold'}
+                    {type === 'tap' ? 'Tap' : type === 'hold' ? 'Hold' : 'Slide'}
                   </Text>
                 </PressableScale>
               );
@@ -1103,9 +1449,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           style={styles.gridScroll}
           contentContainerStyle={{
             // Extra room at the bottom while the guide pads cover it
-            height: gridHeight + GRID_PAD_TOP + GRID_PAD_BOTTOM + (guideMode ? GUIDE_PANEL_HEIGHT : 0),
+            height: gridHeight + GRID_PAD_TOP + GRID_PAD_BOTTOM + bottomPanelsHeight,
             paddingTop: GRID_PAD_TOP,
-            paddingBottom: GRID_PAD_BOTTOM + (guideMode ? GUIDE_PANEL_HEIGHT : 0),
+            paddingBottom: GRID_PAD_BOTTOM + bottomPanelsHeight,
           }}
           onScroll={handleGridScroll}
           scrollEventThrottle={32}
@@ -1129,16 +1475,26 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               {/* One touch target for the whole grid instead of hundreds of slots */}
               <Pressable style={StyleSheet.absoluteFill} onPress={handleGridPress} />
 
-              {visibleTiles.map((tile) => (
-                <EditorTile
-                  key={tile.id}
-                  tile={tile}
-                  cell={activeSubdivision}
-                  gridHeight={gridHeight}
-                  isSelected={selectedTileId === tile.id}
-                  onSelect={handleSelectTile}
-                />
-              ))}
+              {visibleTiles.map((tile) =>
+                isSlideTile(tile) ? (
+                  <EditorSlide
+                    key={tile.id}
+                    tile={tile}
+                    gridHeight={gridHeight}
+                    isSelected={selectedTileId === tile.id}
+                    selectedPoint={selectedTileId === tile.id ? activePoint : null}
+                  />
+                ) : (
+                  <EditorTile
+                    key={tile.id}
+                    tile={tile}
+                    cell={activeSubdivision}
+                    gridHeight={gridHeight}
+                    isSelected={selectedTileId === tile.id}
+                    onSelect={handleSelectTile}
+                  />
+                )
+              )}
 
               {/* Test start line */}
               <View pointerEvents="none" style={[styles.startLine, { top: beatToY(previewStartBeat, gridHeight) - 1 }]} />
@@ -1172,24 +1528,95 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           <Animated.View entering={FadeInUp.duration(180)} exiting={FadeOutUp.duration(150)} style={styles.inspectorBar}>
             <View style={styles.inspectorInfo}>
               <Text style={styles.inspectorTitle}>
-                {selectedTile.durationBeats > 0 ? 'HOLD NOTE' : 'TAP NOTE'}
+                {selectedIsSlide ? 'SLIDE' : selectedTile.durationBeats > 0 ? 'HOLD NOTE' : 'TAP NOTE'}
               </Text>
               <Text style={styles.inspectorSub}>
-                Lane {selectedTile.lane + 1} · Beat {selectedTile.beat}
+                {selectedIsSlide
+                  ? `b${selectedTile.beat} · ${selectedTile.durationBeats}b long · ${selectedTile.path!.length} pts`
+                  : `Lane ${selectedTile.lane + 1} · Beat ${selectedTile.beat}`}
               </Text>
             </View>
 
             <View style={styles.inspectorDurationControls}>
-              <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={() => handleStepSelectedDuration(-1)}>
-                <PixelIcon name="minus" size={14} color="#ffffff" />
-              </PressableScale>
-              <Text style={styles.stepValueText}>{selectedTile.durationBeats}b</Text>
-              <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={() => handleStepSelectedDuration(1)}>
-                <PixelIcon name="plus" size={14} color="#ffffff" />
-              </PressableScale>
+              {!selectedIsSlide && (
+                <>
+                  <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={() => handleStepSelectedDuration(-1)}>
+                    <PixelIcon name="minus" size={14} color="#ffffff" />
+                  </PressableScale>
+                  <Text style={styles.stepValueText}>{selectedTile.durationBeats}b</Text>
+                  <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={() => handleStepSelectedDuration(1)}>
+                    <PixelIcon name="plus" size={14} color="#ffffff" />
+                  </PressableScale>
+                </>
+              )}
+              {selectedIsSlide && (
+                <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={handleMirrorSlide} accessibilityLabel="Mirror slide">
+                  <Text style={styles.inspectorBtnText}>MIRROR</Text>
+                </PressableScale>
+              )}
               <PressableScale style={styles.deleteTileBtn} scaleTo={0.85} onPress={handleDeleteSelected}>
                 <PixelIcon name="trash" size={14} color="#FF6B4A" />
               </PressableScale>
+              {selectedIsSlide && (
+                <PressableScale style={styles.doneBtn} scaleTo={0.9} onPress={() => setSelectedTileId(null)}>
+                  <Text style={styles.doneText}>DONE</Text>
+                </PressableScale>
+              )}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Slide direction pad */}
+        {selectedIsSlide && (
+          <Animated.View
+            entering={FadeInUp.duration(160)}
+            exiting={FadeOutUp.duration(120)}
+            style={[styles.slidePanel, { bottom: guideMode ? GUIDE_PANEL_HEIGHT : 0 }]}
+          >
+            <View style={styles.slidePanelInfo}>
+              <Text style={styles.slidePanelMode}>
+                {activePoint === 0 ? 'MOVE SLIDE' : activePoint === slidePointCount - 1 ? 'EXTEND' : 'MOVE BEND'}
+              </Text>
+              <Text style={styles.slidePanelHint}>
+                {activePoint === 0
+                  ? 'Head selected: arrows move the whole slide'
+                  : activePoint === slidePointCount - 1
+                    ? 'Grow the slide any way · ↓ shortens'
+                    : `Bend ${activePoint} selected: nudge it`}
+              </Text>
+              <Text style={styles.slidePanelHint}>Tap a point on the slide to select it</Text>
+              <View style={styles.slidePanelBtns}>
+                <PressableScale scaleTo={0.9} style={styles.slideSmallBtn} onPress={handleAddBend}>
+                  <PixelIcon name="plus" size={7} color="#e6ecf7" />
+                  <Text style={styles.slideSmallText}>BEND</Text>
+                </PressableScale>
+                <PressableScale scaleTo={0.9} style={styles.slideSmallBtn} onPress={handleRemovePoint}>
+                  <PixelIcon name="minus" size={7} color="#e6ecf7" />
+                  <Text style={styles.slideSmallText}>POINT</Text>
+                </PressableScale>
+              </View>
+            </View>
+            <View style={styles.slidePad}>
+              {(
+                [
+                  ['upLeft', 'arrowUpLeft'],
+                  ['up', 'chevronUp'],
+                  ['upRight', 'arrowUpRight'],
+                  ['left', 'chevronLeft'],
+                  ['down', 'chevronDown'],
+                  ['right', 'chevronRight'],
+                ] as const
+              ).map(([dir, icon]) => (
+                <PressableScale
+                  key={dir}
+                  scaleTo={0.88}
+                  style={[styles.padBtn, dir === 'down' && styles.padBtnDown]}
+                  onPress={() => handleSlidePad(dir)}
+                  accessibilityLabel={`Slide ${dir}`}
+                >
+                  <PixelIcon name={icon} size={14} color={dir === 'down' ? '#FF6B4A' : '#ffffff'} />
+                </PressableScale>
+              ))}
             </View>
           </Animated.View>
         )}
@@ -1275,6 +1702,8 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
         onApply={handleApplyLookedUpBpm}
         onClose={() => setBpmLookupOpen(false)}
       />
+
+      {uploadSong && <UploadSheet visible song={uploadSong} onClose={() => setUploadSong(null)} />}
     </ScreenView>
   );
 }
@@ -1290,6 +1719,12 @@ export default function EditorScreen() {
   const [loaded, setLoaded] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const handledRequestRef = useRef<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  // Device files already imported, so the storage scanner can mark them "Added"
+  const importedUris = useMemo(
+    () => new Set(songs.map((s) => s.sourceUri).filter((u): u is string => !!u)),
+    [songs]
+  );
 
   // Reload songs whenever the tab gains focus (songs may have been added on
   // the Songs tab). Open a song directly when navigated here with ?songId=.
@@ -1332,7 +1767,21 @@ export default function EditorScreen() {
     );
   }
 
-  return <SongPicker songs={songs} loaded={loaded} onPick={setEditingId} />;
+  return (
+    <>
+      <SongPicker songs={songs} loaded={loaded} onPick={setEditingId} onCreate={() => setCreating(true)} />
+      <CreateSongSheet
+        visible={creating}
+        importedUris={importedUris}
+        onCreated={(created) => {
+          setCreating(false);
+          setSongs((prev) => [created, ...prev.filter((s) => s.id !== created.id)]);
+          setEditingId(created.id);
+        }}
+        onClose={() => setCreating(false)}
+      />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -1422,6 +1871,11 @@ const styles = StyleSheet.create({
   iconBtnDisabled: {
     opacity: 0.35,
   },
+  uploadBtn: {
+    backgroundColor: '#FF6B4A',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
   saveStatusText: {
     color: '#4d8dff',
     fontFamily: FONTS.body,
@@ -1445,6 +1899,22 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.pixel,
     fontSize: 14,
     letterSpacing: 0,
+  },
+  createSongBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 11,
+    backgroundColor: '#FF6B4A',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  createSongText: {
+    color: '#000000',
+    fontFamily: FONTS.pixel,
+    fontSize: 10,
   },
   pickerSub: {
     color: '#9aa7c2',
@@ -1771,8 +2241,8 @@ const styles = StyleSheet.create({
   segment: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
+    gap: 4,
+    paddingHorizontal: 7,
     paddingVertical: 4,
     borderRadius: 0,
   },
@@ -1784,6 +2254,130 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 0,
     backgroundColor: '#3a4a70',
+  },
+  segmentIconSlide: {
+    height: 12,
+    transform: [{ skewX: '-25deg' }],
+  },
+  slideBox: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+  },
+  slidePoint: {
+    position: 'absolute',
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  slideHead: {
+    backgroundColor: '#FF6B4A',
+  },
+  slidePointChosen: {
+    backgroundColor: '#FF6B4A',
+    borderColor: '#ffffff',
+    borderWidth: 3,
+  },
+  slidePanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 44,
+    elevation: 9,
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: 'rgba(11, 18, 32, 0.97)',
+    borderTopWidth: 2,
+    borderTopColor: '#4d8dff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  slidePanelInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  slidePanelMode: {
+    color: '#FF6B4A',
+    fontFamily: FONTS.pixel,
+    fontSize: 9,
+  },
+  slidePanelHint: {
+    color: '#9aa7c2',
+    fontFamily: FONTS.body,
+    fontSize: 14,
+  },
+  slidePanelBtns: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+  },
+  slideSmallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: '#15203a',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  slideSmallText: {
+    color: '#e6ecf7',
+    fontFamily: FONTS.body,
+    fontSize: 15,
+  },
+  slidePad: {
+    width: 3 * 40 + 2 * 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    alignContent: 'center',
+  },
+  padBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2f6bff',
+    borderWidth: 2,
+    borderTopColor: '#7aa4ff',
+    borderLeftColor: '#7aa4ff',
+    borderBottomColor: '#0a1f5c',
+    borderRightColor: '#0a1f5c',
+  },
+  padBtnDown: {
+    backgroundColor: '#15203a',
+    borderTopColor: '#3a4a70',
+    borderLeftColor: '#3a4a70',
+    borderBottomColor: '#000000',
+    borderRightColor: '#000000',
+  },
+  slideLabel: {
+    position: 'absolute',
+    bottom: 12,
+    width: '25%',
+    textAlign: 'center',
+    color: '#ffffff',
+    fontFamily: FONTS.pixel,
+    fontSize: 7,
+  },
+  inspectorBtnText: {
+    color: '#ffffff',
+    fontFamily: FONTS.body,
+    fontSize: 14,
+  },
+  doneBtn: {
+    marginLeft: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: '#FF6B4A',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  doneText: {
+    color: '#000000',
+    fontFamily: FONTS.pixel,
+    fontSize: 8,
   },
   segmentIconHold: {
     height: 12,
@@ -1835,6 +2429,7 @@ const styles = StyleSheet.create({
   inspectorInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
     gap: 8,
   },
   inspectorTitle: {

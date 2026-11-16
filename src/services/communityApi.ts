@@ -10,6 +10,7 @@ import { Platform } from 'react-native';
 import type { Song, TileNote } from '../types/song';
 import { storageService } from './storage';
 import { saveRemoteAudio } from './audioFileStore';
+import { isBackgroundId } from '../components/backgrounds/AnimatedBackground';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -42,6 +43,7 @@ export interface LevelFilters {
   maxDurationSec?: number;
   notes?: NoteFilter;
   hasAudio?: boolean;
+  hasCover?: boolean;
   sort?: LevelSort;
   limit?: number;
   offset?: number;
@@ -57,6 +59,10 @@ export interface CommunityLevel {
   plays: number;
   version: number;
   author: { id: string; displayName: string };
+  /** Built-in background id chosen by the mapper (may be unknown to older app versions). */
+  background: string | null;
+  shader: { id: string; name: string } | null;
+  cover: { sha256: string } | null;
   song: {
     id: string;
     title: string;
@@ -118,6 +124,10 @@ const EXTENSIONS: Record<string, string> = {
   'audio/flac': 'flac',
 };
 
+/** URL of a level's cover picture (the hash makes it change when the picture does). */
+export const coverUrl = (level: CommunityLevel) =>
+  level.cover ? `${API_BASE}/api/v1/levels/${level.id}/cover?v=${level.cover.sha256.slice(0, 12)}` : null;
+
 /** Local song id for a downloaded level (so downloading twice updates it instead of duplicating). */
 export const localIdForLevel = (levelId: string) => `community_${levelId}`;
 
@@ -144,7 +154,25 @@ export async function downloadLevel(level: CommunityLevel): Promise<Song> {
     tiles: full.notes.map((n, i) => ({ ...n, id: `${id}_${i}` })),
     createdAt: Date.now(),
     durationSeconds: full.song.durationMs ? full.song.durationMs / 1000 : undefined,
+    // Use the mapper's background when this app version knows it
+    background: isBackgroundId(full.background) ? full.background : undefined,
+    community: {
+      levelId: full.id,
+      name: full.name,
+      difficulty: full.difficulty,
+      level: full.level,
+      author: full.author.displayName,
+    },
   };
+  // Keep the level's cover picture with the song (optional: a failed download isn't fatal)
+  const cover = coverUrl(full);
+  if (cover) {
+    try {
+      song.coverUri = await storageService.saveRemoteCover(id, cover);
+    } catch (err) {
+      console.warn('Cover download failed:', err);
+    }
+  }
   await storageService.saveSong(song);
   return song;
 }
