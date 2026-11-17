@@ -1,10 +1,11 @@
 import React, { memo, useMemo } from 'react';
-import { View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 /**
  * Tiny pixel-art icons drawn from bitmaps ('#' = filled pixel).
- * Each row's filled pixels are merged into horizontal runs, so an icon is
- * only a handful of Views.
+ * The whole icon is ONE filled SVG path (one rect per horizontal run), so
+ * there are no hairline seams between rows on screens whose pixel ratio
+ * isn't a whole number (separate Views per row showed thin gaps).
  */
 const BITMAPS = {
   home: [
@@ -348,15 +349,16 @@ export const PixelIcon = memo(function PixelIcon({ name, size = 22, color }: Pix
   const cell = Math.max(1, Math.floor(size / cols)); // whole pixels keep edges crisp
   const dim = cell * cols;
 
-  const runs = useMemo(() => {
-    const out: { x: number; y: number; w: number }[] = [];
+  // Path in bitmap cells (viewBox), scaled up by the SVG
+  const d = useMemo(() => {
+    let out = '';
     bitmap.forEach((row, y) => {
       let start = -1;
       for (let x = 0; x <= row.length; x++) {
         const on = row[x] === '#';
         if (on && start < 0) start = x;
         if (!on && start >= 0) {
-          out.push({ x: start, y, w: x - start });
+          out += `M${start} ${y}h${x - start}v1h${start - x}z`;
           start = -1;
         }
       }
@@ -364,21 +366,10 @@ export const PixelIcon = memo(function PixelIcon({ name, size = 22, color }: Pix
     return out;
   }, [bitmap]);
 
+  const rows = bitmap.length;
   return (
-    <View style={{ width: dim, height: cell * bitmap.length }}>
-      {runs.map((r, i) => (
-        <View
-          key={i}
-          style={{
-            position: 'absolute',
-            left: r.x * cell,
-            top: r.y * cell,
-            width: r.w * cell,
-            height: cell,
-            backgroundColor: color,
-          }}
-        />
-      ))}
-    </View>
+    <Svg width={dim} height={cell * rows} viewBox={`0 0 ${cols} ${rows}`}>
+      <Path d={d} fill={color} />
+    </Svg>
   );
 });

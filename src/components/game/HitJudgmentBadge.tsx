@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
-import Animated, { FadeOut } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { popIn } from '../ui/motion';
 import { HitJudgment } from '../../types/game';
 import { ACTIVE_THEME } from '../../constants/theme';
@@ -38,7 +38,6 @@ export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, ti
     <Animated.View
       key={hitId}
       entering={popIn}
-      exiting={FadeOut.duration(120)}
       pointerEvents="none"
       style={styles.container}
     >
@@ -47,8 +46,8 @@ export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, ti
           styles.judgmentText,
           {
             color: config.color,
-            textShadowColor: config.glow,
-            textShadowOffset: { width: 3, height: 3 },
+            textShadowColor: '#000000',
+            textShadowOffset: { width: 2, height: 2 },
             textShadowRadius: 0.1, // hard pixel shadow
           },
         ]}

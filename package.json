@@ -1,13 +1,14 @@
 {
   "name": "tile-pulse",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "private": true,
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "hooks:install": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@expo-google-fonts/press-start-2p": "^0.4.1",
