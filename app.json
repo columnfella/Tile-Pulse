@@ -3,6 +3,15 @@
     "name": "TilePulse",
     "slug": "tilepulse-rhythm-game",
     "version": "0.7.2",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/e095c22e-2444-4617-a090-e59c697fbec4"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#05070d",
@@ -50,6 +59,12 @@
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e095c22e-2444-4617-a090-e59c697fbec4"
+      }
+    },
+    "owner": "sadoxz"
   }
 }

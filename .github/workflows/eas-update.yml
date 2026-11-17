@@ -1,0 +1,75 @@
+# Publishes an EAS Update (OTA) to the "preview" channel on every push to main.
+# Installed preview APKs pick it up on their next launch.
+# Needs the repository secret EXPO_TOKEN (see the setup checklist).
+name: EAS Update (preview)
+
+on:
+  push:
+    branches: [main]
+
+# Only the newest push matters: cancel an older run that is still going
+concurrency:
+  group: eas-update-preview
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Publish OTA update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f bun.lockb ] || [ -f bun.lock ]; then pm=bun
+          elif [ -f pnpm-lock.yaml ]; then pm=pnpm
+          elif [ -f yarn.lock ]; then pm=yarn
+          else pm=npm
+          fi
+          echo "manager=$pm" >> "$GITHUB_OUTPUT"
+          echo "Using $pm"
+
+      - name: Set up pnpm
+        if: steps.pm.outputs.manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Bun
+        if: steps.pm.outputs.manager == 'bun'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: ${{ steps.pm.outputs.manager != 'bun' && steps.pm.outputs.manager || '' }}
+
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.manager }}" in
+            bun)  bun install --frozen-lockfile ;;
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            *)    npm ci ;;
+          esac
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publish update to the preview channel
+        # The commit message goes through an environment variable instead of being
+        # pasted into the script, so a crafted message can't run shell commands.
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          MESSAGE="${COMMIT_MESSAGE%%$'\n'*}"   # first line only
+          eas update --channel preview --message "$MESSAGE" --non-interactive

@@ -12,6 +12,7 @@ import { audioService } from '../services/audio';
 import { storageService } from '../services/storage';
 import { AppSplash } from '../src/components/ui/AppSplash';
 import { startPresence } from '../src/services/friends';
+import * as Updates from 'expo-updates';
 
 /**
  * Immersive full-screen mode: hides the status bar (all platforms) and the
@@ -48,6 +49,23 @@ async function initializeApp(): Promise<void> {
 
 export default function RootLayout() {
   useImmersiveMode();
+
+  // OTA updates (EAS Update): on launch, release builds check for a newer JS
+  // bundle on their channel, download it and reload. Skipped in development and
+  // where updates aren't enabled (Expo Go, web); never blocks or crashes the app.
+  useEffect(() => {
+    if (__DEV__ || !Updates.isEnabled) return;
+    (async () => {
+      try {
+        const check = await Updates.checkForUpdateAsync();
+        if (!check.isAvailable) return;
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      } catch {
+        // Offline or the update server is unreachable: keep running the current bundle
+      }
+    })();
+  }, []);
 
   // Tell friends you're online (a small heartbeat while the app is open and you're signed in)
   useEffect(() => {
