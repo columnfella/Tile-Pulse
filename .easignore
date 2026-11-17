@@ -1,0 +1,20 @@
+# Files left out of EAS Build uploads. When this file exists EAS uses it instead
+# of .gitignore, so the .gitignore rules are repeated here.
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+expo-env.d.ts
+.expo/
+
+# Not part of the app: the server, its deploy scripts, the admin console, the
+# website and CI config stay off the build servers
+backend/
+admin-console/
+website/
+.github/
+scripts/
