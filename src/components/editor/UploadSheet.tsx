@@ -20,7 +20,7 @@ import { useScreenInsets } from '../ui/useScreenInsets';
 import { BackgroundPicker } from '../ui/SongSettingsSheet';
 import { AnimatedBackground, BACKGROUNDS, isBackgroundId, type BackgroundId } from '../backgrounds/AnimatedBackground';
 import { getSession, register, signIn, signOut, type Session } from '../../services/account';
-import { API_BASE, ApiUnavailableError, type Difficulty } from '../../services/communityApi';
+import { API_BASE, ApiUnavailableError, type Difficulty, type CopyMode } from '../../services/communityApi';
 import {
   getUploadRecord,
   listShaders,
@@ -153,6 +153,9 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [level, setLevel] = useState(5);
   const [visibility, setVisibility] = useState<'public' | 'unlisted'>('public');
+  const [description, setDescription] = useState('');
+  const [copyMode, setCopyMode] = useState<CopyMode>('free');
+  const [copyPassword, setCopyPassword] = useState('');
   const [background, setBackground] = useState<BackgroundId>(isBackgroundId(song.background) ? song.background : 'swirl_ocean');
   const [pickingBackground, setPickingBackground] = useState(false);
   const [shaders, setShaders] = useState<CommunityShader[] | null>(null);
@@ -188,6 +191,8 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
       setDifficulty(r.difficulty);
       setLevel(r.level);
       setVisibility(r.visibility);
+      setDescription(r.description ?? '');
+      setCopyMode(r.copyMode ?? 'free');
       if (isBackgroundId(r.background)) setBackground(r.background);
       setShaderId(r.shaderId);
     });
@@ -258,10 +263,14 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
           background,
           shaderId,
           cover: coverUri ?? (removeCover ? 'remove' : undefined),
+          description,
+          copyMode,
+          copyPassword: copyPassword || undefined,
         },
         setStep
       );
       setRecord(r);
+      setCopyPassword('');
       setCoverUri(null);
       setRemoveCover(false);
       setSuccess(visibility === 'public' ? 'Your level is live on Discover!' : 'Uploaded as unlisted (only people with the link).');
@@ -273,6 +282,9 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
   };
 
   const isPreset = song.audioUri.startsWith('synthesized:');
+  // A password is needed the first time "Password" is chosen
+  const copyPasswordMissing =
+    copyMode === 'password' && record?.copyMode !== 'password' && copyPassword.length < 4;
   const shownCover = coverUri ?? (record?.hasCover && !removeCover ? `${API_BASE}/api/v1/levels/${record.levelId}/cover?t=${record.uploadedAt}` : null);
   const bgName = BACKGROUNDS.find((b) => b.id === background)?.name ?? background;
 
@@ -398,6 +410,42 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
               <Chip label="Public (Discover)" active={visibility === 'public'} onPress={() => setVisibility('public')} />
               <Chip label="Unlisted" active={visibility === 'unlisted'} onPress={() => setVisibility('unlisted')} />
             </View>
+            <Text style={styles.label}>DESCRIPTION</Text>
+            <TextInput
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Tell players about your level (optional)"
+              placeholderTextColor="#6b7a99"
+              maxLength={500}
+              multiline
+              style={[styles.input, styles.multiline]}
+            />
+            <Text style={styles.counter}>{description.length}/500</Text>
+          </Section>
+
+          {/* Copy permission */}
+          <Section title="COPYING" icon="lock">
+            <Text style={styles.muted}>Can other players copy this level into their own editor?</Text>
+            <View style={styles.row}>
+              <Chip label="Free to copy" active={copyMode === 'free'} onPress={() => setCopyMode('free')} />
+              <Chip label="Password" active={copyMode === 'password'} onPress={() => setCopyMode('password')} />
+              <Chip label="No copying" color={PIXEL.accent} active={copyMode === 'none'} onPress={() => setCopyMode('none')} />
+            </View>
+            {copyMode === 'password' ? (
+              <>
+                <TextInput
+                  value={copyPassword}
+                  onChangeText={setCopyPassword}
+                  placeholder={record?.copyMode === 'password' ? 'New copy password (leave empty to keep it)' : 'Copy password (4+ characters)'}
+                  placeholderTextColor="#6b7a99"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={64}
+                  style={styles.input}
+                />
+                <Text style={styles.note}>Share it with players you want to let copy your level. It’s stored encrypted.</Text>
+              </>
+            ) : null}
           </Section>
 
           {/* Cover */}
@@ -478,8 +526,8 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
           ) : null}
           <PressableScale
             scaleTo={0.96}
-            style={[styles.primaryBtn, (!session || busy || isPreset) && styles.btnDisabled]}
-            disabled={!session || busy || isPreset}
+            style={[styles.primaryBtn, (!session || busy || isPreset || copyPasswordMissing) && styles.btnDisabled]}
+            disabled={!session || busy || isPreset || copyPasswordMissing}
             onPress={handleUpload}
           >
             {busy ? <ActivityIndicator size="small" color="#000000" /> : <PixelIcon name="upload" size={14} color="#000000" />}
@@ -524,6 +572,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   chip: { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: '#070b14' },
   chipText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
+  multiline: { minHeight: 70, textAlignVertical: 'top' },
+  counter: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 14, alignSelf: 'flex-end' },
   input: {
     color: '#ffffff',
     fontFamily: FONTS.body,

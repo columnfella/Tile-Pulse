@@ -27,9 +27,10 @@ function resolveApiBase(): string {
 export const API_BASE = resolveApiBase();
 
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
-export type LevelSort = 'newest' | 'popular' | 'easiest' | 'hardest' | 'shortest' | 'longest' | 'title';
+export type LevelSort = 'newest' | 'popular' | 'liked' | 'rated' | 'easiest' | 'hardest' | 'shortest' | 'longest' | 'title';
 export type SearchField = 'all' | 'level' | 'song' | 'artist' | 'author';
 export type NoteFilter = 'any' | 'taps' | 'holds';
+export type CopyMode = 'free' | 'password' | 'none';
 
 export interface LevelFilters {
   q?: string;
@@ -63,6 +64,16 @@ export interface CommunityLevel {
   background: string | null;
   shader: { id: string; name: string } | null;
   cover: { sha256: string } | null;
+  description: string | null;
+  /** Who may copy the level into their editor. */
+  copy: CopyMode;
+  likes: number;
+  dislikes: number;
+  /** likes − dislikes (can be negative) */
+  score: number;
+  comments: number;
+  /** Average stars 1–10 from players who finished it. */
+  rating: { average: number | null; count: number };
   song: {
     id: string;
     title: string;

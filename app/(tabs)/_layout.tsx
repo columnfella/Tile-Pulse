@@ -19,7 +19,8 @@ export default function TabLayout() {
           // inset itself (e.g. the iPhone home indicator).
         },
         tabBarActiveTintColor: '#FF6B4A',
-        tabBarLabelStyle: { fontFamily: FONTS.body, fontSize: 15 },
+        // Six tabs: a slightly smaller label so they all fit on narrow phones
+        tabBarLabelStyle: { fontFamily: FONTS.body, fontSize: 13 },
         tabBarInactiveTintColor: '#9aa7c2',
       }}
     >
@@ -47,6 +48,24 @@ export default function TabLayout() {
           title: 'Editor',
           tabBarIcon: ({ color, size }) => (
             <PixelIcon name="editor" size={size || 22} color={String(color)} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="social"
+        options={{
+          title: 'Social',
+          tabBarIcon: ({ color, size }) => (
+            <PixelIcon name="friends" size={size || 22} color={String(color)} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="leaderboard"
+        options={{
+          title: 'Ranks',
+          tabBarIcon: ({ color, size }) => (
+            <PixelIcon name="trophy" size={size || 22} color={String(color)} />
           ),
         }}
       />

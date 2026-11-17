@@ -1,8 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Alert, Platform, Modal, TextInput, ActivityIndicator } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { ScreenView } from '../../src/components/ui/ScreenView';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { listItemIn } from '../../src/components/ui/motion';
@@ -12,7 +11,10 @@ import { PRESET_IDS } from '../../src/game/presets';
 import { formatAudioTime } from '../../game/engine';
 import { PlayRow } from '../../src/components/ui/PlayRow';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
-import { SongSettingsSheet, ThemeSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
+import { ThemeSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
+import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
+import { checkCopy } from '../../src/services/social';
+import { ApiUnavailableError } from '../../src/services/communityApi';
 import { AnimatedBackground } from '../../src/components/backgrounds/AnimatedBackground';
 import { CoverBanner, IconBadge, LevelBadge, cardPartStyles } from '../../src/components/ui/LevelCardParts';
 import { setDefaultBackground, useDefaultBackground } from '../../src/services/settings';
@@ -30,7 +32,11 @@ export default function HomeScreen() {
   const [loaded, setLoaded] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
-  const [settingsSongId, setSettingsSongId] = useState<string | null>(null);
+  // Community level whose comments / rating page is open
+  const [socialSong, setSocialSong] = useState<Song | null>(null);
+  // Copying a community level into the editor: waiting for the creator's copy password
+  const [copyPrompt, setCopyPrompt] = useState<{ song: Song; password: string; error: string | null; busy: boolean } | null>(null);
+  const [copying, setCopying] = useState<string | null>(null);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const defaultBackground = useDefaultBackground();
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,7 +55,6 @@ export default function HomeScreen() {
     useCallback(() => {
       loadSongs().catch((err) => console.warn('Failed to load songs:', err));
       return () => {
-        setSettingsSongId(null);
         setIsThemeOpen(false);
         setExpandedId(null);
       };
@@ -60,45 +65,6 @@ export default function HomeScreen() {
     if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     setBanner(message);
     bannerTimerRef.current = setTimeout(() => setBanner(null), 3000);
-  };
-
-  const settingsSong = settingsSongId ? songs.find((s) => s.id === settingsSongId) : undefined;
-
-  /** Saves a rename and/or background change from the song settings sheet. */
-  const handleSaveSongSettings = async (changes: { title: string; background: string }) => {
-    if (!settingsSong) return;
-    await storageService.saveSong({
-      ...settingsSong,
-      title: changes.title,
-      background: changes.background === 'default' ? undefined : changes.background,
-    });
-    setSettingsSongId(null);
-    await loadSongs();
-    showBanner(`Saved “${changes.title}”`);
-  };
-
-  const handleChangeCover = async (song: Song) => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.7,
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
-      await storageService.setSongCover(song, { uri: asset.uri, name: asset.fileName ?? undefined });
-      await loadSongs();
-      showBanner('Cover updated');
-    } catch (err) {
-      console.warn('Cover change failed:', err);
-      showBanner('Couldn’t set that picture');
-    }
-  };
-
-  const handleRemoveCover = async (song: Song) => {
-    await storageService.setSongCover(song, null);
-    await loadSongs();
   };
 
   const handleDeleteSong = (song: Song) => {
@@ -119,8 +85,51 @@ export default function HomeScreen() {
     }
   };
 
-  const handleEditSong = (song: Song) => {
-    router.push({ pathname: '/(tabs)/editor', params: { songId: song.id, t: String(Date.now()) } });
+  const openInEditor = (songId: string) =>
+    router.push({ pathname: '/(tabs)/editor', params: { songId, t: String(Date.now()) } });
+
+  /** Copies a downloaded community level into your own songs and opens it in the editor. */
+  const copyToEditor = async (song: Song) => {
+    const copy = await storageService.duplicateSong(song, song.community?.name ?? song.title);
+    await loadSongs();
+    showBanner('Copied to your songs. Customize it in the Editor.');
+    openInEditor(copy.id);
+  };
+
+  /**
+   * Customize: your own songs open straight in the Editor (notes, cover, name,
+   * background, upload). Community levels are copied first, if the creator
+   * allows it (free, or with their copy password).
+   */
+  const handleCustomize = async (song: Song) => {
+    if (!song.community) return openInEditor(song.id);
+    setCopying(song.id);
+    try {
+      const check = await checkCopy(song.community.levelId);
+      if (check.ok) await copyToEditor(song);
+      else if (check.needsPassword) setCopyPrompt({ song, password: '', error: null, busy: false });
+      else showBanner(check.message);
+    } catch (err) {
+      showBanner(err instanceof ApiUnavailableError ? 'Can’t reach the server to check if copying is allowed.' : 'Couldn’t copy this level.');
+    } finally {
+      setCopying(null);
+    }
+  };
+
+  const submitCopyPassword = async () => {
+    if (!copyPrompt || !copyPrompt.song.community) return;
+    setCopyPrompt({ ...copyPrompt, busy: true, error: null });
+    try {
+      const check = await checkCopy(copyPrompt.song.community.levelId, copyPrompt.password);
+      if (!check.ok) return setCopyPrompt((p) => (p ? { ...p, busy: false, error: check.message } : p));
+      const target = copyPrompt.song;
+      setCopyPrompt(null);
+      await copyToEditor(target);
+    } catch (err) {
+      setCopyPrompt((p) =>
+        p ? { ...p, busy: false, error: err instanceof ApiUnavailableError ? 'Can’t reach the server.' : 'Couldn’t copy this level.' } : p
+      );
+    }
   };
 
   const renderSong = ({ item: song, index }: { item: Song; index: number }) => {
@@ -189,26 +198,20 @@ export default function HomeScreen() {
             <Animated.View entering={FadeIn.duration(160)} style={styles.panel}>
               <PlayRow songId={song.id} />
               <View style={styles.actionsRow}>
-                <PressableScale scaleTo={0.92} style={styles.actionBtn} onPress={() => handleEditSong(song)}>
-                  <PixelIcon name="editor" size={14} color={PIXEL.text} />
-                  <Text style={styles.actionText}>Edit notes</Text>
+                <PressableScale
+                  scaleTo={0.94}
+                  style={[styles.actionBtn, styles.customizeBtn]}
+                  disabled={copying === song.id}
+                  onPress={() => void handleCustomize(song)}
+                  accessibilityLabel={community ? `Copy ${title} to the editor` : `Customize ${title} in the editor`}
+                >
+                  {copying === song.id ? (
+                    <ActivityIndicator size="small" color={PIXEL.accent2} />
+                  ) : (
+                    <PixelIcon name={community ? 'copy' : 'editor'} size={14} color={PIXEL.accent2} />
+                  )}
+                  <Text style={styles.customizeText}>{community ? 'Customize (copy)' : 'Customize'}</Text>
                 </PressableScale>
-                <PressableScale scaleTo={0.92} style={styles.actionBtn} onPress={() => setSettingsSongId(song.id)}>
-                  <PixelIcon name="palette" size={14} color={PIXEL.text} />
-                  <Text style={styles.actionText}>Customize</Text>
-                </PressableScale>
-              </View>
-              <View style={styles.actionsRow}>
-                <PressableScale scaleTo={0.92} style={styles.actionBtn} onPress={() => handleChangeCover(song)}>
-                  <PixelIcon name="image" size={14} color={PIXEL.text} />
-                  <Text style={styles.actionText}>{song.coverUri ? 'Change cover' : 'Add cover'}</Text>
-                </PressableScale>
-                {song.coverUri ? (
-                  <PressableScale scaleTo={0.92} style={styles.actionBtn} onPress={() => handleRemoveCover(song)}>
-                    <PixelIcon name="close" size={14} color={PIXEL.textDim} />
-                    <Text style={styles.actionText}>Remove cover</Text>
-                  </PressableScale>
-                ) : null}
                 <PressableScale
                   scaleTo={0.92}
                   style={[styles.actionBtn, styles.deleteBtn]}
@@ -218,6 +221,18 @@ export default function HomeScreen() {
                   <PixelIcon name="trash" size={14} color={PIXEL.accent} />
                 </PressableScale>
               </View>
+              {community ? (
+                <View style={styles.actionsRow}>
+                  <PressableScale scaleTo={0.94} style={[styles.actionBtn, styles.halfBtn]} onPress={() => setSocialSong(song)}>
+                    <PixelIcon name="comment" size={14} color={PIXEL.accent2} />
+                    <Text style={[styles.actionText, { color: PIXEL.accent2 }]}>Comments</Text>
+                  </PressableScale>
+                  <PressableScale scaleTo={0.94} style={[styles.actionBtn, styles.halfBtn, styles.rateBtn]} onPress={() => setSocialSong(song)}>
+                    <PixelIcon name="star" size={14} color="#f5b83d" />
+                    <Text style={[styles.actionText, { color: '#f5b83d' }]}>Rate</Text>
+                  </PressableScale>
+                </View>
+              ) : null}
             </Animated.View>
           )}
         </PressableScale>
@@ -297,14 +312,56 @@ export default function HomeScreen() {
         }
       />
 
-      {settingsSong && (
-        <SongSettingsSheet
-          song={settingsSong}
-          defaultBackground={defaultBackground}
-          onSave={handleSaveSongSettings}
-          onClose={() => setSettingsSongId(null)}
+      {socialSong?.community && (
+        <LevelSocialSheet
+          visible
+          levelId={socialSong.community.levelId}
+          name={socialSong.community.name}
+          onClose={() => setSocialSong(null)}
         />
       )}
+
+      {/* Copy password for a community level */}
+      <Modal visible={!!copyPrompt} transparent animationType="fade" onRequestClose={() => setCopyPrompt(null)}>
+        <View style={styles.promptBackdrop}>
+          <View style={styles.promptCard}>
+            <View style={styles.promptHead}>
+              <PixelIcon name="lock" size={14} color={PIXEL.accent} />
+              <Text style={styles.promptTitle}>COPY PASSWORD</Text>
+            </View>
+            <Text style={styles.promptBody}>
+              The creator of “{copyPrompt?.song.community?.name}” protected copying with a password.
+            </Text>
+            <TextInput
+              value={copyPrompt?.password ?? ''}
+              onChangeText={(t) => setCopyPrompt((p) => (p ? { ...p, password: t, error: null } : p))}
+              placeholder="Password"
+              placeholderTextColor="#6b7a99"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={64}
+              onSubmitEditing={submitCopyPassword}
+              style={styles.promptInput}
+            />
+            {copyPrompt?.error ? <Text style={styles.promptError}>{copyPrompt.error}</Text> : null}
+            <View style={styles.promptRow}>
+              <PressableScale scaleTo={0.94} style={styles.promptCancel} onPress={() => setCopyPrompt(null)}>
+                <Text style={styles.promptCancelText}>CANCEL</Text>
+              </PressableScale>
+              <PressableScale
+                scaleTo={0.94}
+                style={[styles.promptOk, (!copyPrompt?.password || copyPrompt?.busy) && styles.promptDisabled]}
+                disabled={!copyPrompt?.password || copyPrompt?.busy}
+                onPress={submitCopyPassword}
+              >
+                {copyPrompt?.busy ? <ActivityIndicator size="small" color="#000000" /> : null}
+                <Text style={styles.promptOkText}>UNLOCK & COPY</Text>
+              </PressableScale>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {isThemeOpen && (
         <ThemeSettingsSheet
@@ -318,6 +375,32 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  customizeBtn: { flex: 1, paddingVertical: 9, borderColor: PIXEL.accent2, backgroundColor: 'rgba(77, 141, 255, 0.08)' },
+  customizeText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 19, letterSpacing: 1 },
+  halfBtn: { flex: 1, paddingVertical: 8 },
+  rateBtn: { borderColor: '#f5b83d', backgroundColor: 'rgba(245, 184, 61, 0.08)' },
+  promptBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  promptCard: { width: '100%', maxWidth: 340, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: '#000000', padding: 16, gap: 10 },
+  promptHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  promptTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10 },
+  promptBody: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18 },
+  promptInput: {
+    color: '#ffffff',
+    fontFamily: FONTS.body,
+    fontSize: 20,
+    backgroundColor: '#070b14',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  promptError: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
+  promptRow: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
+  promptCancel: { paddingHorizontal: 12, paddingVertical: 9, borderWidth: 2, borderColor: PIXEL.panelLight },
+  promptCancelText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 8 },
+  promptOk: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: '#000000' },
+  promptOkText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 8 },
+  promptDisabled: { opacity: 0.45 },
   safeArea: { flex: 1, backgroundColor: PIXEL.bg },
   header: {
     paddingHorizontal: 16,
@@ -412,7 +495,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#000000',
   },
-  deleteBtn: { flexGrow: 0, backgroundColor: 'rgba(255, 107, 74, 0.12)', borderColor: 'rgba(255, 107, 74, 0.5)' },
+  deleteBtn: { flexGrow: 0, width: 46, paddingHorizontal: 0, backgroundColor: 'rgba(255, 107, 74, 0.12)', borderColor: 'rgba(255, 107, 74, 0.5)' },
   actionText: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 17 },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 24 },

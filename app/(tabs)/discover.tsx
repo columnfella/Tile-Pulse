@@ -14,6 +14,8 @@ import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenView } from '../../src/components/ui/ScreenView';
 import { PlayRow } from '../../src/components/ui/PlayRow';
+import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
+import type { SocialState } from '../../src/services/social';
 import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { listItemIn } from '../../src/components/ui/motion';
@@ -52,6 +54,8 @@ const SEARCH_FIELDS: { key: SearchField; label: string }[] = [
 const SORTS: { key: LevelSort; label: string; icon?: PixelIconName }[] = [
   { key: 'newest', label: 'New', icon: 'clock' },
   { key: 'popular', label: 'Popular', icon: 'star' },
+  { key: 'liked', label: 'Most liked', icon: 'heart' },
+  { key: 'rated', label: 'Top rated', icon: 'star' },
   { key: 'easiest', label: 'Easiest' },
   { key: 'hardest', label: 'Hardest' },
   { key: 'shortest', label: 'Shortest' },
@@ -184,6 +188,8 @@ export default function DiscoverScreen() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Level whose comments / rating page is open
+  const [socialLevel, setSocialLevel] = useState<CommunityLevel | null>(null);
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState<string | null>(null);
   const [banner, setBanner] = useState<{ text: string; error?: boolean } | null>(null);
@@ -428,10 +434,23 @@ export default function DiscoverScreen() {
             <View style={styles.flex} />
             <PixelIcon name="play" size={7} color="#6b7a99" />
             <Text style={styles.stat}>{formatPlays(item.plays)}</Text>
+            <PixelIcon name={(item.score ?? 0) < 0 ? 'thumbDown' : 'thumbUp'} size={7} color={(item.score ?? 0) < 0 ? '#ff7a73' : '#22c46e'} />
+            <Text style={[styles.stat, (item.score ?? 0) < 0 && styles.negative]}>{item.score ?? 0}</Text>
+            {item.rating?.average != null ? (
+              <>
+                <PixelIcon name="star" size={7} color="#f5b83d" />
+                <Text style={styles.stat}>{item.rating.average}</Text>
+              </>
+            ) : null}
           </View>
 
           {expanded && (
             <Animated.View entering={FadeIn.duration(160)} style={styles.panel}>
+              {item.description ? (
+                <Text style={styles.description} numberOfLines={6}>
+                  {item.description}
+                </Text>
+              ) : null}
               <View style={styles.detailRow}>
                 <View style={styles.detailBox}>
                   <Text style={styles.detailLabel}>HOLDS</Text>
@@ -449,6 +468,24 @@ export default function DiscoverScreen() {
                 </View>
               </View>
 
+              <View style={styles.socialRow}>
+                <PressableScale scaleTo={0.96} style={styles.socialBtn} onPress={() => setSocialLevel(item)}>
+                  <PixelIcon name="comment" size={14} color={PIXEL.accent2} />
+                  <Text style={styles.socialText}>COMMENTS ({item.comments ?? 0})</Text>
+                </PressableScale>
+                <PressableScale scaleTo={0.96} style={[styles.socialBtn, styles.rateBtn]} onPress={() => setSocialLevel(item)}>
+                  <PixelIcon name="star" size={14} color="#f5b83d" />
+                  <Text style={[styles.socialText, styles.rateText]}>
+                    RATE{item.rating?.average != null ? ` · ${item.rating.average}` : ''}
+                  </Text>
+                </PressableScale>
+              </View>
+              {item.copy && item.copy !== 'free' ? (
+                <View style={styles.lockTag}>
+                  <PixelIcon name="lock" size={7} color={PIXEL.textDim} />
+                  <Text style={styles.lockText}>{item.copy === 'none' ? 'COPYING DISABLED BY THE CREATOR' : 'COPYING NEEDS A PASSWORD'}</Text>
+                </View>
+              ) : null}
               {isDownloaded ? (
                 <PlayRow songId={localId} />
               ) : (
@@ -625,11 +662,49 @@ export default function DiscoverScreen() {
           />
         }
       />
+      {socialLevel && (
+        <LevelSocialSheet
+          visible
+          levelId={socialLevel.id}
+          name={socialLevel.name}
+          description={socialLevel.description}
+          onClose={() => setSocialLevel(null)}
+          onChanged={(st: SocialState) =>
+            setLevels((prev) =>
+              prev.map((l) =>
+                l.id === socialLevel.id
+                  ? { ...l, likes: st.likes, dislikes: st.dislikes, score: st.score, comments: st.comments, rating: st.rating }
+                  : l
+              )
+            )
+          }
+        />
+      )}
     </ScreenView>
   );
 }
 
 const styles = StyleSheet.create({
+  description: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18, lineHeight: 21 },
+  negative: { color: '#ff7a73' },
+  socialRow: { flexDirection: 'row', gap: 8 },
+  rateBtn: { borderColor: '#f5b83d', backgroundColor: 'rgba(245, 184, 61, 0.08)' },
+  rateText: { color: '#f5b83d' },
+  socialBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderWidth: 2,
+    borderColor: PIXEL.accent2,
+    backgroundColor: 'rgba(77, 141, 255, 0.08)',
+  },
+  socialText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 18 },
+  lockTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  lockText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 6 },
   root: { flex: 1, backgroundColor: PIXEL.bg },
   flex: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4, gap: 8 },

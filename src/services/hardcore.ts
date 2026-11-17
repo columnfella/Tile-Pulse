@@ -1,35 +1,21 @@
 /**
  * Hardcore mode, switched on per level from its card (one miss = instant loss).
- * The choice is remembered on the device.
+ * Kept in memory only while the app is open: nothing is written to storage,
+ * and switching it off simply forgets the level.
  */
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY = 'tilepulse_hardcore_levels_v1';
-
-let enabled = new Set<string>();
-let loaded: Promise<void> | null = null;
+const enabled = new Set<string>();
 const listeners = new Set<() => void>();
 
-function load(): Promise<void> {
-  if (!loaded) {
-    loaded = AsyncStorage.getItem(KEY)
-      .then((raw) => {
-        const ids = raw ? JSON.parse(raw) : [];
-        if (Array.isArray(ids)) enabled = new Set(ids.filter((x) => typeof x === 'string'));
-      })
-      .catch(() => {});
-  }
-  return loaded;
-}
+// Older versions saved the choices; clear that once so it doesn't take up space
+AsyncStorage.removeItem('tilepulse_hardcore_levels_v1').catch(() => {});
 
 export function setHardcore(songId: string, on: boolean): void {
-  const next = new Set(enabled);
-  if (on) next.add(songId);
-  else next.delete(songId);
-  enabled = next;
+  if (on) enabled.add(songId);
+  else enabled.delete(songId);
   listeners.forEach((l) => l());
-  AsyncStorage.setItem(KEY, JSON.stringify([...next])).catch(() => {});
 }
 
 /** [is hardcore on for this level, toggle] */
@@ -38,7 +24,7 @@ export function useHardcore(songId: string): [boolean, () => void] {
   useEffect(() => {
     const sync = () => setOn(enabled.has(songId));
     listeners.add(sync);
-    load().then(sync);
+    sync();
     return () => {
       listeners.delete(sync);
     };

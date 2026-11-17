@@ -64,9 +64,22 @@ export interface PublicProfile {
   createdAt: number;
   private: boolean;
   self?: boolean;
+  /** Your relation with this player (null on your own profile / signed out). */
+  friend: FriendRelation | null;
+  /** Only shown to friends. */
+  presence: Presence | null;
   stats: { plays: number; uploads: number } | null;
   uploads: ProfileUpload[] | null;
   history: HistoryEntry[] | null;
+}
+
+export type FriendRelation = 'none' | 'friends' | 'outgoing' | 'incoming';
+
+export interface Presence {
+  online: boolean;
+  activity: 'menu' | 'playing' | 'editing' | null;
+  detail: string | null;
+  lastSeenAt: number | null;
 }
 
 export const DEFAULT_BANNER_COLOR = '#2f6bff';

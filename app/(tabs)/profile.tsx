@@ -497,15 +497,14 @@ export default function ProfileScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    if (session) void refresh();
-  }, [session?.token, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Pick up new plays / uploads when coming back to the tab
+  // Load when signing in and whenever you come back to the tab (new plays /
+  // uploads). Only the token matters: a profile change updates the session
+  // object too, and that must not trigger another round of requests.
+  const token = session?.token;
   useFocusEffect(
     useCallback(() => {
-      if (session) void refresh();
-    }, [session, refresh])
+      if (token) void refresh();
+    }, [token, refresh])
   );
 
   const handleChange = (p: MyProfile) => {

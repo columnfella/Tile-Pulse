@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -134,10 +135,21 @@ interface SongSettingsSheetProps {
   defaultBackground: BackgroundId;
   onSave: (changes: { title: string; background: BackgroundId | 'default' }) => Promise<void>;
   onClose: () => void;
+  /** Cover picture controls (shown when given). */
+  cover?: { uri: string | null; onPick: () => Promise<void>; onRemove: () => Promise<void> };
 }
 
 /** Rename a song and choose its gameplay background. */
-export function SongSettingsSheet({ song, defaultBackground, onSave, onClose }: SongSettingsSheetProps) {
+export function SongSettingsSheet({ song, defaultBackground, onSave, onClose, cover }: SongSettingsSheetProps) {
+  const [coverBusy, setCoverBusy] = useState(false);
+  const coverAction = async (fn: () => Promise<void>) => {
+    setCoverBusy(true);
+    try {
+      await fn();
+    } finally {
+      setCoverBusy(false);
+    }
+  };
   const [title, setTitle] = useState(song.title);
   const [background, setBackground] = useState<BackgroundId | 'default'>(
     isBackgroundId(song.background) ? song.background : 'default'
@@ -193,6 +205,41 @@ export function SongSettingsSheet({ song, defaultBackground, onSave, onClose }: 
         </Text>
       </View>
 
+      {cover ? (
+        <>
+          <Text style={styles.sectionLabel}>COVER PICTURE</Text>
+          <View style={styles.coverBox}>
+            {cover.uri ? (
+              <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <PixelIcon name="image" size={21} color="#3a4a70" />
+            )}
+          </View>
+          <View style={styles.coverRow}>
+            <PressableScale
+              scaleTo={0.94}
+              style={[styles.coverBtn, coverBusy && styles.saveBtnBusy]}
+              disabled={coverBusy}
+              onPress={() => void coverAction(cover.onPick)}
+            >
+              <PixelIcon name="image" size={14} color="#4d8dff" />
+              <Text style={styles.coverBtnText}>{cover.uri ? 'Change cover' : 'Add cover'}</Text>
+            </PressableScale>
+            {cover.uri ? (
+              <PressableScale
+                scaleTo={0.94}
+                style={[styles.coverBtn, coverBusy && styles.saveBtnBusy]}
+                disabled={coverBusy}
+                onPress={() => void coverAction(cover.onRemove)}
+              >
+                <PixelIcon name="close" size={14} color="#9aa7c2" />
+                <Text style={styles.coverBtnText}>Remove</Text>
+              </PressableScale>
+            ) : null}
+          </View>
+        </>
+      ) : null}
+
       <Text style={styles.sectionLabel}>BACKGROUND</Text>
       <Text style={styles.sectionHint}>Plays softly behind the tiles while you play this song.</Text>
       <BackgroundPicker
@@ -228,6 +275,27 @@ export function ThemeSettingsSheet({ value, onChange, onClose }: ThemeSettingsSh
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  coverBox: {
+    height: 120,
+    backgroundColor: '#070b14',
+    borderWidth: 2,
+    borderColor: '#1f2e52',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  coverRow: { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 4 },
+  coverBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: '#1f2e52',
+    backgroundColor: '#070b14',
+  },
+  coverBtnText: { color: '#e6ecf7', fontFamily: FONTS.body, fontSize: 17 },
   backdrop: {
     ...StyleSheet.absoluteFill,
     zIndex: 300,

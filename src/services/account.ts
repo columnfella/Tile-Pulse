@@ -100,7 +100,7 @@ export async function updateSessionUser(user: AccountUser): Promise<void> {
 /* --------------------------------- requests -------------------------------- */
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public details?: Record<string, unknown>) {
     super(message);
     this.name = 'ApiError';
   }
@@ -120,6 +120,8 @@ export async function apiRequest<T>(
     res = await fetch(`${API_BASE}/api/v1${path}`, {
       method,
       signal: controller.signal,
+      // Always fresh: a cached /me would show settings from before a change
+      cache: 'no-store',
       headers: {
         Accept: 'application/json',
         ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -132,15 +134,28 @@ export async function apiRequest<T>(
   } finally {
     clearTimeout(timer);
   }
-  // An expired / revoked session: forget it so the UI asks to sign in again
-  if (res.status === 401 && session) await saveSession(null);
   if (res.status === 204) return undefined as T;
-  const body = await res.json().catch(() => ({}));
+  const text = await res.text().catch(() => '');
+  let body: any = {};
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    body = {}; // not JSON (e.g. a proxy error page)
+  }
   if (!res.ok) {
+    // An expired / revoked session: forget it so the UI asks to sign in again.
+    // (Other 401s, like a wrong current password, must not sign you out.)
+    if (res.status === 401 && session && /session|authentication required/i.test(String(body?.error ?? ''))) {
+      await saveSession(null);
+    }
+    if (res.status === 429 && typeof body?.error !== 'string') {
+      throw new ApiError(429, 'Too many requests. Wait a few seconds and try again.');
+    }
     // Validation errors list the first problem, e.g. "password: Too small"
     const first = Array.isArray(body?.issues) ? body.issues[0] : null;
     const issue = first ? `${first.path ? `${first.path}: ` : ''}${first.message}` : null;
-    throw new ApiError(res.status, issue || (typeof body?.error === 'string' ? body.error : `Request failed (${res.status})`));
+    const fallback = res.status >= 500 ? 'The server had a problem. Try again in a moment.' : `Request failed (${res.status})`;
+    throw new ApiError(res.status, issue || (typeof body?.error === 'string' ? body.error : fallback), body?.details);
   }
   return body as T;
 }

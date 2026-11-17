@@ -5,7 +5,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Song } from '../types/song';
-import { API_BASE, type Difficulty } from './communityApi';
+import { API_BASE, type Difficulty, type CopyMode } from './communityApi';
 import { ApiError, apiRequest, getSession } from './account';
 import { putFile } from './binaryUpload';
 import { storageService } from './storage';
@@ -23,6 +23,8 @@ export interface UploadRecord {
   shaderId: string | null;
   hasCover: boolean;
   uploadedAt: number;
+  description?: string;
+  copyMode?: CopyMode;
 }
 
 export interface UploadOptions {
@@ -36,6 +38,12 @@ export interface UploadOptions {
   shaderId: string | null;
   /** New cover picture to upload (local file URI), "remove", or undefined to keep. */
   cover?: string | 'remove';
+  /** Shown on the level's page. */
+  description: string;
+  /** Who may copy the level into their editor. */
+  copyMode: CopyMode;
+  /** New copy password (only when setting / changing it). */
+  copyPassword?: string;
 }
 
 export type UploadStep = 'song' | 'audio' | 'level' | 'cover' | 'done';
@@ -132,6 +140,9 @@ export async function uploadLevel(
     })),
     background: options.background,
     shaderId: options.shaderId,
+    description: options.description.trim().slice(0, 500) || null,
+    copyMode: options.copyMode,
+    ...(options.copyMode === 'password' && options.copyPassword ? { copyPassword: options.copyPassword } : {}),
   };
   let levelId: string | null = null;
   if (previous && previous.songId === serverSong.id) {
@@ -175,6 +186,8 @@ export async function uploadLevel(
     shaderId: options.shaderId,
     hasCover,
     uploadedAt: Date.now(),
+    description: options.description.trim().slice(0, 500),
+    copyMode: options.copyMode,
   };
   await saveRecord(song.id, record);
   onStep('done');

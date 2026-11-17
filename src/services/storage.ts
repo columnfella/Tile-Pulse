@@ -192,6 +192,43 @@ class StorageService {
     return updated;
   }
 
+  /**
+   * Makes an independent copy of a song (audio and cover files too), e.g. a
+   * downloaded community level copied into your own editor. The copy is your
+   * own song: it has no community link, so it can be edited and uploaded.
+   */
+  public async duplicateSong(song: Song, title: string): Promise<Song> {
+    const id = `song_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    let audioUri = song.audioUri;
+    if (!audioUri.startsWith('synthesized:')) {
+      const src = await this.getAudioUriForSong(song);
+      const ext = song.audioUri.match(/.([a-z0-9]{2,5})$/i)?.[1] ?? 'mp3';
+      audioUri = await saveImportedAudio(id, { canceled: false, name: `audio.${ext}`, uri: src });
+    }
+    let coverUri: string | undefined;
+    const coverSrc = await this.getCoverUri(song);
+    if (coverSrc) {
+      try {
+        coverUri = await this.saveCoverFile(id, coverSrc, 'cover.jpg');
+      } catch {
+        coverUri = undefined; // the copy just has no cover
+      }
+    }
+    const { community: _community, ...rest } = song;
+    const copy: Song = {
+      ...rest,
+      id,
+      title,
+      audioUri,
+      coverUri,
+      sourceUri: undefined,
+      createdAt: Date.now(),
+      tiles: song.tiles.map((t, i) => ({ ...t, id: `${id}_${i}` })),
+    };
+    await this.saveSong(copy);
+    return copy;
+  }
+
   /** A URI an <Image> can show for the song's cover (null when it has none). */
   public async getCoverUri(song: Song): Promise<string | null> {
     if (!song.coverUri) return null;

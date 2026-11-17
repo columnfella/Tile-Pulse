@@ -11,6 +11,7 @@ import { NavigationBar } from 'expo-navigation-bar';
 import { audioService } from '../services/audio';
 import { storageService } from '../services/storage';
 import { AppSplash } from '../src/components/ui/AppSplash';
+import { startPresence } from '../src/services/friends';
 
 /**
  * Immersive full-screen mode: hides the status bar (all platforms) and the
@@ -47,6 +48,11 @@ async function initializeApp(): Promise<void> {
 
 export default function RootLayout() {
   useImmersiveMode();
+
+  // Tell friends you're online (a small heartbeat while the app is open and you're signed in)
+  useEffect(() => {
+    startPresence();
+  }, []);
 
   // Dark native root view, so nothing light can show between screen transitions
   useEffect(() => {

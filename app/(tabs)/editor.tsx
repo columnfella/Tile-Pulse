@@ -47,6 +47,10 @@ import { BpmLookupSheet } from '../../src/components/editor/BpmLookupSheet';
 import { SlideBody, SLIDE_COLORS } from '../../src/components/game/SlideBody';
 import { UploadSheet } from '../../src/components/editor/UploadSheet';
 import { CreateSongSheet } from '../../src/components/editor/CreateSongSheet';
+import { SongSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
+import { useDefaultBackground } from '../../src/services/settings';
+import * as ImagePicker from 'expo-image-picker';
+import { setActivity } from '../../src/services/friends';
 
 const PIXELS_PER_BEAT = 96; // 1/4 snap cells are 24px, 1/2 cells 48px
 const TILE_GAP = 2; // px inset so neighbouring notes never visually touch
@@ -1146,6 +1150,52 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     if (next !== bpm) commit({ bpm: next });
   };
 
+  // Friends see that you're in the editor
+  useEffect(() => {
+    setActivity('editing', songRef.current.title);
+    return () => setActivity('menu');
+  }, []);
+
+  // Customize: name, background and cover picture (moved here from the Songs tab)
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const defaultBackground = useDefaultBackground();
+  const handleOpenCustomize = async () => {
+    await saveNow();
+    setCoverPreview(await storageService.getCoverUri(songRef.current));
+    setCustomizeOpen(true);
+  };
+  const handleSaveCustomize = async (changes: { title: string; background: string }) => {
+    const updated: Song = {
+      ...buildSong(),
+      title: changes.title,
+      background: changes.background === 'default' ? undefined : changes.background,
+    };
+    await storageService.saveSong(updated);
+    onSaved(updated);
+    setCustomizeOpen(false);
+  };
+  const handlePickCover = async () => {
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.7,
+    });
+    if (r.canceled || !r.assets?.[0]) return;
+    const updated = await storageService.setSongCover(buildSong(), {
+      uri: r.assets[0].uri,
+      name: r.assets[0].fileName ?? undefined,
+    });
+    onSaved(updated);
+    setCoverPreview(await storageService.getCoverUri(updated));
+  };
+  const handleRemoveCover = async () => {
+    const updated = await storageService.setSongCover(buildSong(), null);
+    onSaved(updated);
+    setCoverPreview(null);
+  };
+
   // Upload menu: publishes this song's beatmap as a community level
   const [uploadSong, setUploadSong] = useState<Song | null>(null);
   const handleOpenUpload = async () => {
@@ -1235,6 +1285,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
           </View>
 
           <View style={styles.historyGroup}>
+            <PressableScale
+              scaleTo={0.85}
+              style={styles.iconBtn}
+              onPress={handleOpenCustomize}
+              accessibilityLabel="Customize song: name, background and cover"
+            >
+              <PixelIcon name="palette" size={14} color="#e6ecf7" />
+            </PressableScale>
             <PressableScale
               scaleTo={0.85}
               style={[styles.iconBtn, styles.uploadBtn]}
@@ -1704,6 +1762,16 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
       />
 
       {uploadSong && <UploadSheet visible song={uploadSong} onClose={() => setUploadSong(null)} />}
+
+      {customizeOpen && (
+        <SongSettingsSheet
+          song={song}
+          defaultBackground={defaultBackground}
+          onSave={handleSaveCustomize}
+          onClose={() => setCustomizeOpen(false)}
+          cover={{ uri: coverPreview, onPick: handlePickCover, onRemove: handleRemoveCover }}
+        />
+      )}
     </ScreenView>
   );
 }
@@ -1738,7 +1806,7 @@ export default function EditorScreen() {
           setSongs(list);
           setLoaded(true);
           const request = params.songId ? `${params.songId}:${params.t ?? ''}` : null;
-          if (request && request !== handledRequestRef.current && list.some((s) => s.id === params.songId)) {
+          if (request && request !== handledRequestRef.current && list.some((s) => s.id === params.songId && !s.community)) {
             handledRequestRef.current = request;
             setEditingId(params.songId!);
           }
@@ -1754,7 +1822,10 @@ export default function EditorScreen() {
     setSongs((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   }, []);
 
-  const editingSong = editingId ? songs.find((s) => s.id === editingId) : undefined;
+  // Downloaded community levels aren't edited directly: Customize on the Songs
+  // tab makes your own copy (when the creator allows it)
+  const ownSongs = useMemo(() => songs.filter((s) => !s.community), [songs]);
+  const editingSong = editingId ? ownSongs.find((s) => s.id === editingId) : undefined;
 
   if (editingSong) {
     return (
@@ -1769,7 +1840,7 @@ export default function EditorScreen() {
 
   return (
     <>
-      <SongPicker songs={songs} loaded={loaded} onPick={setEditingId} onCreate={() => setCreating(true)} />
+      <SongPicker songs={ownSongs} loaded={loaded} onPick={setEditingId} onCreate={() => setCreating(true)} />
       <CreateSongSheet
         visible={creating}
         importedUris={importedUris}
@@ -1811,10 +1882,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     minHeight: 36,
   },
+  // A normal flex slot between Back and the icon buttons, so Play never sits
+  // on top of them when there are many buttons or the screen is narrow
   topBarCenter: {
-    ...StyleSheet.absoluteFill,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: 6,
   },
   backBtn: {
     flexDirection: 'row',
@@ -1831,8 +1905,8 @@ const styles = StyleSheet.create({
   },
   playCenterBtn: {
     height: 36,
-    minWidth: 104,
-    paddingHorizontal: 16,
+    minWidth: 84,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

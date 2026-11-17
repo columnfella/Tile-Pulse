@@ -42,6 +42,8 @@ import { useCreateSignal, useSignal, type Signal } from '../../src/game/signal';
 import { AnimatedBackground, isBackgroundId } from '../../src/components/backgrounds/AnimatedBackground';
 import { useDefaultBackground } from '../../src/services/settings';
 import { submitScore } from '../../src/services/profile';
+import { setActivity } from '../../src/services/friends';
+import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
 import { Countdown, LoadingOverlay } from '../../src/components/game/StartSequence';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
@@ -136,6 +138,7 @@ export default function PlayScreen() {
   hardcoreRef.current = hardcore;
   const [failed, setFailed] = useState<boolean>(false);
   const failedRef = useRef(false);
+  const [rateOpen, setRateOpen] = useState(false);
 
   const [song, setSong] = useState<Song | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -605,6 +608,13 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
     };
   }, [phase, isPaused, isCompleted, failed, song, registerHit, timeline, tilesById, bumpTiles, boardHeight, hitLineY, pixelsPerBeat]);
 
+  // Friends see what you're playing
+  useEffect(() => {
+    if (!song) return;
+    setActivity('playing', song.community ? `${song.community.name} · ${song.title}` : song.title);
+    return () => setActivity('menu');
+  }, [song]);
+
   // A finished community level goes into your profile history (when signed in)
   useEffect(() => {
     if (!isCompleted || !song?.community?.levelId) return;
@@ -939,6 +949,17 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 <Text style={styles.modalPrimaryBtnText}>Play Again</Text>
               </PressableScale>
 
+              {song.community ? (
+                <PressableScale
+                  style={[styles.modalSecondaryBtn, styles.rateResultBtn]}
+                  onPress={() => setRateOpen(true)}
+                  accessibilityLabel="Rate this level"
+                >
+                  <PixelIcon name="star" size={14} color="#f5b83d" />
+                  <Text style={[styles.modalSecondaryBtnText, styles.rateResultText]}>Rate level</Text>
+                </PressableScale>
+              ) : null}
+
               <PressableScale
                 style={styles.modalSecondaryBtn}
                 onPress={handleExitToHome}
@@ -951,6 +972,15 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
           </Animated.View>
         </Animated.View>
       )}
+
+      {song.community ? (
+        <LevelSocialSheet
+          visible={rateOpen}
+          levelId={song.community.levelId}
+          name={song.community.name}
+          onClose={() => setRateOpen(false)}
+        />
+      ) : null}
 
       {/* Start sequence: countdown over the board, then music starts */}
       {phase === 'countdown' && !isPaused && <Countdown onDone={handleCountdownDone} />}
@@ -1049,6 +1079,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   hudProgressTrack: { width: 110, height: 3, marginTop: 3, backgroundColor: 'rgba(255, 255, 255, 0.12)' },
+  rateResultBtn: { borderColor: '#f5b83d' },
+  rateResultText: { color: '#f5b83d' },
   failBackdrop: { backgroundColor: 'rgba(60, 6, 4, 0.78)' },
   failCard: { borderColor: '#d8342f' },
   failTitle: { fontFamily: FONTS.pixel, fontSize: 13, color: '#ff7a73' },
