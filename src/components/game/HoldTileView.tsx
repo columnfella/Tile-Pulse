@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -23,6 +24,9 @@ const BEVEL = PIXEL.unit;
 const CORAL = { base: '#FF6B4A', light: '#ffb39f', dark: '#a83a22' } as const;
 /** Fill colours, top (leading edge) → bottom: coral → blue → navy. */
 const FILL_GRADIENT = ['#FF6B4A', '#2f6bff', '#123a9e'] as const;
+/** Completed: the whole tile charges up to green. */
+const DONE_GRADIENT = ['#b6ffd6', '#22c46e', '#0f7a43'] as const;
+const DONE_MS = 650;
 /** Resting body: deep navy → black. */
 const BODY_GRADIENT = ['#0b1a40', '#05070d'] as const;
 
@@ -115,6 +119,27 @@ export const HoldTileView = memo(function HoldTileView({
   }));
   const glowStyle = useAnimatedStyle(() => ({ opacity: 0.55 * pulse.value }));
 
+  // Completion: 0 → 1 once when a hold is finished (already-finished tiles start at 1)
+  const done = useSharedValue(isHit ? 1 : 0);
+  useEffect(() => {
+    if (isHit) done.value = withTiming(1, { duration: DONE_MS, easing: Easing.out(Easing.quad) });
+    else done.value = 0;
+  }, [isHit, done]);
+  // Green sweeps up from the head, a white flash, then a shine runs up the tile
+  const doneFillStyle = useAnimatedStyle(() => ({
+    height: `${interpolate(done.value, [0, 0.45, 1], [0, 100, 100], 'clamp')}%`,
+  }));
+  const doneFlashStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(done.value, [0, 0.4, 0.55, 1], [0, 0, 0.75, 0], 'clamp'),
+  }));
+  const shineStyle = useAnimatedStyle(() => ({
+    opacity: done.value > 0.45 && done.value < 1 ? 0.7 : 0,
+    transform: [{ translateY: interpolate(done.value, [0.45, 1], [height, -28], 'clamp') }],
+  }));
+  const doneBodyStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleX: interpolate(done.value, [0, 0.5, 0.75, 1], [1, 1, 1.06, 1]) }],
+  }));
+
   if (theme.holdTile.imageSource) {
     return (
       <View pointerEvents="none" style={[styles.body, { top: y, height, opacity: isMissed ? 0.5 : 1 }]}>
@@ -125,7 +150,7 @@ export const HoldTileView = memo(function HoldTileView({
 
   const pressed = isHolding || isHit;
   const edge = isMissed ? TILE_STATES.missed : TILE_STATES.normal;
-  const head = isMissed ? TILE_STATES.missed : isHolding ? CORAL : isHit ? TILE_STATES.pressed : TILE_STATES.normal;
+  const head = isMissed ? TILE_STATES.missed : isHolding ? CORAL : isHit ? TILE_STATES.hit : TILE_STATES.normal;
   const progress = isHit ? 1 : Math.min(1, Math.max(0, holdProgress));
 
   return (
@@ -143,7 +168,7 @@ export const HoldTileView = memo(function HoldTileView({
           borderBottomColor: pressed ? edge.light : edge.dark,
           borderRightColor: pressed ? edge.light : edge.dark,
         },
-        tileStyle,
+        isHit ? doneBodyStyle : tileStyle,
       ]}
     >
       {!isMissed && <LinearGradient colors={BODY_GRADIENT} style={StyleSheet.absoluteFill} />}
@@ -158,10 +183,17 @@ export const HoldTileView = memo(function HoldTileView({
           </View>
         ) : null)}
 
-      {/* Inner shadow across the top while pressed, for depth */}
-      {pressed && !isMissed && (
-        <LinearGradient colors={['#000000cc', '#00000000']} style={styles.innerShadow} pointerEvents="none" />
+      {/* Completed: green charge-up, flash and a shine running up the tile */}
+      {isHit && !isMissed && (
+        <>
+          <Animated.View style={[styles.fill, doneFillStyle]}>
+            <LinearGradient colors={DONE_GRADIENT} style={StyleSheet.absoluteFill} />
+          </Animated.View>
+          <Animated.View style={[StyleSheet.absoluteFill, styles.headGlow, doneFlashStyle]} />
+          <Animated.View style={[styles.shine, shineStyle]} />
+        </>
       )}
+
 
       {/* Bevelled head: sinks, squashes and pulses while held */}
       <Animated.View
@@ -202,7 +234,6 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: '#ffffff',
   },
-  innerShadow: { position: 'absolute', top: 0, left: 0, right: 0, height: 18 },
   head: {
     position: 'absolute',
     bottom: 0,
@@ -215,6 +246,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   headGlow: { backgroundColor: '#ffffff' },
+  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: 28, backgroundColor: '#ffffff' },
   headText: { fontFamily: FONTS.pixel, fontSize: 8, color: '#000000', letterSpacing: 1 },
   headTextHolding: { color: '#ffffff' },
 });

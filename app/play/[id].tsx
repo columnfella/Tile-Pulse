@@ -121,6 +121,7 @@ const WindowedTileField = React.memo(function WindowedTileField({
       getTileState={getTileState}
       version={tileVersion}
       boardWidth={boardWidth}
+      boardHeight={boardHeight}
     />
   );
 });
@@ -358,7 +359,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
   );
 
   const handleLanePressStart = useCallback(
-    (lane: 0 | 1 | 2 | 3) => {
+    (lane: 0 | 1 | 2 | 3, glide = false) => {
       if (phase !== 'playing' || isPaused || isCompleted || !song) return;
 
       const curAudioTime = audioService.getCurrentTime();
@@ -375,10 +376,14 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
       // Free tapping (like the classic game): any tile that's on screen can be
       // tapped — the lowest unplayed one in the lane is hit, wherever it is.
       const speed = (pixelsPerBeat * song.bpm) / 60;
-      const enterLead = hitLineY / speed; // seconds before noteTime that the tile appears at the top
+      // A real touch can hit a tile once it's clearly on screen (half of it showing).
+      // A finger that merely slid into the lane only counts for tiles near the
+      // bottom, so drifting fingers don't "hit" tiles that are still up top.
+      const tapH = geometry.defaultTapTileHeightPx;
+      const reach = glide ? Math.min(0.25, (hitLineY * 0.25) / speed) : Math.max(0, hitLineY - tapH / 2) / speed;
       let targetTile: TimedTile | null = null;
       for (const t of tilesByLane[lane]) {
-        if (t.noteTime - curAudioTime > enterLead) break; // sorted: the rest aren't on screen yet
+        if (t.noteTime - curAudioTime > reach) break; // sorted: the rest are further up
         const state = tileStatesRef.current.get(t.id);
         if (state && state.status === 'pending') {
           targetTile = t; // earliest pending tile = lowest on screen
@@ -421,7 +426,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         bumpTiles();
       }
     },
-    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, tilesById, bumpTiles, pixelsPerBeat, hitLineY]
+    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, tilesById, bumpTiles, pixelsPerBeat, hitLineY, geometry.defaultTapTileHeightPx]
   );
 
   const handleFingersChange = useCallback((fingers: number[]) => {

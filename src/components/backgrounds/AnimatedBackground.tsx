@@ -223,7 +223,6 @@ const Particle = ({ clock, width, height, seed }: LayerProps & { seed: number })
           height: cfg.size,
           borderRadius: cfg.size / 2,
           backgroundColor: cfg.color,
-          shadowColor: cfg.color,
         },
         style,
       ]}
@@ -349,7 +348,6 @@ const Star = ({ clock, width, height, seed }: LayerProps & { seed: number }) => 
           height: cfg.size,
           borderRadius: cfg.size,
           backgroundColor: cfg.color,
-          shadowColor: cfg.color,
         },
         style,
       ]}
@@ -450,9 +448,6 @@ const styles = StyleSheet.create({
   dot: {
     position: 'absolute',
     top: 0,
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
   },
   band: { position: 'absolute', left: 0, top: 0 },
   gridLine: { position: 'absolute', left: 0, top: 0, height: 1.5, backgroundColor: '#FF6B4A' },

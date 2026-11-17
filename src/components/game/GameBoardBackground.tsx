@@ -13,7 +13,8 @@ import { FONTS } from '../../theme/pixel';
 
 interface GameBoardBackgroundProps {
   hitLineY: number;
-  onLanePressStart?: (lane: 0 | 1 | 2 | 3) => void;
+  /** `glide`: the finger slid into this lane instead of touching down. */
+  onLanePressStart?: (lane: 0 | 1 | 2 | 3, glide?: boolean) => void;
   onLanePressEnd?: (lane: 0 | 1 | 2 | 3) => void;
   /**
    * Horizontal position of every finger on the board, in lanes (0 = left
@@ -61,7 +62,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   const emitFingers = () => onFingersChange?.([...fingerX.current.values()]);
 
   // Hit feedback is a background flash (see useHitFlash), not a lane highlight
-  const pressLane = (lane: Lane) => onLanePressStart?.(lane);
+  const pressLane = (lane: Lane, glide = false) => onLanePressStart?.(lane, glide);
   const releaseLane = (lane: Lane) => onLanePressEnd?.(lane);
 
   const handleLayout = () => {
@@ -100,7 +101,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
         // Finger slid into another lane: release the old one, press the new one
         touchLanes.current.set(id, lane);
         if (![...touchLanes.current.values()].includes(prev)) releaseLane(prev);
-        pressLane(lane);
+        pressLane(lane, true);
       }
     }
     emitFingers();

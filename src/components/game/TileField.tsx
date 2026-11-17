@@ -6,6 +6,7 @@ import type { ActiveTileState } from '../../types/game';
 import { TapTileView } from './TapTileView';
 import { HoldTileView } from './HoldTileView';
 import { SlideTileView } from './SlideTileView';
+import { SlideLayer } from './SlideLayer';
 import { isSlideTile } from '../../game/engine';
 
 export interface TimedTile extends TileNote {
@@ -23,6 +24,8 @@ interface TileFieldProps {
   tapHeight: number;
   /** Width of the whole board in px (slide tiles span all lanes). */
   boardWidth?: number;
+  /** Height of the board in px (the shared slide canvas covers it). */
+  boardHeight?: number;
   /** Song time in seconds, advanced on the UI thread every frame. */
   songTime: SharedValue<number>;
   getTileState: (id: string) => ActiveTileState | undefined;
@@ -141,13 +144,27 @@ export const TileField = memo(function TileField({
   pixelsPerBeat,
   tapHeight,
   boardWidth,
+  boardHeight,
   songTime,
   getTileState,
+  version,
 }: TileFieldProps) {
   const speed = (pixelsPerBeat * bpm) / 60; // px per second
 
   return (
     <>
+      {/* Native: every slide in one Skia canvas (web: nothing; slides draw per tile) */}
+      <SlideLayer
+        tiles={tiles}
+        getTileState={getTileState}
+        songTime={songTime}
+        speed={speed}
+        hitLineY={hitLineY}
+        pixelsPerBeat={pixelsPerBeat}
+        boardWidth={boardWidth ?? 0}
+        boardHeight={boardHeight ?? 0}
+        version={version}
+      />
       {tiles.map((tile) => {
         const state = getTileState(tile.id) ?? DEFAULT_STATE;
         // Hit tiles stay on screen in a darker "pressed" state and scroll away;
