@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
+import { UnmountOnBlur } from '../../src/components/ui/UnmountOnBlur';
 import { ACTIVE_THEME } from '../../constants/theme';
 import { FONTS } from '../../src/theme/pixel';
 
@@ -9,6 +10,8 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      // A tab is unmounted when you leave it (frees memory, and it starts fresh next time)
+      screenLayout={({ children }) => <UnmountOnBlur>{children}</UnmountOnBlur>}
       screenOptions={{
         headerShown: false,
         animation: 'fade',

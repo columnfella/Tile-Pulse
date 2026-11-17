@@ -376,7 +376,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
   );
 
   const handleLanePressStart = useCallback(
-    (lane: 0 | 1 | 2 | 3, glide = false) => {
+    (lane: 0 | 1 | 2 | 3, glide = false, fingerY?: number) => {
       if (phase !== 'playing' || isPaused || isCompleted || failedRef.current || !song) return;
 
       const curAudioTime = audioService.getCurrentTime();
@@ -406,6 +406,14 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
           targetTile = t; // earliest pending tile = lowest on screen
           break;
         }
+      }
+
+      // The tap must land on (or near) that tile. Without this, tapping a tile you
+      // already hit again would hit the next tile further up the lane.
+      if (targetTile && fingerY !== undefined && Number.isFinite(fingerY)) {
+        const tileBottom = hitLineY - (targetTile.noteTime - curAudioTime) * speed; // head of the tile
+        const tolerance = tapH * 0.6 + 16;
+        if (tileBottom < fingerY - tolerance) targetTile = null; // the tile is entirely above the finger
       }
 
       if (targetTile) {

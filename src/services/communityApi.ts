@@ -2,9 +2,10 @@ import type { DifficultyVotes } from './social';
 /**
  * Client for the TilePulse backend's community level browser (backend/src/routes/levels.js).
  *
- * Server address: EXPO_PUBLIC_API_URL if set, otherwise the computer running
- * the Expo dev server on port 4000 (works for phones on the same Wi-Fi when the
- * backend listens on HOST=0.0.0.0).
+ * Server address: EXPO_PUBLIC_API_URL if set, then SERVER_URL from
+ * serverAddress.ts (the deployed server, kept up to date by the deploy script),
+ * otherwise the computer running the Expo dev server on port 4000 (works for
+ * phones on the same Wi-Fi when the backend listens on HOST=0.0.0.0).
  */
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -13,12 +14,14 @@ import { storageService } from './storage';
 import { saveRemoteAudio } from './audioFileStore';
 import { isBackgroundId } from '../components/backgrounds/AnimatedBackground';
 import { getDeviceId } from './device';
+import { SERVER_URL } from './serverAddress';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
 function resolveApiBase(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv) return fromEnv.replace(/\/+$/, '');
+  if (SERVER_URL) return SERVER_URL.replace(/\/+$/, '');
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return `${window.location.protocol}//${window.location.hostname}:4000`;
   }

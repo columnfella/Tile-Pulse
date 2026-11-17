@@ -14,7 +14,8 @@ import { FONTS } from '../../theme/pixel';
 interface GameBoardBackgroundProps {
   hitLineY: number;
   /** `glide`: the finger slid into this lane instead of touching down. */
-  onLanePressStart?: (lane: 0 | 1 | 2 | 3, glide?: boolean) => void;
+  /** `y`: where the finger landed, in px from the top of the board (when known). */
+  onLanePressStart?: (lane: 0 | 1 | 2 | 3, glide?: boolean, y?: number) => void;
   onLanePressEnd?: (lane: 0 | 1 | 2 | 3) => void;
   /**
    * Horizontal position of every finger on the board, in lanes (0 = left
@@ -56,18 +57,19 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   const { board } = theme;
 
   const boardRef = useRef<React.ComponentRef<typeof View>>(null);
-  const boardFrame = useRef({ x: 0, width: 1 });
+  const boardFrame = useRef({ x: 0, y: 0, width: 1 });
+  const pressY = useRef<number | null>(null);
   const touchLanes = useRef(new Map<string, Lane>());
   const fingerX = useRef(new Map<string, number>());
   const emitFingers = () => onFingersChange?.([...fingerX.current.values()]);
 
   // Hit feedback is a background flash (see useHitFlash), not a lane highlight
-  const pressLane = (lane: Lane, glide = false) => onLanePressStart?.(lane, glide);
+  const pressLane = (lane: Lane, glide = false, y?: number) => onLanePressStart?.(lane, glide, y);
   const releaseLane = (lane: Lane) => onLanePressEnd?.(lane);
 
   const handleLayout = () => {
-    boardRef.current?.measureInWindow((x, _y, width) => {
-      if (width > 0) boardFrame.current = { x, width };
+    boardRef.current?.measureInWindow((x, y, width) => {
+      if (width > 0) boardFrame.current = { x, y, width };
     });
   };
 
@@ -85,7 +87,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
       const lane = laneForX(t.pageX);
       touchLanes.current.set(id, lane);
       fingerX.current.set(id, lanesForPageX(t.pageX));
-      pressLane(lane);
+      pressLane(lane, false, t.pageY - boardFrame.current.y);
     }
     emitFingers();
   };
@@ -101,7 +103,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
         // Finger slid into another lane: release the old one, press the new one
         touchLanes.current.set(id, lane);
         if (![...touchLanes.current.values()].includes(prev)) releaseLane(prev);
-        pressLane(lane, true);
+        pressLane(lane, true, t.pageY - boardFrame.current.y);
       }
     }
     emitFingers();
@@ -166,9 +168,10 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
               onPressIn={
                 USE_MULTI_TOUCH
                   ? undefined
-                  : () => {
+                  : (e) => {
+                      pressY.current = e.nativeEvent.locationY;
                       fingerX.current.set(`lane${laneIndex}`, laneIndex + 0.5);
-                      pressLane(laneIndex);
+                      pressLane(laneIndex, false, pressY.current ?? undefined);
                       emitFingers();
                     }
               }
