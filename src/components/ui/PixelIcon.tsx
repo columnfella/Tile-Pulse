@@ -332,6 +332,15 @@ const BITMAPS = {
     '.##.##.',
     '.#...#.',
   ],
+  skull: [
+    '.#####.',
+    '#######',
+    '#..#..#',
+    '#######',
+    '.##.##.',
+    '..###..',
+    '..#.#..',
+  ],
 } as const;
 
 export type PixelIconName = keyof typeof BITMAPS;

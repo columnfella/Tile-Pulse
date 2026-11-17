@@ -10,6 +10,7 @@ import { Song } from '../../types/song';
 import { storageService } from '../../services/storage';
 import { PRESET_IDS } from '../../src/game/presets';
 import { formatAudioTime } from '../../game/engine';
+import { PlayRow } from '../../src/components/ui/PlayRow';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { SongSettingsSheet, ThemeSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
 import { AnimatedBackground } from '../../src/components/backgrounds/AnimatedBackground';
@@ -186,10 +187,7 @@ export default function HomeScreen() {
 
           {expanded && (
             <Animated.View entering={FadeIn.duration(160)} style={styles.panel}>
-              <PressableScale scaleTo={0.96} style={styles.playBtn} onPress={() => router.push(`/play/${song.id}`)}>
-                <PixelIcon name="play" size={14} color="#000000" />
-                <Text style={styles.playText}>PLAY</Text>
-              </PressableScale>
+              <PlayRow songId={song.id} />
               <View style={styles.actionsRow}>
                 <PressableScale scaleTo={0.92} style={styles.actionBtn} onPress={() => handleEditSong(song)}>
                   <PixelIcon name="editor" size={14} color={PIXEL.text} />

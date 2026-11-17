@@ -41,6 +41,7 @@ import { useHitFlash } from '../../src/components/game/HitEffects';
 import { useCreateSignal, useSignal, type Signal } from '../../src/game/signal';
 import { AnimatedBackground, isBackgroundId } from '../../src/components/backgrounds/AnimatedBackground';
 import { useDefaultBackground } from '../../src/services/settings';
+import { submitScore } from '../../src/services/profile';
 import { Countdown, LoadingOverlay } from '../../src/components/game/StartSequence';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
@@ -128,7 +129,13 @@ const WindowedTileField = React.memo(function WindowedTileField({
 
 export default function PlayScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, hardcore: hardcoreParam } = useLocalSearchParams<{ id: string; hardcore?: string }>();
+  // Hardcore: the first miss ends the run
+  const hardcore = hardcoreParam === '1';
+  const hardcoreRef = useRef(hardcore);
+  hardcoreRef.current = hardcore;
+  const [failed, setFailed] = useState<boolean>(false);
+  const failedRef = useRef(false);
 
   const [song, setSong] = useState<Song | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -322,7 +329,14 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 
   const registerHit = useCallback(
     (tileId: string, judgment: HitJudgment, score: number, timeDiffMs?: number) => {
+      if (failedRef.current) return;
       judgmentSig.update((prev) => ({ judgment, timeDiffMs, hitId: prev.hitId + 1 }));
+      if (judgment === 'MISS' && hardcoreRef.current) {
+        // Instant loss: stop the music and show the retry screen
+        failedRef.current = true;
+        audioService.pause();
+        setFailed(true);
+      }
 
       statsSig.update((prev) => {
         const isHit = judgment !== 'MISS';
@@ -360,7 +374,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 
   const handleLanePressStart = useCallback(
     (lane: 0 | 1 | 2 | 3, glide = false) => {
-      if (phase !== 'playing' || isPaused || isCompleted || !song) return;
+      if (phase !== 'playing' || isPaused || isCompleted || failedRef.current || !song) return;
 
       const curAudioTime = audioService.getCurrentTime();
 
@@ -466,12 +480,13 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 
   // Audio-Synced Game Loop
   useEffect(() => {
-    if (phase !== 'playing' || isPaused || isCompleted || !song) return;
+    if (phase !== 'playing' || isPaused || isCompleted || failed || !song) return;
 
     let lastSecond = -1;
     let lastStep = -1;
 
     const gameLoop = () => {
+      if (failedRef.current) return; // hardcore run ended
       const curTime = audioService.getCurrentTime();
 
       // Low-frequency React updates only
@@ -565,6 +580,9 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 
       if (tilesChanged) bumpTiles();
 
+      // A hardcore miss above stopped the music: that is a loss, not the end of the song
+      if (failedRef.current) return;
+
       // Song completion: the track finished, or we're past its end
       const songEnded =
         curTime >= audioService.getDuration() + 1.0 ||
@@ -585,7 +603,26 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [phase, isPaused, isCompleted, song, registerHit, timeline, tilesById, bumpTiles, boardHeight, hitLineY, pixelsPerBeat]);
+  }, [phase, isPaused, isCompleted, failed, song, registerHit, timeline, tilesById, bumpTiles, boardHeight, hitLineY, pixelsPerBeat]);
+
+  // A finished community level goes into your profile history (when signed in)
+  useEffect(() => {
+    if (!isCompleted || !song?.community?.levelId) return;
+    const st = statsSig.get();
+    void submitScore(
+      song.community.levelId,
+      {
+        score: st.score,
+        accuracy: st.accuracy,
+        maxCombo: st.maxCombo,
+        perfect: st.perfectCount,
+        great: st.greatCount,
+        good: st.goodCount,
+        miss: st.missCount,
+      },
+      hardcore
+    );
+  }, [isCompleted, song, hardcore, statsSig]);
 
   const handleTogglePause = () => {
     if (isPaused) {
@@ -634,6 +671,8 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
       });
       setIsPaused(false);
       setIsCompleted(false);
+      failedRef.current = false;
+      setFailed(false);
       songTime.value = 0;
       nextMissIndexRef.current = 0;
       activeHoldByLaneRef.current.clear();
@@ -708,9 +747,9 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         <View style={styles.topHudRow}>
           <View style={styles.hudLeft}>
             <PressableScale
-              style={[styles.pauseBtn, phase !== 'playing' && styles.pauseBtnDisabled]}
+              style={[styles.pauseBtn, (phase !== 'playing' || failed) && styles.pauseBtnDisabled]}
               onPress={handleTogglePause}
-              disabled={phase !== 'playing'}
+              disabled={phase !== 'playing' || failed}
               scaleTo={0.88}
               accessibilityLabel="Pause game"
             >
@@ -720,9 +759,15 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
               <Text style={styles.hudSongTitle} numberOfLines={1}>
                 {song.title}
               </Text>
-              <Text style={styles.hudTimeText}>
-                <SignalClock second={secondSig} /> / {formatAudioTime(audioDuration)}
-              </Text>
+              <View style={styles.hudTimeRow}>
+                <Text style={styles.hudTimeText}>
+                  <SignalClock second={secondSig} /> / {formatAudioTime(audioDuration)}
+                </Text>
+                {hardcore && <Text style={styles.hardcoreTag}>HARDCORE</Text>}
+              </View>
+              <View style={styles.hudProgressTrack}>
+                <Animated.View style={[styles.bottomProgressFill, progressStyle]} />
+              </View>
             </View>
           </View>
 
@@ -772,10 +817,37 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         )}
       </GameBoardBackground>
 
-      {/* Bottom Progress Bar */}
-      <View style={styles.bottomProgressBar}>
-        <Animated.View style={[styles.bottomProgressFill, progressStyle]} />
-      </View>
+      {/* Hardcore: a miss ends the run */}
+      {failed && (
+        <Animated.View entering={backdropIn} exiting={backdropOut} style={[styles.modalBackdrop, styles.failBackdrop]}>
+          <Animated.View entering={cardIn} exiting={cardOut} style={[styles.statusModalCard, styles.failCard]}>
+            <Text style={styles.failTitle}>HARDCORE FAILED</Text>
+            <Text style={styles.statusModalSub}>One miss ends the run · {song.title}</Text>
+            <View style={styles.statsHeroGrid}>
+              <View style={styles.statHeroBox}>
+                <Text style={styles.statHeroLabel}>REACHED</Text>
+                <Text style={styles.statHeroScore}>
+                  {Math.min(100, Math.round((audioService.getCurrentTime() / (audioDuration || 1)) * 100))}%
+                </Text>
+              </View>
+              <View style={styles.statHeroBox}>
+                <Text style={styles.statHeroLabel}>COMBO</Text>
+                <Text style={styles.statHeroAccuracy}>{stats.maxCombo}</Text>
+              </View>
+            </View>
+            <View style={styles.statusModalButtons}>
+              <PressableScale style={styles.modalPrimaryBtn} onPress={handleRestart} accessibilityLabel="Retry">
+                <PixelIcon name="reset" size={14} color="#ffffff" />
+                <Text style={styles.modalPrimaryBtnText}>Retry</Text>
+              </PressableScale>
+              <PressableScale style={styles.modalSecondaryBtn} onPress={handleExitToHome} accessibilityLabel="Back to Home">
+                <PixelIcon name="home" size={18} color="#e6ecf7" />
+                <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
+              </PressableScale>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      )}
 
       {/* Pause Overlay (in-screen instead of <Modal>, which re-shows the Android system bars) */}
       {isPaused && (
@@ -817,14 +889,14 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
       )}
 
       {/* Completion Overlay */}
-      {isCompleted && (
+      {isCompleted && !failed && (
         <Animated.View entering={backdropIn} exiting={backdropOut} style={styles.modalBackdrop}>
           <Animated.View entering={cardIn} exiting={cardOut} style={styles.statusModalCard}>
             <Animated.View entering={ZoomIn.delay(200).springify().damping(10)} style={styles.rankBadge}>
               <Text style={styles.rankText}>{getRank(stats.accuracy)}</Text>
             </Animated.View>
 
-            <Text style={styles.statusModalTitle}>Song Completed!</Text>
+            <Text style={styles.statusModalTitle}>{hardcore ? 'Hardcore Clear!' : 'Song Completed!'}</Text>
             <Text style={styles.statusModalSub}>{song.title}</Text>
 
             <View style={styles.statsHeroGrid}>
@@ -966,14 +1038,20 @@ const styles = StyleSheet.create({
   tileWrapper: {
     position: 'absolute',
   },
-  bottomProgressBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 4,
-    backgroundColor: '#0b1220',
+  hudTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  hardcoreTag: {
+    fontFamily: FONTS.pixel,
+    fontSize: 6,
+    color: '#000000',
+    backgroundColor: '#FF6B4A',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    overflow: 'hidden',
   },
+  hudProgressTrack: { width: 110, height: 3, marginTop: 3, backgroundColor: 'rgba(255, 255, 255, 0.12)' },
+  failBackdrop: { backgroundColor: 'rgba(60, 6, 4, 0.78)' },
+  failCard: { borderColor: '#d8342f' },
+  failTitle: { fontFamily: FONTS.pixel, fontSize: 13, color: '#ff7a73' },
   bottomProgressFill: {
     height: '100%',
     backgroundColor: '#4d8dff',

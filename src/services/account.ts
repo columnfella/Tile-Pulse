@@ -62,6 +62,15 @@ const store = {
 };
 
 let cached: Session | null | undefined;
+const sessionListeners = new Set<(s: Session | null) => void>();
+
+/** Called whenever you sign in, sign out, or your account details change. */
+export function onSessionChange(listener: (s: Session | null) => void): () => void {
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
 
 export async function getSession(): Promise<Session | null> {
   if (cached !== undefined) return cached;
@@ -79,6 +88,13 @@ async function saveSession(session: Session | null) {
   cached = session;
   if (session) await store.set(JSON.stringify(session));
   else await store.remove();
+  sessionListeners.forEach((l) => l(session));
+}
+
+/** Keeps the stored session's name in sync after a profile change. */
+export async function updateSessionUser(user: AccountUser): Promise<void> {
+  const s = await getSession();
+  if (s) await saveSession({ ...s, user: { id: user.id, username: user.username, displayName: user.displayName } });
 }
 
 /* --------------------------------- requests -------------------------------- */

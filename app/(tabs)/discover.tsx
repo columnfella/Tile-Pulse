@@ -13,6 +13,7 @@ import {
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenView } from '../../src/components/ui/ScreenView';
+import { PlayRow } from '../../src/components/ui/PlayRow';
 import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { listItemIn } from '../../src/components/ui/motion';
@@ -449,10 +450,7 @@ export default function DiscoverScreen() {
               </View>
 
               {isDownloaded ? (
-                <PressableScale scaleTo={0.96} style={styles.primaryBtn} onPress={() => router.push(`/play/${localId}`)}>
-                  <PixelIcon name="play" size={14} color="#000000" />
-                  <Text style={styles.primaryText}>PLAY</Text>
-                </PressableScale>
+                <PlayRow songId={localId} />
               ) : (
                 <PressableScale
                   scaleTo={0.96}

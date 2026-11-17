@@ -50,6 +50,15 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <PixelIcon name="person" size={size || 22} color={String(color)} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
