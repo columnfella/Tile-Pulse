@@ -1,6 +1,7 @@
 /**
  * A community level's page: description, like / dislike (the score can go
- * negative), star rating (1–10, after finishing it once, like Geometry Dash)
+ * negative), star difficulty votes (1–8; the majority becomes official at 200
+ * votes, like Geometry Dash's community difficulty)
  * and comments (each can be liked / disliked; tap a name to see the profile).
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -35,6 +36,7 @@ import {
   type LevelComment,
   type SocialState,
   type Vote,
+  MAX_STARS,
 } from '../../services/social';
 
 const COMMENT_MAX = 300;
@@ -61,12 +63,16 @@ export function VoteButtons({
   myVote,
   onVote,
   disabled,
+  busy,
   small,
 }: {
   score: number;
   myVote: Vote;
   onVote: (v: Vote) => void;
+  /** Signed out: shown dimmed. */
   disabled?: boolean;
+  /** This vote is being sent: ignore taps, no visual change. */
+  busy?: boolean;
   small?: boolean;
 }) {
   const size = small ? 12 : 14;
@@ -74,7 +80,7 @@ export function VoteButtons({
     <View style={styles.voteRow}>
       <PressableScale
         scaleTo={0.85}
-        disabled={disabled}
+        disabled={disabled || busy}
         onPress={() => onVote(myVote === 1 ? 0 : 1)}
         style={[styles.voteBtn, small && styles.voteBtnSmall, myVote === 1 && styles.voteUpOn, disabled && styles.disabled]}
         accessibilityLabel="Like"
@@ -86,7 +92,7 @@ export function VoteButtons({
       </Text>
       <PressableScale
         scaleTo={0.85}
-        disabled={disabled}
+        disabled={disabled || busy}
         onPress={() => onVote(myVote === -1 ? 0 : -1)}
         style={[styles.voteBtn, small && styles.voteBtnSmall, myVote === -1 && styles.voteDownOn, disabled && styles.disabled]}
         accessibilityLabel="Dislike"
@@ -109,7 +115,7 @@ export function StarBar({
 }) {
   return (
     <View style={styles.stars}>
-      {Array.from({ length: 10 }, (_, i) => {
+      {Array.from({ length: MAX_STARS }, (_, i) => {
         const on = i < Math.round(value);
         const star = <PixelIcon name="star" size={size} color={on ? '#f5b83d' : '#2a3654'} />;
         return onPick ? (
@@ -144,7 +150,9 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
-  const [busy, setBusy] = useState(false);
+  // What is being sent right now: "level", "rate", "more" or a comment id.
+  // Tracked per target so voting on the level doesn't dim the comment buttons.
+  const [busyKey, setBusyKey] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
 
   const update = useCallback(
@@ -177,27 +185,27 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
     return onSessionChange((s) => setSignedIn(Boolean(s)));
   }, [visible, load]);
 
-  const act = async (fn: () => Promise<void>) => {
-    if (busy) return;
-    setBusy(true);
+  const act = async (key: string, fn: () => Promise<void>) => {
+    if (busyKey === key) return;
+    setBusyKey(key);
     setError(null);
     try {
       await fn();
     } catch (err) {
       setError(errorText(err));
     } finally {
-      setBusy(false);
+      setBusyKey((k) => (k === key ? null : k));
     }
   };
 
-  const vote = (v: Vote) => act(async () => update(await voteLevel(levelId, v)));
+  const vote = (v: Vote) => act('level', async () => update(await voteLevel(levelId, v)));
   const voteOnComment = (c: LevelComment, v: Vote) =>
-    act(async () => {
+    act(c.id, async () => {
       const r = await voteComment(c.id, v);
       setComments((prev) => prev.map((x) => (x.id === c.id ? { ...x, ...r } : x)));
     });
   const rate = (stars: number) =>
-    act(async () => update(await rateLevel(levelId, social?.myRating === stars ? null : stars)));
+    act('rate', async () => update(await rateLevel(levelId, social?.myRating === stars ? null : stars)));
 
   const send = async () => {
     const body = draft.trim();
@@ -219,14 +227,14 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
   };
 
   const remove = (c: LevelComment) =>
-    act(async () => {
+    act(c.id, async () => {
       await deleteComment(c.id);
       setComments((prev) => prev.filter((x) => x.id !== c.id));
       if (social) update({ ...social, comments: Math.max(0, social.comments - 1) });
     });
 
   const more = () =>
-    act(async () => {
+    act('more', async () => {
       if (!nextBefore) return;
       const c = await getComments(levelId, nextBefore);
       setComments((prev) => [...prev, ...c.comments]);
@@ -254,45 +262,101 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {description ? <Text style={styles.description}>{description}</Text> : null}
 
-          {/* Like + rating */}
+          {/* Likes / dislikes */}
           <View style={styles.section}>
             {social ? (
               <>
                 <View style={styles.likeRow}>
                   <View>
-                    <VoteButtons score={social.score} myVote={social.myVote} onVote={vote} disabled={!signedIn || busy} />
+                    <VoteButtons score={social.score} myVote={social.myVote} onVote={vote} disabled={!signedIn} busy={busyKey === 'level'} />
                     <Text style={styles.muted}>
                       {social.likes} likes · {social.dislikes} dislikes
                     </Text>
                   </View>
-                  <View style={styles.ratingSummary}>
-                    <Text style={styles.ratingValue}>{social.rating.average ?? '–'}</Text>
-                    <Text style={styles.muted}>
-                      {social.rating.count} {social.rating.count === 1 ? 'rating' : 'ratings'}
-                    </Text>
-                  </View>
                 </View>
-                <StarBar value={social.rating.average ?? 0} size={12} />
-
-                <Text style={styles.label}>YOUR RATING</Text>
-                {!signedIn ? (
-                  <Text style={styles.muted}>Sign in (Profile tab) to like, rate and comment.</Text>
-                ) : social.canRate ? (
-                  <>
-                    <StarBar value={social.myRating ?? 0} size={18} onPick={rate} />
-                    <Text style={styles.muted}>
-                      {social.myRating ? `You gave it ${social.myRating}/10. Tap it again to remove.` : 'How hard was it? Tap 1–10 stars.'}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={styles.muted}>Finish this level once (signed in) to rate it.</Text>
-                )}
               </>
             ) : loading ? (
               <ActivityIndicator color={PIXEL.accent2} />
             ) : null}
           </View>
 
+          {/* Star difficulty: majority vote, official at the threshold */}
+          {social ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>DIFFICULTY</Text>
+              <View style={styles.diffHead}>
+                <View>
+                  <Text style={styles.diffStars}>
+                    {social.difficulty.stars ?? social.difficulty.leading ?? '–'}
+                    <Text style={styles.diffOf}> / {MAX_STARS}★</Text>
+                  </Text>
+                  <Text style={styles.muted}>
+                    {social.difficulty.stars
+                      ? 'Community difficulty'
+                      : social.difficulty.leading
+                        ? 'Leading vote (not official yet)'
+                        : 'No votes yet'}
+                  </Text>
+                </View>
+                <View style={styles.diffCount}>
+                  <Text style={styles.diffVotes}>{social.difficulty.votes}</Text>
+                  <Text style={styles.muted}>votes</Text>
+                </View>
+              </View>
+              <StarBar value={social.difficulty.stars ?? social.difficulty.leading ?? 0} size={14} />
+              {!social.difficulty.stars ? (
+                <>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${Math.min(100, (social.difficulty.votes / social.difficulty.threshold) * 100)}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.muted}>
+                    {Math.max(0, social.difficulty.threshold - social.difficulty.votes)} more votes until the community’s
+                    majority becomes this level’s official difficulty.
+                  </Text>
+                </>
+              ) : null}
+
+              {/* How the votes are spread over 1–8 stars */}
+              {social.difficulty.votes > 0 ? (
+                <View style={styles.dist}>
+                  {social.difficulty.distribution.map((n, i) => {
+                    const max = Math.max(...social.difficulty.distribution, 1);
+                    const top = i + 1 === (social.difficulty.stars ?? social.difficulty.leading);
+                    return (
+                      <View key={i} style={styles.distCol}>
+                        <Text style={styles.distN}>{n}</Text>
+                        <View style={styles.distTrack}>
+                          <View style={[styles.distBar, { height: `${(n / max) * 100}%` }, top && styles.distBarTop]} />
+                        </View>
+                        <Text style={[styles.distLabel, top && styles.distLabelTop]}>{i + 1}★</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              <Text style={styles.label}>YOUR VOTE</Text>
+              {!signedIn ? (
+                <Text style={styles.muted}>Sign in (Profile tab) to vote, like and comment.</Text>
+              ) : social.canRate ? (
+                <>
+                  <StarBar value={social.myRating ?? 0} size={22} onPick={rate} />
+                  <Text style={styles.muted}>
+                    {social.myRating
+                      ? `You voted ${social.myRating}★. Tap it again to remove your vote.`
+                      : 'How hard is it? 1★ = easiest, 8★ = hardest.'}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.muted}>Finish this level once (signed in) to vote on its difficulty.</Text>
+              )}
+            </View>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {/* Comments */}
@@ -346,7 +410,7 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
                       </Text>
                     </PressableScale>
                     <Text style={styles.commentBody}>{c.body}</Text>
-                    <VoteButtons small score={c.score ?? 0} myVote={c.myVote ?? 0} onVote={(v) => voteOnComment(c, v)} disabled={!signedIn || busy} />
+                    <VoteButtons small score={c.score ?? 0} myVote={c.myVote ?? 0} onVote={(v) => voteOnComment(c, v)} disabled={!signedIn} busy={busyKey === c.id} />
                   </View>
                   {c.canDelete ? (
                     <PressableScale scaleTo={0.85} onPress={() => remove(c)} style={styles.deleteBtn} accessibilityLabel="Delete comment">
@@ -399,8 +463,21 @@ const styles = StyleSheet.create({
   likeBtnOn: { backgroundColor: '#e64980', borderColor: '#000000' },
   likeText: { color: '#ff7a9a', fontFamily: FONTS.pixel, fontSize: 8 },
   likeTextOn: { color: '#ffffff' },
-  ratingSummary: { alignItems: 'flex-end' },
-  ratingValue: { color: '#f5b83d', fontFamily: FONTS.pixel, fontSize: 16 },
+  diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  diffStars: { color: '#f5b83d', fontFamily: FONTS.pixel, fontSize: 20 },
+  diffOf: { color: '#6b7a99', fontSize: 10 },
+  diffCount: { alignItems: 'flex-end' },
+  diffVotes: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 12 },
+  progressTrack: { height: 6, backgroundColor: '#070b14', borderWidth: 1, borderColor: PIXEL.panelLight },
+  progressFill: { height: '100%', backgroundColor: '#f5b83d' },
+  dist: { flexDirection: 'row', gap: 4, marginTop: 4 },
+  distCol: { flex: 1, alignItems: 'center', gap: 2 },
+  distN: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 13 },
+  distTrack: { width: '100%', height: 46, justifyContent: 'flex-end', backgroundColor: '#070b14' },
+  distBar: { width: '100%', backgroundColor: '#2a3654' },
+  distBarTop: { backgroundColor: '#f5b83d' },
+  distLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 6 },
+  distLabelTop: { color: '#f5b83d' },
   stars: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
   starHit: { padding: 2 },
 

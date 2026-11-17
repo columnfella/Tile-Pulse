@@ -61,6 +61,23 @@ export async function getUploadRecord(localSongId: string): Promise<UploadRecord
   return (await readRecords())[localSongId] ?? null;
 }
 
+/**
+ * Deletes one of your uploaded levels from the server (its song and audio go too
+ * when nothing else uses them) and forgets the local upload link to it.
+ */
+export async function deleteUploadedLevel(levelId: string): Promise<void> {
+  await apiRequest('DELETE', `/beatmaps/${levelId}`);
+  const all = await readRecords();
+  let changed = false;
+  for (const [localId, r] of Object.entries(all)) {
+    if (r.levelId === levelId) {
+      delete all[localId];
+      changed = true;
+    }
+  }
+  if (changed) await AsyncStorage.setItem(UPLOADS_KEY, JSON.stringify(all));
+}
+
 async function saveRecord(localSongId: string, record: UploadRecord) {
   const all = await readRecords();
   all[localSongId] = record;

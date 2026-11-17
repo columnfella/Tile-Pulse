@@ -55,7 +55,7 @@ const SORTS: { key: LevelSort; label: string; icon?: PixelIconName }[] = [
   { key: 'newest', label: 'New', icon: 'clock' },
   { key: 'popular', label: 'Popular', icon: 'star' },
   { key: 'liked', label: 'Most liked', icon: 'heart' },
-  { key: 'rated', label: 'Top rated', icon: 'star' },
+  { key: 'stars', label: 'Community ★', icon: 'star' },
   { key: 'easiest', label: 'Easiest' },
   { key: 'hardest', label: 'Hardest' },
   { key: 'shortest', label: 'Shortest' },
@@ -436,10 +436,15 @@ export default function DiscoverScreen() {
             <Text style={styles.stat}>{formatPlays(item.plays)}</Text>
             <PixelIcon name={(item.score ?? 0) < 0 ? 'thumbDown' : 'thumbUp'} size={7} color={(item.score ?? 0) < 0 ? '#ff7a73' : '#22c46e'} />
             <Text style={[styles.stat, (item.score ?? 0) < 0 && styles.negative]}>{item.score ?? 0}</Text>
-            {item.rating?.average != null ? (
+            {item.difficultyVotes?.stars ? (
               <>
                 <PixelIcon name="star" size={7} color="#f5b83d" />
-                <Text style={styles.stat}>{item.rating.average}</Text>
+                <Text style={[styles.stat, styles.starsOfficial]}>{item.difficultyVotes.stars}</Text>
+              </>
+            ) : item.difficultyVotes?.leading ? (
+              <>
+                <PixelIcon name="star" size={7} color="#6b7a99" />
+                <Text style={styles.stat}>~{item.difficultyVotes.leading}</Text>
               </>
             ) : null}
           </View>
@@ -476,7 +481,7 @@ export default function DiscoverScreen() {
                 <PressableScale scaleTo={0.96} style={[styles.socialBtn, styles.rateBtn]} onPress={() => setSocialLevel(item)}>
                   <PixelIcon name="star" size={14} color="#f5b83d" />
                   <Text style={[styles.socialText, styles.rateText]}>
-                    RATE{item.rating?.average != null ? ` · ${item.rating.average}` : ''}
+                    RATE{item.difficultyVotes?.stars ? ` · ${item.difficultyVotes.stars}★` : ''}
                   </Text>
                 </PressableScale>
               </View>
@@ -673,7 +678,7 @@ export default function DiscoverScreen() {
             setLevels((prev) =>
               prev.map((l) =>
                 l.id === socialLevel.id
-                  ? { ...l, likes: st.likes, dislikes: st.dislikes, score: st.score, comments: st.comments, rating: st.rating }
+                  ? { ...l, likes: st.likes, dislikes: st.dislikes, score: st.score, comments: st.comments, difficultyVotes: st.difficulty }
                   : l
               )
             )
@@ -687,6 +692,7 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
   description: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18, lineHeight: 21 },
   negative: { color: '#ff7a73' },
+  starsOfficial: { color: '#f5b83d' },
   socialRow: { flexDirection: 'row', gap: 8 },
   rateBtn: { borderColor: '#f5b83d', backgroundColor: 'rgba(245, 184, 61, 0.08)' },
   rateText: { color: '#f5b83d' },

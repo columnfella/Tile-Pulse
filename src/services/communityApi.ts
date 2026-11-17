@@ -1,3 +1,4 @@
+import type { DifficultyVotes } from './social';
 /**
  * Client for the TilePulse backend's community level browser (backend/src/routes/levels.js).
  *
@@ -27,7 +28,7 @@ function resolveApiBase(): string {
 export const API_BASE = resolveApiBase();
 
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
-export type LevelSort = 'newest' | 'popular' | 'liked' | 'rated' | 'easiest' | 'hardest' | 'shortest' | 'longest' | 'title';
+export type LevelSort = 'newest' | 'popular' | 'liked' | 'stars' | 'easiest' | 'hardest' | 'shortest' | 'longest' | 'title';
 export type SearchField = 'all' | 'level' | 'song' | 'artist' | 'author';
 export type NoteFilter = 'any' | 'taps' | 'holds';
 export type CopyMode = 'free' | 'password' | 'none';
@@ -72,8 +73,8 @@ export interface CommunityLevel {
   /** likes − dislikes (can be negative) */
   score: number;
   comments: number;
-  /** Average stars 1–10 from players who finished it. */
-  rating: { average: number | null; count: number };
+  /** Star difficulty (1–8) voted by players who finished it. */
+  difficultyVotes: DifficultyVotes;
   song: {
     id: string;
     title: string;

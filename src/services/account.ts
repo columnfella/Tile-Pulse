@@ -187,6 +187,12 @@ export async function register(username: string, displayName: string, password: 
   return session;
 }
 
+/** Permanently deletes your account and everything you uploaded, then signs out. */
+export async function deleteAccount(password: string): Promise<void> {
+  await apiRequest('DELETE', '/me', { json: { password } });
+  await saveSession(null);
+}
+
 export async function signOut(): Promise<void> {
   try {
     if (await getSession()) await apiRequest('POST', '/auth/logout');

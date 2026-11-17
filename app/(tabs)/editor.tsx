@@ -7,6 +7,7 @@ import {
   Pressable,
   TextInput,
   ScrollView,
+  Modal,
   type GestureResponderEvent,
   type LayoutChangeEvent,
   type NativeScrollEvent,
@@ -354,18 +355,70 @@ interface SongPickerProps {
   loaded: boolean;
   onPick: (id: string) => void;
   onCreate: () => void;
+  onDelete: (songs: Song[]) => void;
 }
 
-function SongPicker({ songs, loaded, onPick, onCreate }: SongPickerProps) {
+function SongPicker({ songs, loaded, onPick, onCreate, onDelete }: SongPickerProps) {
+  // Delete mode: tap levels to select them, then delete them together
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const exitSelect = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+  // Drop selections of songs that no longer exist (after a delete)
+  useEffect(() => {
+    setSelected((prev) => new Set([...prev].filter((id) => songs.some((x) => x.id === id))));
+    if (songs.length === 0) setSelecting(false);
+  }, [songs]);
+
   return (
     <ScreenView style={[styles.safeArea, { backgroundColor: ACTIVE_THEME.ui.appBackground }]}>
       <Animated.View entering={FadeIn.duration(250)} style={styles.pickerHeader}>
         <Text style={styles.pickerTitle}>Beatmap Editor</Text>
-        <Text style={styles.pickerSub}>Create a new song or choose one to edit</Text>
-        <PressableScale scaleTo={0.96} style={styles.createSongBtn} onPress={onCreate} accessibilityLabel="Create a new song">
-          <PixelIcon name="plus" size={14} color="#000000" />
-          <Text style={styles.createSongText}>CREATE SONG</Text>
-        </PressableScale>
+        <Text style={styles.pickerSub}>
+          {selecting ? 'Tap the levels you want to delete' : 'Create a new song or choose one to edit'}
+        </Text>
+        <View style={styles.pickerActions}>
+          {selecting ? (
+            <>
+              <PressableScale scaleTo={0.96} style={styles.selectCancelBtn} onPress={exitSelect} accessibilityLabel="Stop selecting">
+                <Text style={styles.selectCancelText}>CANCEL</Text>
+              </PressableScale>
+              <PressableScale
+                scaleTo={0.96}
+                style={[styles.deleteSelectedBtn, selected.size === 0 && styles.iconBtnDisabled]}
+                disabled={selected.size === 0}
+                onPress={() => onDelete(songs.filter((x) => selected.has(x.id)))}
+                accessibilityLabel="Delete the selected levels"
+              >
+                <PixelIcon name="trash" size={14} color="#ffffff" />
+                <Text style={styles.deleteSelectedText}>DELETE{selected.size ? ` (${selected.size})` : ''}</Text>
+              </PressableScale>
+            </>
+          ) : (
+            <>
+              <PressableScale scaleTo={0.96} style={[styles.createSongBtn, styles.flex1]} onPress={onCreate} accessibilityLabel="Create a new song">
+                <PixelIcon name="plus" size={14} color="#000000" />
+                <Text style={styles.createSongText}>CREATE SONG</Text>
+              </PressableScale>
+              {songs.length > 0 ? (
+                <PressableScale scaleTo={0.96} style={styles.deleteModeBtn} onPress={() => setSelecting(true)} accessibilityLabel="Choose levels to delete">
+                  <PixelIcon name="trash" size={14} color="#FF6B4A" />
+                  <Text style={styles.deleteModeText}>DELETE</Text>
+                </PressableScale>
+              ) : null}
+            </>
+          )}
+        </View>
       </Animated.View>
 
       {loaded && songs.length === 0 ? (
@@ -375,21 +428,29 @@ function SongPicker({ songs, loaded, onPick, onCreate }: SongPickerProps) {
       ) : (
         <FlatList
           data={songs}
-          keyExtractor={(s) => s.id}
+          keyExtractor={(x) => x.id}
+          extraData={{ selecting, selected }}
           contentContainerStyle={styles.pickerList}
           renderItem={({ item, index }) => {
             const holds = item.tiles.filter((t) => t.durationBeats > 0).length;
+            const isSelected = selected.has(item.id);
             return (
               <Animated.View entering={listItemIn(index)}>
                 <PressableScale
                   scaleTo={0.97}
-                  style={styles.pickerCard}
-                  onPress={() => onPick(item.id)}
-                  accessibilityLabel={`Edit ${item.title}`}
+                  style={[styles.pickerCard, isSelected && styles.pickerCardSelected]}
+                  onPress={() => (selecting ? toggle(item.id) : onPick(item.id))}
+                  accessibilityLabel={selecting ? `${isSelected ? 'Unselect' : 'Select'} ${item.title}` : `Edit ${item.title}`}
                 >
-                  <View style={styles.pickerIcon}>
-                    <PixelIcon name="note" size={21} color="#4d8dff" />
-                  </View>
+                  {selecting ? (
+                    <View style={[styles.checkbox, isSelected && styles.checkboxOn]}>
+                      {isSelected ? <PixelIcon name="check" size={14} color="#ffffff" /> : null}
+                    </View>
+                  ) : (
+                    <View style={styles.pickerIcon}>
+                      <PixelIcon name="note" size={21} color="#4d8dff" />
+                    </View>
+                  )}
                   <View style={styles.pickerInfo}>
                     <Text style={styles.pickerSongTitle} numberOfLines={1}>
                       {item.title}
@@ -399,7 +460,7 @@ function SongPicker({ songs, loaded, onPick, onCreate }: SongPickerProps) {
                       {holds > 0 ? ` (${holds} hold)` : ''}
                     </Text>
                   </View>
-                  <PixelIcon name="chevronRight" size={21} color="#3a4a70" />
+                  {!selecting ? <PixelIcon name="chevronRight" size={21} color="#3a4a70" /> : null}
                 </PressableScale>
               </Animated.View>
             );
@@ -1788,6 +1849,9 @@ export default function EditorScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const handledRequestRef = useRef<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // Level waiting for the delete confirmation
+  const [pendingDelete, setPendingDelete] = useState<Song[] | null>(null);
+  const [deleting, setDeleting] = useState(false);
   // Device files already imported, so the storage scanner can mark them "Added"
   const importedUris = useMemo(
     () => new Set(songs.map((s) => s.sourceUri).filter((u): u is string => !!u)),
@@ -1840,7 +1904,63 @@ export default function EditorScreen() {
 
   return (
     <>
-      <SongPicker songs={ownSongs} loaded={loaded} onPick={setEditingId} onCreate={() => setCreating(true)} />
+      <SongPicker
+        songs={ownSongs}
+        loaded={loaded}
+        onPick={setEditingId}
+        onCreate={() => setCreating(true)}
+        onDelete={setPendingDelete}
+      />
+
+      {/* Delete confirmation */}
+      <Modal visible={!!pendingDelete?.length} transparent animationType="fade" onRequestClose={() => setPendingDelete(null)}>
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmCard}>
+            <View style={styles.confirmHead}>
+              <PixelIcon name="trash" size={14} color="#FF6B4A" />
+              <Text style={styles.confirmTitle}>
+                {pendingDelete && pendingDelete.length > 1 ? `DELETE ${pendingDelete.length} LEVELS?` : 'DELETE LEVEL?'}
+              </Text>
+            </View>
+            <Text style={styles.confirmBody}>
+              {pendingDelete && pendingDelete.length > 1
+                ? `${pendingDelete
+                    .slice(0, 4)
+                    .map((x) => `“${x.title}”`)
+                    .join(', ')}${pendingDelete.length > 4 ? ` and ${pendingDelete.length - 4} more` : ''}`
+                : `“${pendingDelete?.[0]?.title ?? ''}”`}{' '}
+              and all their notes will be removed from this device. This can’t be undone.
+            </Text>
+            <Text style={styles.confirmNote}>Levels you already uploaded stay online in Discover.</Text>
+            <View style={styles.confirmRow}>
+              <PressableScale scaleTo={0.94} style={styles.confirmCancel} disabled={deleting} onPress={() => setPendingDelete(null)}>
+                <Text style={styles.confirmCancelText}>CANCEL</Text>
+              </PressableScale>
+              <PressableScale
+                scaleTo={0.94}
+                style={[styles.confirmDelete, deleting && { opacity: 0.5 }]}
+                disabled={deleting}
+                onPress={async () => {
+                  if (!pendingDelete) return;
+                  setDeleting(true);
+                  try {
+                    for (const song of pendingDelete) await storageService.deleteSong(song.id);
+                    const gone = new Set(pendingDelete.map((x) => x.id));
+                    setSongs((prev) => prev.filter((x) => !gone.has(x.id)));
+                  } catch (err) {
+                    console.warn('Failed to delete song:', err);
+                  } finally {
+                    setDeleting(false);
+                    setPendingDelete(null);
+                  }
+                }}
+              >
+                <Text style={styles.confirmDeleteText}>{deleting ? 'DELETING…' : 'DELETE'}</Text>
+              </PressableScale>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <CreateSongSheet
         visible={creating}
         importedUris={importedUris}
@@ -1859,6 +1979,46 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  flex1: { flex: 1 },
+  pickerActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  deleteModeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 107, 74, 0.6)',
+    backgroundColor: 'rgba(255, 107, 74, 0.1)',
+  },
+  deleteModeText: { color: '#FF6B4A', fontFamily: FONTS.pixel, fontSize: 8 },
+  selectCancelBtn: { paddingHorizontal: 14, paddingVertical: 11, borderWidth: 2, borderColor: '#15203a', justifyContent: 'center' },
+  selectCancelText: { color: '#9aa7c2', fontFamily: FONTS.pixel, fontSize: 9 },
+  deleteSelectedBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 11,
+    backgroundColor: '#d8342f',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  deleteSelectedText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10 },
+  pickerCardSelected: { borderColor: '#d8342f', backgroundColor: 'rgba(216, 52, 47, 0.12)' },
+  checkbox: { width: 28, height: 28, borderWidth: 2, borderColor: '#3a4a70', alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: '#d8342f', borderColor: '#000000' },
+  confirmBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  confirmCard: { width: '100%', maxWidth: 340, backgroundColor: '#0b1220', borderWidth: 2, borderColor: '#000000', padding: 16, gap: 10 },
+  confirmHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  confirmTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10 },
+  confirmBody: { color: '#e6ecf7', fontFamily: FONTS.body, fontSize: 18 },
+  confirmNote: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 16 },
+  confirmRow: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end', marginTop: 4 },
+  confirmCancel: { paddingHorizontal: 14, paddingVertical: 9, borderWidth: 2, borderColor: '#15203a' },
+  confirmCancelText: { color: '#9aa7c2', fontFamily: FONTS.pixel, fontSize: 8 },
+  confirmDelete: { paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#d8342f', borderWidth: 2, borderColor: '#000000' },
+  confirmDeleteText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 8 },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
@@ -1979,7 +2139,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 12,
     paddingVertical: 11,
     backgroundColor: '#FF6B4A',
     borderWidth: 2,

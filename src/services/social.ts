@@ -1,5 +1,5 @@
 /**
- * Level likes, star ratings, comments, and the copy check (free / password /
+ * Level likes / dislikes, star difficulty votes, comments, and the copy check (free / password /
  * not allowed) done before a downloaded level is copied into the editor.
  */
 import { ApiError, apiRequest } from './account';
@@ -7,13 +7,26 @@ import type { ImageRef } from './profile';
 
 export type Vote = 1 | -1 | 0;
 
+/** 1 (easiest) … 8 (hardest) stars. */
+export const MAX_STARS = 8;
+
+export interface DifficultyVotes {
+  /** Official community difficulty: set once `votes` reaches `threshold` (the majority wins). */
+  stars: number | null;
+  /** Most-voted star count so far. */
+  leading: number | null;
+  votes: number;
+  threshold: number;
+}
+
 export interface SocialState {
   likes: number;
   dislikes: number;
   /** likes − dislikes (can be negative) */
   score: number;
   comments: number;
-  rating: { average: number | null; count: number };
+  /** Star difficulty from player votes (1–8). */
+  difficulty: DifficultyVotes & { distribution: number[] };
   myVote: Vote;
   myRating: number | null;
   /** You finished the level, so you may rate it. */

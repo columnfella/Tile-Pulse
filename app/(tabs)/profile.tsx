@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Modal,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
@@ -26,7 +27,8 @@ import { PressableScale } from '../../src/components/ui/PressableScale';
 import { DIFFICULTY_COLOR } from '../../src/components/ui/LevelCardParts';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 import { API_BASE, ApiUnavailableError } from '../../src/services/communityApi';
-import { getSession, onSessionChange, register, signIn, signOut, type Session } from '../../src/services/account';
+import { deleteAccount, getSession, onSessionChange, register, signIn, signOut, type Session } from '../../src/services/account';
+import { deleteUploadedLevel } from '../../src/services/levelUpload';
 import {
   DEFAULT_BANNER_COLOR,
   avatarUrl,
@@ -188,7 +190,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }) {
   );
 }
 
-function UploadRow({ level }: { level: ProfileUpload }) {
+function UploadRow({ level, onDelete }: { level: ProfileUpload; onDelete?: () => void }) {
   return (
     <View style={styles.listRow}>
       <LevelThumb level={level} />
@@ -213,6 +215,11 @@ function UploadRow({ level }: { level: ProfileUpload }) {
         <Text style={styles.rowScore}>{level.plays}</Text>
         <Text style={styles.muted}>plays</Text>
       </View>
+      {onDelete ? (
+        <PressableScale scaleTo={0.85} onPress={onDelete} style={styles.rowDelete} accessibilityLabel={`Delete ${level.name} from the server`}>
+          <PixelIcon name="trash" size={14} color={PIXEL.accent} />
+        </PressableScale>
+      ) : null}
     </View>
   );
 }
@@ -286,16 +293,55 @@ function AuthForm({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
 
 /* --------------------------------- settings -------------------------------- */
 
+/** A picture change waiting to be saved: a newly picked file, or removing the current one. */
+type PendingImage = { uri: string } | 'remove' | null;
+
+interface Draft {
+  displayName: string;
+  bannerColor: string;
+  privacy: Privacy;
+  avatar: PendingImage;
+  banner: PendingImage;
+}
+
+const draftFrom = (me: MyProfile): Draft => ({
+  displayName: me.displayName,
+  bannerColor: me.bannerColor ?? DEFAULT_BANNER_COLOR,
+  privacy: { ...me.privacy },
+  avatar: null,
+  banner: null,
+});
+
+/**
+ * Account settings. Profile changes (pictures, banner colour, display name,
+ * privacy) are collected locally and sent in one go when you press Save, so
+ * tapping around doesn't send a request per change. Username, password and
+ * account deletion are separate actions with their own buttons.
+ */
 function Settings({ me, onChange }: { me: MyProfile; onChange: (p: MyProfile) => void }) {
+  const [draft, setDraft] = useState<Draft>(() => draftFrom(me));
+  const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ key: string; text: string; error?: boolean } | null>(null);
-  const [displayName, setDisplayName] = useState(me.displayName);
   const [newUsername, setNewUsername] = useState('');
   const [usernamePassword, setUsernamePassword] = useState('');
   const [confirmUsername, setConfirmUsername] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
+  const [deletePw, setDeletePw] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const patch = (changes: Partial<Draft>) => {
+    setDraft((d) => ({ ...d, ...changes }));
+    setMessage(null);
+  };
+
+  const cleanName = draft.displayName.replace(/\s+/g, ' ').trim();
+  const nameChanged = cleanName !== me.displayName;
+  const colorChanged = draft.bannerColor.toLowerCase() !== (me.bannerColor ?? DEFAULT_BANNER_COLOR).toLowerCase();
+  const privacyChanged = (Object.keys(draft.privacy) as (keyof Privacy)[]).filter((k) => draft.privacy[k] !== me.privacy[k]);
+  const dirty = nameChanged || colorChanged || privacyChanged.length > 0 || draft.avatar !== null || draft.banner !== null;
 
   const run = async (key: string, fn: () => Promise<string | void>) => {
     setBusy(key);
@@ -312,85 +358,122 @@ function Settings({ me, onChange }: { me: MyProfile; onChange: (p: MyProfile) =>
   const note = (key: string) =>
     message?.key === key ? <Text style={message.error ? styles.error : styles.success}>{message.text}</Text> : null;
 
-  const pickImage = (kind: 'avatar' | 'banner') =>
-    run(kind, async () => {
+  const pickImage = async (kind: 'avatar' | 'banner') => {
+    try {
       const r = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: kind === 'avatar' ? [1, 1] : [3, 1],
         quality: 0.6,
       });
-      if (r.canceled || !r.assets?.[0]) return;
-      onChange(await setProfileImage(kind, r.assets[0].uri));
-      return kind === 'avatar' ? 'Profile picture updated.' : 'Banner updated.';
-    });
+      if (!r.canceled && r.assets?.[0]) patch({ [kind]: { uri: r.assets[0].uri } } as Partial<Draft>);
+    } catch {
+      setMessage({ key: 'save', text: 'Couldn’t open your pictures.', error: true });
+    }
+  };
 
-  const setPrivacy = (key: keyof Privacy, value: boolean) =>
-    run('privacy', async () => {
-      onChange(await updateMyProfile({ privacy: { [key]: value } }));
-    });
+  /** Sends everything that changed: one profile update, then any picture uploads. */
+  const save = async () => {
+    if (!dirty || saving) return;
+    if (!cleanName) return setMessage({ key: 'save', text: 'Your display name can’t be empty.', error: true });
+    setSaving(true);
+    setMessage(null);
+    try {
+      let latest = me;
+      const changes: Parameters<typeof updateMyProfile>[0] = {};
+      if (nameChanged) changes.displayName = cleanName;
+      if (colorChanged) changes.bannerColor = draft.bannerColor;
+      if (privacyChanged.length) changes.privacy = Object.fromEntries(privacyChanged.map((k) => [k, draft.privacy[k]]));
+      if (Object.keys(changes).length) latest = await updateMyProfile(changes);
+      for (const kind of ['avatar', 'banner'] as const) {
+        const pending = draft[kind];
+        if (pending === 'remove') latest = await removeProfileImage(kind);
+        else if (pending) latest = await setProfileImage(kind, pending.uri);
+      }
+      onChange(latest);
+      setDraft(draftFrom(latest));
+      setMessage({ key: 'save', text: 'Profile saved.' });
+    } catch (err) {
+      setMessage({ key: 'save', text: errorText(err), error: true });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // What the pictures will look like after saving
+  const avatarPreview = draft.avatar === 'remove' ? null : draft.avatar ? draft.avatar.uri : avatarUrl(me.id, me.avatar);
+  const bannerPreview = draft.banner === 'remove' ? null : draft.banner ? draft.banner.uri : bannerUrl(me.id, me.banner);
 
   return (
     <View style={styles.gap12}>
-      <Section title="PICTURES" icon="image">
-        <View style={styles.row}>
-          <Button label={me.avatar ? 'CHANGE PICTURE' : 'ADD PICTURE'} onPress={() => pickImage('avatar')} busy={busy === 'avatar'} />
-          {me.avatar ? (
-            <Button
-              label="REMOVE"
-              kind="danger"
-              onPress={() => run('avatar', async () => (onChange(await removeProfileImage('avatar')), 'Picture removed.'))}
-            />
-          ) : null}
+      {dirty ? (
+        <View style={styles.unsaved}>
+          <Text style={styles.unsavedText}>Unsaved changes — press SAVE CHANGES below.</Text>
         </View>
-        {note('avatar')}
+      ) : null}
+
+      <Section title="PICTURES" icon="image">
+        <View style={[styles.previewBanner, { backgroundColor: draft.bannerColor }]}>
+          {bannerPreview ? <Image source={{ uri: bannerPreview }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+          <View style={styles.previewAvatarWrap}>
+            <Avatar uri={avatarPreview} name={cleanName || me.displayName} color={draft.bannerColor} size={56} />
+          </View>
+        </View>
+        <Text style={styles.label}>PROFILE PICTURE</Text>
+        <View style={styles.row}>
+          <Button label={avatarPreview ? 'CHANGE' : 'ADD PICTURE'} onPress={() => pickImage('avatar')} />
+          {avatarPreview ? <Button label="REMOVE" kind="danger" onPress={() => patch({ avatar: me.avatar ? 'remove' : null })} /> : null}
+          {draft.avatar ? <Button label="UNDO" onPress={() => patch({ avatar: null })} /> : null}
+        </View>
         <Text style={styles.label}>BANNER</Text>
         <View style={styles.row}>
-          <Button label={me.banner ? 'CHANGE BANNER' : 'ADD BANNER'} onPress={() => pickImage('banner')} busy={busy === 'banner'} />
-          {me.banner ? (
-            <Button
-              label="REMOVE"
-              kind="danger"
-              onPress={() => run('banner', async () => (onChange(await removeProfileImage('banner')), 'Banner removed.'))}
-            />
-          ) : null}
+          <Button label={bannerPreview ? 'CHANGE' : 'ADD BANNER'} onPress={() => pickImage('banner')} />
+          {bannerPreview ? <Button label="REMOVE" kind="danger" onPress={() => patch({ banner: me.banner ? 'remove' : null })} /> : null}
+          {draft.banner ? <Button label="UNDO" onPress={() => patch({ banner: null })} /> : null}
         </View>
-        {note('banner')}
-        <Text style={styles.label}>BANNER COLOUR {me.banner ? '(shown without a banner picture)' : ''}</Text>
+        <Text style={styles.label}>BANNER COLOUR {bannerPreview ? '(shown without a banner picture)' : ''}</Text>
         <View style={styles.row}>
-          {BANNER_COLORS.map((c) => {
-            const active = (me.bannerColor ?? DEFAULT_BANNER_COLOR).toLowerCase() === c.toLowerCase();
-            return (
-              <PressableScale
-                key={c}
-                scaleTo={0.9}
-                onPress={() => run('color', async () => onChange(await updateMyProfile({ bannerColor: c })))}
-                style={[styles.swatch, { backgroundColor: c }, active && styles.swatchActive]}
-                accessibilityLabel={`Banner colour ${c}`}
-              />
-            );
-          })}
+          {BANNER_COLORS.map((c) => (
+            <PressableScale
+              key={c}
+              scaleTo={0.9}
+              onPress={() => patch({ bannerColor: c })}
+              style={[styles.swatch, { backgroundColor: c }, draft.bannerColor.toLowerCase() === c.toLowerCase() && styles.swatchActive]}
+              accessibilityLabel={`Banner colour ${c}`}
+            />
+          ))}
         </View>
-        {note('color')}
       </Section>
 
-      <Section title="NAME" icon="person">
-        <Text style={styles.label}>DISPLAY NAME</Text>
-        <Field value={displayName} onChangeText={setDisplayName} placeholder="Display name" autoCapitalize="words" maxLength={50} />
-        <Button
-          label="SAVE NAME"
-          busy={busy === 'name'}
-          disabled={!displayName.trim() || displayName.trim() === me.displayName}
-          onPress={() =>
-            run('name', async () => {
-              onChange(await updateMyProfile({ displayName: displayName.trim() }));
-              return 'Display name saved.';
-            })
-          }
+      <Section title="DISPLAY NAME" icon="person">
+        <Field
+          value={draft.displayName}
+          onChangeText={(t) => patch({ displayName: t })}
+          placeholder="Display name"
+          autoCapitalize="words"
+          maxLength={50}
         />
-        {note('name')}
+      </Section>
 
-        <Text style={styles.label}>USERNAME · @{me.username}</Text>
+      <Section title="PRIVACY" icon="globe">
+        <Toggle label="Profile" hint="Others can open your profile" value={draft.privacy.profile} onChange={(v) => patch({ privacy: { ...draft.privacy, profile: v } })} />
+        <Toggle label="Play history" hint="Levels you played and your scores" value={draft.privacy.history} onChange={(v) => patch({ privacy: { ...draft.privacy, history: v } })} />
+        <Toggle label="Uploaded levels" hint="Levels you shared" value={draft.privacy.uploads} onChange={(v) => patch({ privacy: { ...draft.privacy, uploads: v } })} />
+      </Section>
+
+      {/* One request for everything above */}
+      <View style={styles.saveBar}>
+        {note('save')}
+        <View style={styles.row}>
+          <View style={styles.flex}>
+            <Button kind="primary" label={saving ? 'SAVING…' : 'SAVE CHANGES'} onPress={save} busy={saving} disabled={!dirty} />
+          </View>
+          {dirty ? <Button label="DISCARD" onPress={() => (setDraft(draftFrom(me)), setMessage(null))} disabled={saving} /> : null}
+        </View>
+      </View>
+
+      <Section title="USERNAME" icon="person">
+        <Text style={styles.label}>@{me.username}</Text>
         {me.canChangeUsername ? (
           <>
             <Text style={styles.warn}>You can change your username only once. After that it’s permanent.</Text>
@@ -449,14 +532,35 @@ function Settings({ me, onChange }: { me: MyProfile; onChange: (p: MyProfile) =>
         {note('password')}
       </Section>
 
-      <Section title="PRIVACY" icon="globe">
-        <Toggle label="Profile" hint="Others can open your profile" value={me.privacy.profile} onChange={(v) => setPrivacy('profile', v)} />
-        <Toggle label="Play history" hint="Levels you played and your scores" value={me.privacy.history} onChange={(v) => setPrivacy('history', v)} />
-        <Toggle label="Uploaded levels" hint="Levels you shared" value={me.privacy.uploads} onChange={(v) => setPrivacy('uploads', v)} />
-        {note('privacy')}
-      </Section>
+      <Button label="SIGN OUT" onPress={() => void signOut()} />
 
-      <Button label="SIGN OUT" kind="danger" onPress={() => void signOut()} />
+      <Section title="DELETE ACCOUNT" icon="trash">
+        <Text style={styles.muted}>
+          Permanently deletes your account, profile, play history, comments, likes and every level you uploaded. This can’t be undone.
+        </Text>
+        <Field value={deletePw} onChangeText={(t) => (setDeletePw(t), setConfirmDelete(false))} placeholder="Your password" secureTextEntry maxLength={128} />
+        {confirmDelete ? (
+          <>
+            <Text style={styles.warn}>Are you sure? Everything above will be gone for good.</Text>
+            <View style={styles.row}>
+              <Button
+                kind="danger"
+                label="YES, DELETE MY ACCOUNT"
+                busy={busy === 'delete'}
+                onPress={() =>
+                  run('delete', async () => {
+                    await deleteAccount(deletePw);
+                  })
+                }
+              />
+              <Button label="CANCEL" onPress={() => setConfirmDelete(false)} />
+            </View>
+          </>
+        ) : (
+          <Button kind="danger" label="DELETE ACCOUNT" disabled={!deletePw} onPress={() => setConfirmDelete(true)} />
+        )}
+        {note('delete')}
+      </Section>
     </View>
   );
 }
@@ -468,6 +572,10 @@ export default function ProfileScreen() {
   const [me, setMe] = useState<MyProfile | null>(null);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [tab, setTab] = useState<Tab>('history');
+  // Uploaded level waiting for the delete confirmation
+  const [deleteLevel, setDeleteLevel] = useState<ProfileUpload | null>(null);
+  const [deletingLevel, setDeletingLevel] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -603,7 +711,9 @@ export default function ProfileScreen() {
                   {!profile?.uploads?.length ? (
                     <Text style={styles.muted}>You haven’t uploaded a level yet. Use Upload in the Editor to share one.</Text>
                   ) : (
-                    profile.uploads.map((u) => <UploadRow key={u.id} level={u} />)
+                    profile.uploads.map((u) => (
+                      <UploadRow key={u.id} level={u} onDelete={() => (setDeleteError(null), setDeleteLevel(u))} />
+                    ))
                   )}
                 </Section>
               )}
@@ -613,6 +723,43 @@ export default function ProfileScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal visible={!!deleteLevel} transparent animationType="fade" onRequestClose={() => setDeleteLevel(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.sectionHeader}>
+              <PixelIcon name="trash" size={14} color={PIXEL.accent} />
+              <Text style={styles.sectionTitle}>DELETE UPLOADED LEVEL?</Text>
+            </View>
+            <Text style={styles.body}>
+              “{deleteLevel?.name}” will be removed from the server for everyone, with its plays, likes, comments and ratings.
+              The copy on your device stays.
+            </Text>
+            {deleteError ? <Text style={styles.error}>{deleteError}</Text> : null}
+            <View style={styles.modalRow}>
+              <Button label="CANCEL" onPress={() => setDeleteLevel(null)} disabled={deletingLevel} />
+              <Button
+                kind="danger"
+                label={deletingLevel ? 'DELETING…' : 'DELETE'}
+                busy={deletingLevel}
+                onPress={async () => {
+                  if (!deleteLevel) return;
+                  setDeletingLevel(true);
+                  setDeleteError(null);
+                  try {
+                    await deleteUploadedLevel(deleteLevel.id);
+                    setDeleteLevel(null);
+                    await refresh();
+                  } catch (err) {
+                    setDeleteError(errorText(err));
+                  } finally {
+                    setDeletingLevel(false);
+                  }
+                }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenView>
   );
 }
@@ -693,6 +840,15 @@ const styles = StyleSheet.create({
   btnTextPrimary: { color: '#000000', fontSize: 10 },
   btnTextDanger: { color: '#ff7a73' },
 
+  unsaved: { backgroundColor: 'rgba(245, 184, 61, 0.12)', borderWidth: 2, borderColor: '#f5b83d', padding: 8 },
+  unsavedText: { color: '#f5b83d', fontFamily: FONTS.body, fontSize: 17 },
+  previewBanner: { height: 80, overflow: 'hidden', justifyContent: 'flex-end', padding: 8, borderWidth: 2, borderColor: '#000000' },
+  previewAvatarWrap: { alignSelf: 'flex-start' },
+  saveBar: { gap: 8, padding: 12, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.accent },
+  rowDelete: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255, 107, 74, 0.5)' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 360, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: '#000000', padding: 16, gap: 10 },
+  modalRow: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
   swatch: { width: 30, height: 30, borderWidth: 2, borderColor: '#000000' },
   swatchActive: { borderColor: '#ffffff', borderWidth: 3 },
 
