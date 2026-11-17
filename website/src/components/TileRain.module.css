@@ -1,0 +1,78 @@
+.board {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 3 / 5;
+  background: linear-gradient(180deg, #070b14 0%, #0b1220 100%);
+  border: var(--unit) solid #000;
+  box-shadow: 0 0 0 var(--unit) var(--panel-light), 12px 12px 0 #000;
+  overflow: hidden;
+  /* Own compositing layer: the falling tiles never repaint the rest of the page */
+  contain: layout paint;
+  transform: translateZ(0);
+}
+
+.divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(77, 141, 255, 0.15);
+}
+
+/* A tap tile: blue with a light top/left and dark bottom/right bevel, like the game */
+.tile {
+  position: absolute;
+  top: -22%;
+  width: 25%;
+  height: 18%;
+  padding: 0 3px;
+  background-clip: content-box;
+  background-color: var(--blue);
+  border-style: solid;
+  border-width: var(--unit);
+  border-color: #7aa4ff var(--blue-dark) var(--blue-dark) #7aa4ff;
+  animation: fall 4.8s linear infinite;
+  /* Animate on the GPU only (transform), never layout */
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.hold {
+  height: 34%;
+  top: -38%;
+  background-color: #0b1a40;
+  border-color: #7aa4ff var(--blue-dark) var(--coral) #7aa4ff;
+}
+
+.hitGlow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22%;
+  background: linear-gradient(0deg, rgba(255, 107, 74, 0.18), transparent);
+}
+
+@keyframes fall {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 820%, 0);
+  }
+}
+
+.hold {
+  animation-name: fallHold;
+}
+
+@keyframes fallHold {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 440%, 0);
+  }
+}

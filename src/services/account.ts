@@ -8,6 +8,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE, ApiUnavailableError } from './communityApi';
+import { getDeviceId } from './device';
 
 const SESSION_KEY = 'tilepulse_session_v1';
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -112,7 +113,13 @@ export async function apiRequest<T>(
   path: string,
   { json, auth = true }: { json?: unknown; auth?: boolean } = {}
 ): Promise<T> {
+  // Release builds never send passwords or session tokens over plain HTTP
+  // (anyone on the same network could read them). Use an https:// server.
+  if (!__DEV__ && API_BASE.startsWith('http://')) {
+    throw new ApiError(0, 'The server address is not secure (https is required).');
+  }
   const session = auth ? await getSession() : null;
+  const deviceId = await getDeviceId();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res: Response;
@@ -124,6 +131,7 @@ export async function apiRequest<T>(
       cache: 'no-store',
       headers: {
         Accept: 'application/json',
+        'X-Device-Id': deviceId,
         ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
       },

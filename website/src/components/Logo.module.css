@@ -1,0 +1,27 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mark {
+  display: grid;
+  grid-template-columns: repeat(2, 10px);
+  grid-template-rows: repeat(2, 10px);
+  gap: 2px;
+}
+
+.mark > span {
+  display: block;
+}
+
+.word {
+  font-family: var(--font-pixel), monospace;
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.accent {
+  color: var(--coral);
+}

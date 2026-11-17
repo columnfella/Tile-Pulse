@@ -1,0 +1,70 @@
+/* Palette and type from the game (src/theme/pixel.ts): black, blue and coral. */
+:root {
+  --bg: #05070d;
+  --panel: #0b1220;
+  --panel-light: #15203a;
+  --line: #1f2e52;
+  --blue: #2f6bff;
+  --blue-light: #4d8dff;
+  --blue-dark: #123a9e;
+  --coral: #ff6b4a;
+  --coral-dark: #a83a22;
+  --text: #e6ecf7;
+  --text-dim: #9aa7c2;
+  --text-faint: #6b7a99;
+  --unit: 4px; /* one "pixel" of the art */
+  --max: 1080px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body), 'Courier New', monospace;
+  font-size: 22px;
+  line-height: 1.25;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-pixel), 'Courier New', monospace;
+  font-weight: 400;
+  line-height: 1.4;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--coral);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

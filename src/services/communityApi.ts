@@ -12,6 +12,7 @@ import type { Song, TileNote } from '../types/song';
 import { storageService } from './storage';
 import { saveRemoteAudio } from './audioFileStore';
 import { isBackgroundId } from '../components/backgrounds/AnimatedBackground';
+import { getDeviceId } from './device';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -102,7 +103,10 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   signal?.addEventListener('abort', onAbort);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/v1${path}`, { signal: timeout.signal, headers: { Accept: 'application/json' } });
+    res = await fetch(`${API_BASE}/api/v1${path}`, {
+      signal: timeout.signal,
+      headers: { Accept: 'application/json', 'X-Device-Id': await getDeviceId() },
+    });
   } catch (err) {
     if (signal?.aborted) throw err;
     throw new ApiUnavailableError();
