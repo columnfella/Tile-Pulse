@@ -221,18 +221,32 @@
 }
 
 .pillarList {
+  list-style: none;
   margin: 0;
-  padding-left: 18px;
+  padding: 0;
   color: var(--text-dim);
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.pillarList li::marker {
+.pillarList li,
+.fomoList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* Pixel bullet, centred on the item's first line (1.25em = the body line height) */
+.listIcon {
+  height: 1.25em;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pillarList .listIcon {
   color: var(--blue-light);
-  content: '■  ';
-  font-size: 12px;
 }
 
 /* ------------------------ early tester (FOMO) ------------------------ */
@@ -267,8 +281,12 @@
 }
 
 .fomoCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-pixel), monospace;
   font-size: 9px;
+  line-height: 1;
   padding: 5px 8px;
   background: #000;
   color: var(--coral);
@@ -320,8 +338,7 @@
 }
 
 .fomoStar {
-  font-size: 34px;
-  line-height: 1;
+  color: #ffb84d;
 }
 
 @keyframes fomoGlow {
@@ -349,13 +366,16 @@
 }
 
 .fomoList {
+  list-style: none;
   margin: 0;
-  padding-left: 18px;
+  padding: 0;
   color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.fomoList li::marker {
-  content: '★  ';
+.fomoList .listIcon {
   color: #ffb84d;
 }
 
@@ -440,11 +460,12 @@
   gap: 12px;
 }
 
+/* Same line box as the step text (22px × 1.25), so the number centres on its first line */
 .stepNum {
   font-family: var(--font-pixel), monospace;
   font-size: 10px;
+  line-height: 27.5px;
   color: var(--blue-light);
-  padding-top: 5px;
   flex-shrink: 0;
 }
 
@@ -507,7 +528,11 @@
     justify-content: center;
   }
   .fomoStar {
-    font-size: 22px;
+    width: 21px;
+    height: 21px;
+  }
+  .fomoBadge {
+    align-items: center;
   }
   .headerInner {
     padding: 10px 16px;
@@ -583,5 +608,12 @@
   }
   .title {
     font-size: 22px;
+  }
+}
+
+/* Body text is 20px below 480px (globals.css), so the step line box is 25px */
+@media (max-width: 480px) {
+  .stepNum {
+    line-height: 25px;
   }
 }

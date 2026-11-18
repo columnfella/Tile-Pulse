@@ -1,5 +1,6 @@
 import { ClaudeBadge } from '@/components/ClaudeBadge';
 import { Logo } from '@/components/Logo';
+import { PixelIcon } from '@/components/PixelIcon';
 import { TileRain } from '@/components/TileRain';
 import { earlyTester, pillars, principles, site, testBuild } from '@/content/site';
 import { gameVersion } from '@/content/gameVersion';
@@ -14,7 +15,10 @@ export default function Home() {
         <a href="#download" className={styles.fomoBar}>
           <span className={styles.fomoPulse} aria-hidden="true" />
           <span className={styles.fomoText}>{earlyTester.banner}</span>
-          <span className={styles.fomoCta}>{earlyTester.bannerCta} →</span>
+          <span className={styles.fomoCta}>
+            {earlyTester.bannerCta}
+            <PixelIcon name="arrow" px={2} />
+          </span>
         </a>
       ) : null}
       <header className={styles.header}>
@@ -103,7 +107,12 @@ export default function Home() {
                 <h3 className={styles.pillarTitle}>{p.title}</h3>
                 <ul className={styles.pillarList}>
                   {p.points.map((point) => (
-                    <li key={point}>{point}</li>
+                    <li key={point}>
+                      <span className={styles.listIcon}>
+                        <PixelIcon name="bullet" px={4} />
+                      </span>
+                      <span>{point}</span>
+                    </li>
                   ))}
                 </ul>
               </article>
@@ -120,7 +129,7 @@ export default function Home() {
           {earlyTester.open ? (
             <div className={styles.fomoCard}>
               <div className={styles.fomoBadge} aria-hidden="true">
-                <span className={styles.fomoStar}>★</span>
+                <PixelIcon name="star" px={5} className={styles.fomoStar} />
                 <span>EARLY TESTER</span>
               </div>
               <div className={styles.fomoBody}>
@@ -129,7 +138,12 @@ export default function Home() {
                 <p>{earlyTester.body}</p>
                 <ul className={styles.fomoList}>
                   {earlyTester.points.map((p) => (
-                    <li key={p}>{p}</li>
+                    <li key={p}>
+                      <span className={styles.listIcon}>
+                        <PixelIcon name="star" px={2} />
+                      </span>
+                      <span>{p}</span>
+                    </li>
                   ))}
                 </ul>
               </div>
