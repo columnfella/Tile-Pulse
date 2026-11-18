@@ -11,8 +11,9 @@
  *   docs / chore / style / test / ci / build -> no bump
  * From 1.0.0 on (set it by hand when the game ships), breaking changes bump major.
  *
- * Skipped for amends, merges, rebases, cherry-picks, and messages containing
- * [skip version]. Keeps package.json and app.json (Expo) in sync.
+ * Skipped for amends, merges, rebases, cherry-picks, messages containing
+ * [skip version], and commits that only touch folders that aren't the game
+ * (NOT_GAME_DIRS, e.g. the website). Keeps package.json and app.json (Expo) in sync.
  */
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -32,6 +33,11 @@ if (/^commit \((amend|merge)\)/.test(action)) process.exit(0);
 
 const message = git('log -1 --format=%B');
 if (/\[skip version\]/i.test(message)) process.exit(0);
+
+// The version is the game's: a commit that only changes the website doesn't bump it
+const NOT_GAME_DIRS = ['website/'];
+const changed = git('diff-tree --root --no-commit-id --name-only -r HEAD').split('\n').filter(Boolean);
+if (changed.length && changed.every((f) => NOT_GAME_DIRS.some((dir) => f.startsWith(dir)))) process.exit(0);
 
 const header = message.split('\n')[0];
 const m = /^(\w+)(\([^)]*\))?(!)?:/.exec(header);
