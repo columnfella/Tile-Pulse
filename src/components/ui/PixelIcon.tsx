@@ -1,4 +1,5 @@
 import React, { memo, useMemo } from 'react';
+import { View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 /**
@@ -500,12 +501,38 @@ interface PixelIconProps {
   /** Total icon size in px (rounded down to a whole number of pixels per cell). */
   size?: number;
   color: string;
+  /**
+   * Trim the bitmap's empty edges and centre the drawing in a size×size box.
+   * Icons are drawn on different grids (7×7, 9×9) and some leave a blank row,
+   * so without this they sit slightly off-centre next to each other (badges).
+   */
+  fit?: boolean;
 }
 
-export const PixelIcon = memo(function PixelIcon({ name, size = 22, color }: PixelIconProps) {
-  const bitmap = BITMAPS[name];
+export const PixelIcon = memo(function PixelIcon({ name, size = 22, color, fit = false }: PixelIconProps) {
+  const full = BITMAPS[name] as readonly string[];
+  // fit: crop to the filled pixels' bounding box
+  const bitmap = useMemo(() => {
+    if (!fit) return full;
+    const rows = full.map((r, y) => ({ r, y })).filter(({ r }) => r.includes('#'));
+    if (!rows.length) return full;
+    const top = rows[0].y;
+    const bottom = rows[rows.length - 1].y;
+    let left = Infinity;
+    let right = -1;
+    for (const r of full) {
+      const a = r.indexOf('#');
+      if (a >= 0) {
+        left = Math.min(left, a);
+        right = Math.max(right, r.lastIndexOf('#'));
+      }
+    }
+    return full.slice(top, bottom + 1).map((r) => r.slice(left, right + 1));
+  }, [full, fit]);
   const cols = bitmap[0].length;
-  const cell = Math.max(1, Math.floor(size / cols)); // whole pixels keep edges crisp
+  const rowCount = bitmap.length;
+  // whole pixels keep edges crisp; in fit mode the larger side decides
+  const cell = Math.max(1, Math.floor(size / (fit ? Math.max(cols, rowCount) : cols)));
   const dim = cell * cols;
 
   // Path in bitmap cells (viewBox), scaled up by the SVG
@@ -525,10 +552,13 @@ export const PixelIcon = memo(function PixelIcon({ name, size = 22, color }: Pix
     return out;
   }, [bitmap]);
 
-  const rows = bitmap.length;
-  return (
-    <Svg width={dim} height={cell * rows} viewBox={`0 0 ${cols} ${rows}`}>
+  const svg = (
+    <Svg width={dim} height={cell * rowCount} viewBox={`0 0 ${cols} ${rowCount}`}>
       <Path d={d} fill={color} />
     </Svg>
+  );
+  if (!fit) return svg;
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>{svg}</View>
   );
 });

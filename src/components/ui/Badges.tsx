@@ -30,7 +30,7 @@ export const BadgeIcon = memo(function BadgeIcon({ id, size = 12 }: { id: string
   const look = badgeLook(id);
   return (
     <View style={styles.icon} accessibilityLabel={`${look.label} badge`}>
-      <PixelIcon name={look.icon} size={size} color={look.color} />
+      <PixelIcon name={look.icon} size={size} color={look.color} fit />
     </View>
   );
 });
@@ -54,7 +54,7 @@ export function BadgeList({ badges }: { badges: Badge[] }) {
               accessibilityRole="button"
               accessibilityLabel={`${b.name} badge`}
             >
-              <PixelIcon name={look.icon} size={12} color={look.color} />
+              <PixelIcon name={look.icon} size={12} color={look.color} fit />
               <Text style={[styles.chipText, { color: look.color }]}>{look.label}</Text>
             </Pressable>
           );
@@ -70,7 +70,7 @@ export function BadgeList({ badges }: { badges: Badge[] }) {
 }
 
 const styles = StyleSheet.create({
-  icon: { marginLeft: 5, justifyContent: 'center' },
+  icon: { marginLeft: 5, alignItems: 'center', justifyContent: 'center' },
   listWrap: { gap: 6 },
   list: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
@@ -78,10 +78,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     borderWidth: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    minHeight: 24,
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  chipText: { fontFamily: FONTS.pixel, fontSize: 7 },
+  // The pixel font carries extra top padding on Android: trim it so the label
+  // sits on the icon's centre line
+  chipText: { fontFamily: FONTS.pixel, fontSize: 7, lineHeight: 10, includeFontPadding: false, textAlignVertical: 'center' },
   description: { fontFamily: FONTS.body, fontSize: 17, color: PIXEL.textDim },
 });
