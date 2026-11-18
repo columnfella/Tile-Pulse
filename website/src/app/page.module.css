@@ -236,6 +236,96 @@
   font-size: 12px;
 }
 
+/* ------------------------------ download ------------------------------ */
+.navDownload {
+  color: var(--coral) !important;
+}
+
+.download {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.downloadMain {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.downloadMain .sectionLead {
+  margin-top: 0;
+}
+
+.downloadMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metaTag {
+  font-family: var(--font-pixel), monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  padding: 6px 9px;
+  border: 2px solid var(--line);
+  background: var(--panel);
+}
+
+.disclaimer {
+  border: 2px solid var(--coral-dark);
+  border-left-width: 6px;
+  background: rgba(255, 107, 74, 0.07);
+  padding: 14px 16px;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.disclaimer p {
+  margin: 0;
+}
+
+.disclaimer a {
+  color: var(--coral);
+}
+
+.disclaimerTitle {
+  font-family: var(--font-pixel), monospace;
+  font-size: 10px;
+  font-weight: normal;
+  color: var(--coral);
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 18px;
+  background: var(--panel);
+  border: 3px solid #000;
+  box-shadow: 0 0 0 2px var(--panel-light);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--text-dim);
+}
+
+.steps li {
+  display: flex;
+  gap: 12px;
+}
+
+.stepNum {
+  font-family: var(--font-pixel), monospace;
+  font-size: 10px;
+  color: var(--blue-light);
+  padding-top: 5px;
+  flex-shrink: 0;
+}
+
 /* ------------------------------- footer ------------------------------- */
 .footer {
   border-top: 2px solid var(--panel-light);
@@ -266,7 +356,8 @@
   .heroArt {
     order: -1;
   }
-  .pillars {
+  .pillars,
+  .download {
     grid-template-columns: 1fr;
   }
 }

@@ -1,9 +1,12 @@
 import { Logo } from '@/components/Logo';
 import { TileRain } from '@/components/TileRain';
-import { pillars, principles, site } from '@/content/site';
+import { pillars, principles, site, testBuild } from '@/content/site';
+import { gameVersion } from '@/content/gameVersion';
 import styles from './page.module.css';
 
 export default function Home() {
+  const versionLabel = gameVersion ? `v${gameVersion}` : null;
+
   return (
     <>
       <header className={styles.header}>
@@ -14,6 +17,9 @@ export default function Home() {
           <nav aria-label="Sections" className={styles.nav}>
             <a href="#philosophy">Philosophy</a>
             <a href="#game">The game</a>
+            <a href="#download" className={styles.navDownload}>
+              Download
+            </a>
             <a href={site.github} target="_blank" rel="noreferrer">
               GitHub
             </a>
@@ -25,7 +31,10 @@ export default function Home() {
         {/* Hero */}
         <section className={styles.hero}>
           <div className={styles.heroText}>
-            <span className={styles.badge}>{site.status}</span>
+            <span className={styles.badge}>
+              {site.status}
+              {versionLabel && <> · {versionLabel}</>}
+            </span>
             <h1 className={styles.title}>
               Your music.
               <br />
@@ -34,11 +43,11 @@ export default function Home() {
             <p className={styles.lead}>{site.tagline}</p>
             <p className={styles.intro}>{site.intro}</p>
             <div className={styles.actions}>
-              <a href="#philosophy" className={styles.primaryBtn}>
-                Read the philosophy
+              <a href="#download" className={styles.primaryBtn}>
+                Try the test build
               </a>
-              <a href={site.github} target="_blank" rel="noreferrer" className={styles.secondaryBtn}>
-                View on GitHub
+              <a href="#philosophy" className={styles.secondaryBtn}>
+                Read the philosophy
               </a>
             </div>
             <p className={styles.platforms}>{site.platforms}</p>
@@ -88,11 +97,54 @@ export default function Home() {
             ))}
           </div>
         </section>
+
+        {/* Download */}
+        <section id="download" className={styles.section}>
+          <h2 className={styles.sectionTitle}>
+            <span className={styles.sectionKicker}>{'// Download'}</span>
+            {testBuild.title}
+          </h2>
+          <div className={styles.download}>
+            <div className={styles.downloadMain}>
+              <p className={styles.sectionLead}>{testBuild.body}</p>
+              <div className={styles.downloadMeta}>
+                <span className={styles.metaTag}>Android</span>
+                {versionLabel && <span className={styles.metaTag}>Version {versionLabel}</span>}
+                <span className={styles.metaTag}>Test build</span>
+              </div>
+              <div className={styles.actions}>
+                <a href={testBuild.pageUrl} target="_blank" rel="noreferrer" className={styles.primaryBtn}>
+                  Download on Expo
+                </a>
+              </div>
+              <div className={styles.disclaimer} role="note">
+                <strong className={styles.disclaimerTitle}>Heads up: it might still be buggy</strong>
+                <p>{testBuild.disclaimer}</p>
+                <p>
+                  Found a bug or have an idea?{' '}
+                  <a href={`${site.github}/issues`} target="_blank" rel="noreferrer">
+                    Report it on GitHub
+                  </a>
+                  .
+                </p>
+              </div>
+            </div>
+            <ol className={styles.steps}>
+              {testBuild.steps.map((step, i) => (
+                <li key={step}>
+                  <span className={styles.stepNum}>{String(i + 1).padStart(2, '0')}</span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
       </main>
 
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <Logo />
+          {versionLabel && <p className={styles.faint}>Game version {versionLabel}</p>}
           <p>Please only share audio you have the right to use.</p>
           <p className={styles.faint}>
             No license has been chosen yet — all rights reserved by the author.

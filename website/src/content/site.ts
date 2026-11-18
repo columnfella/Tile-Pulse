@@ -13,6 +13,26 @@ export const site = {
   platforms: 'Android · iOS · Browser',
 };
 
+/**
+ * The Android test build, hosted on Expo (the page has the Install button and a
+ * QR code). EAS (free plan) keeps a build for a limited time, so when a new APK
+ * is built, paste its build page link here.
+ */
+export const testBuild = {
+  pageUrl:
+    'https://expo.dev/accounts/sadoxz/projects/tilepulse-rhythm-game/builds/027ff710-0804-464e-87b6-e375fc544555',
+  title: 'Play the test build',
+  body: 'TilePulse is ready for its first testers. Download the Android build, play some levels, make a chart, and enjoy it — then tell us what you think.',
+  disclaimer:
+    'This is an early test version of a prototype. Expect bugs, rough edges and things that change or break between updates. Your levels, scores and account may be reset while the game is being tested.',
+  steps: [
+    'Open this page on your Android phone, tap Download on Expo, then Install (or scan the QR code there from a computer).',
+    'Open the file. If Android blocks it, allow installs from your browser.',
+    'If Play Protect warns about an unknown app, choose Install anyway.',
+    'The app updates itself — just reopen it to get the latest fixes.',
+  ],
+};
+
 export type Principle = { title: string; body: string; accent: 'blue' | 'coral' };
 
 /** The ideas the game is built on. */
