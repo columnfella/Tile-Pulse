@@ -44,7 +44,7 @@ export const builtWith = {
  */
 export const testBuild = {
   pageUrl:
-    'https://expo.dev/accounts/sadoxz/projects/tilepulse-rhythm-game/builds/027ff710-0804-464e-87b6-e375fc544555',
+    'https://expo.dev/accounts/sadoxz/projects/tilepulse-rhythm-game/builds/b5e39c99-abc2-49d6-afd2-c0a3a8e198da',
   title: 'Play the test build',
   body: 'TilePulse is ready for its first testers. Download the Android build, play some levels, make a chart, and enjoy it — then tell us what you think.',
   disclaimer:
