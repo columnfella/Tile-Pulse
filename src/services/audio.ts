@@ -195,7 +195,11 @@ class AudioEngine {
     durationSeconds?: number
   ): Promise<void> {
     const token = ++this.loadToken;
-    this.stop();
+    // Halt without seeking: play() seeks to its own offset anyway. A seek to 0
+    // here raced with play()'s seek and could restart the audio from the top
+    // while the clock continued from the resume point (the editor's playhead
+    // then snapped back and forth).
+    this.halt();
 
     const source = await this.resolveSource(audioUri, bpm, durationSeconds);
     if (token !== this.loadToken) return; // superseded by a newer load
@@ -260,6 +264,17 @@ class AudioEngine {
     this.clearStartTimer();
     this.track?.pause();
     this.emitClock();
+  }
+
+  /** Stops the clock and the player without moving the playback position. */
+  private halt(): void {
+    const wasActive = this.isPlaying || this.pausedAt !== 0;
+    this.isPlaying = false;
+    this.clockRunning = false;
+    this.pausedAt = 0;
+    this.clearStartTimer();
+    this.track?.pause();
+    if (wasActive) this.emitClock();
   }
 
   public stop(): void {

@@ -17,7 +17,10 @@ import Animated, {
   FadeIn,
   FadeInUp,
   FadeOutUp,
+  scrollTo,
+  useAnimatedRef,
   useAnimatedStyle,
+  useFrameCallback,
   useSharedValue,
 } from 'react-native-reanimated';
 import { ScreenView } from '../../src/components/ui/ScreenView';
@@ -521,8 +524,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const futureRef = useRef<Snapshot[]>([]);
   const [, setHistoryVersion] = useState(0);
 
-  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
+  // Stops the playhead follow loop (set up below, used by pause / reset / leaving)
+  const stopFollowRef = useRef<() => void>(() => {});
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lanesWidthRef = useRef(1);
@@ -550,6 +554,52 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const playheadStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: playheadY.value }],
   }));
+
+  // While the preview plays, the playhead and the auto-scroll are computed on
+  // the UI thread every frame from the audio clock anchor (position + wall
+  // time). Scrolling from JavaScript every frame stuttered whenever the JS
+  // thread was busy (re-renders, saving, status events).
+  const clockPos = useSharedValue(0);
+  const clockWall = useSharedValue(0);
+  const clockRunning = useSharedValue(false);
+  const pxPerSec = useSharedValue(0);
+  const gridHeightSV = useSharedValue(gridHeight);
+  useEffect(() => {
+    gridHeightSV.value = gridHeight;
+  }, [gridHeight, gridHeightSV]);
+  useEffect(() => {
+    pxPerSec.value = (bpm / 60) * PIXELS_PER_BEAT;
+  }, [bpm, pxPerSec]);
+
+  const follow = useFrameCallback(() => {
+    'worklet';
+    const t = clockRunning.value ? clockPos.value + (Date.now() - clockWall.value) / 1000 : clockPos.value;
+    const y = gridHeightSV.value - t * pxPerSec.value;
+    playheadY.value = y;
+    scrollTo(scrollViewRef, 0, Math.max(0, y + GRID_PAD_TOP - 200), false);
+  }, false);
+
+  const clockUnsubRef = useRef<(() => void) | null>(null);
+  stopFollowRef.current = () => {
+    follow.setActive(false);
+    clockUnsubRef.current?.();
+    clockUnsubRef.current = null;
+  };
+  /** Starts following the audio clock; ends by itself when the song finishes. */
+  const startFollow = () => {
+    stopFollowRef.current();
+    clockUnsubRef.current = audioService.subscribeClock((a) => {
+      clockPos.value = a.pos;
+      clockWall.value = a.wallMs;
+      clockRunning.value = a.running;
+      if (!a.running && !audioService.getIsPlaying()) {
+        // Song ended: leave the playhead where the music stopped
+        stopFollowRef.current();
+        setIsPlayingPreview(false);
+      }
+    });
+    follow.setActive(true);
+  };
 
   /* ------------------------------ saving ------------------------------ */
 
@@ -653,7 +703,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   useEffect(() => {
     return () => {
       audioService.stop();
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      stopFollowRef.current();
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
       if (saveTimerRef.current) {
@@ -671,7 +721,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
         audioService.stop();
         setIsPlayingPreview(false);
         if (at !== null) setPausedAtSec(at);
-        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        stopFollowRef.current();
       },
       []
     )
@@ -715,18 +765,6 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
 
   /* ------------------------------ preview ----------------------------- */
 
-  const updatePreviewPlayhead = useCallback(() => {
-    if (audioService.getIsPlaying()) {
-      const cur = audioService.getCurrentTime();
-      const y = gridHeightRef.current - cur * (latestRef.current.bpm / 60) * PIXELS_PER_BEAT;
-      playheadY.value = y;
-      scrollViewRef.current?.scrollTo({ y: Math.max(0, y + GRID_PAD_TOP - 200), animated: false });
-      animFrameRef.current = requestAnimationFrame(updatePreviewPlayhead);
-    } else {
-      setIsPlayingPreview(false);
-    }
-  }, [playheadY]);
-
   const showToast = useCallback((message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(message);
@@ -740,7 +778,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     if (isPlayingPreview) {
       const at = audioService.getCurrentTime();
       audioService.pause();
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      stopFollowRef.current();
       setIsPlayingPreview(false);
       setPausedAtSec(at);
       playheadY.value = secToY(at);
@@ -753,7 +791,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
       audioService.play(pausedAtSec ?? (previewStartBeat * 60) / bpm);
       setPausedAtSec(null);
       setIsPlayingPreview(true);
-      animFrameRef.current = requestAnimationFrame(updatePreviewPlayhead);
+      startFollow();
     } catch (err) {
       console.warn('Preview playback failed:', err);
       showToast("Could not play this song's audio.");
@@ -763,7 +801,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   /** Leaves the paused state; the next Test starts from the ruler marker again. */
   const handleResetPause = () => {
     audioService.stop();
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    stopFollowRef.current();
     setIsPlayingPreview(false);
     setPausedAtSec(null);
     playheadY.value = beatToY(previewStartBeat, gridHeightRef.current);
@@ -818,7 +856,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     audioService.stop();
     setIsPlayingPreview(false);
     setPausedAtSec(null);
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    stopFollowRef.current();
 
     await saveNow(); // the game reads the beatmap from storage
     router.push(`/play/${song.id}`);
@@ -1568,7 +1606,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
 
       <View style={styles.gridContainer}>
         {/* 4-Lane Vertical Musical Beat Grid */}
-        <ScrollView
+        <Animated.ScrollView
           ref={scrollViewRef}
           style={styles.gridScroll}
           contentContainerStyle={{
@@ -1645,7 +1683,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               )}
             </View>
           </View>
-        </ScrollView>
+        </Animated.ScrollView>
 
         {/* Selected Tile Inspector (floats over the grid, so the grid doesn't jump) */}
         {selectedTile && (
