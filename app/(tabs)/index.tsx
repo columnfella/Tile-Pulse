@@ -12,6 +12,7 @@ import { formatAudioTime } from '../../game/engine';
 import { PlayRow } from '../../src/components/ui/PlayRow';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { ThemeSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
+import { SettingsSheet } from '../../src/components/ui/SettingsSheet';
 import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
 import { checkCopy } from '../../src/services/social';
 import { ApiUnavailableError } from '../../src/services/communityApi';
@@ -38,6 +39,7 @@ export default function HomeScreen() {
   const [copyPrompt, setCopyPrompt] = useState<{ song: Song; password: string; error: string | null; busy: boolean } | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const defaultBackground = useDefaultBackground();
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -261,14 +263,24 @@ export default function HomeScreen() {
             <Text style={styles.appSub}>4-lane rhythm studio</Text>
           </View>
         </View>
-        <PressableScale
-          scaleTo={0.88}
-          style={styles.themeButton}
-          onPress={() => setIsThemeOpen(true)}
-          accessibilityLabel="Choose app theme"
-        >
-          <PixelIcon name="palette" size={18} color="#cdd6ea" />
-        </PressableScale>
+        <View style={styles.headerButtons}>
+          <PressableScale
+            scaleTo={0.88}
+            style={styles.themeButton}
+            onPress={() => setIsThemeOpen(true)}
+            accessibilityLabel="Choose app theme"
+          >
+            <PixelIcon name="palette" size={18} color="#cdd6ea" />
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.88}
+            style={styles.themeButton}
+            onPress={() => setIsSettingsOpen(true)}
+            accessibilityLabel="Settings"
+          >
+            <PixelIcon name="gear" size={18} color="#cdd6ea" />
+          </PressableScale>
+        </View>
       </Animated.View>
 
       {banner && (
@@ -363,6 +375,7 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      <SettingsSheet visible={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isThemeOpen && (
         <ThemeSettingsSheet
           value={defaultBackground}
@@ -375,6 +388,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerButtons: { flexDirection: 'row', gap: 8 },
   customizeBtn: { flex: 1, paddingVertical: 9, borderColor: PIXEL.accent2, backgroundColor: 'rgba(77, 141, 255, 0.08)' },
   customizeText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 19, letterSpacing: 1 },
   halfBtn: { flex: 1, paddingVertical: 8 },

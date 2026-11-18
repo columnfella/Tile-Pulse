@@ -42,6 +42,7 @@ import { useCreateSignal, useSignal, type Signal } from '../../src/game/signal';
 import { AnimatedBackground, isBackgroundId } from '../../src/components/backgrounds/AnimatedBackground';
 import { useDefaultBackground } from '../../src/services/settings';
 import { submitScore } from '../../src/services/profile';
+import { holdMenuMusic } from '../../src/services/menuMusic';
 import { setActivity } from '../../src/services/friends';
 import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
 import { Countdown, LoadingOverlay } from '../../src/components/game/StartSequence';
@@ -143,6 +144,10 @@ export default function PlayScreen() {
   const [song, setSong] = useState<Song | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
+  // Menu music fades out while a level is open (the song plays instead)
+  useEffect(() => holdMenuMusic('play'), []);
+  // Whether the finished run earned leaderboard points (null: not sent / unknown)
+  const [ranked, setRanked] = useState<{ ranked: boolean; verified: boolean } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   // loading → countdown → playing. Input and the game loop only run while playing.
   const [phase, setPhase] = useState<'loading' | 'countdown' | 'playing'>('loading');
@@ -627,6 +632,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
   useEffect(() => {
     if (!isCompleted || !song?.community?.levelId) return;
     const st = statsSig.get();
+    setRanked(null);
     void submitScore(
       song.community.levelId,
       {
@@ -639,7 +645,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         miss: st.missCount,
       },
       hardcore
-    );
+    ).then(setRanked);
   }, [isCompleted, song, hardcore, statsSig]);
 
   const handleTogglePause = () => {
@@ -916,6 +922,13 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 
             <Text style={styles.statusModalTitle}>{hardcore ? 'Hardcore Clear!' : 'Song Completed!'}</Text>
             <Text style={styles.statusModalSub}>{song.title}</Text>
+            {ranked && !ranked.ranked ? (
+              <Text style={styles.unrankedNote}>
+                {ranked.verified
+                  ? 'Your own level: this score doesn’t count for the leaderboard.'
+                  : 'Unverified level: this score doesn’t count for the leaderboard yet.'}
+              </Text>
+            ) : null}
 
             <View style={styles.statsHeroGrid}>
               <View style={styles.statHeroBox}>
@@ -1002,6 +1015,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 }
 
 const styles = StyleSheet.create({
+  unrankedNote: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 16, textAlign: 'center', marginTop: 4, paddingHorizontal: 8 },
   root: {
     flex: 1,
   },

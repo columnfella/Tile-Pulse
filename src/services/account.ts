@@ -13,11 +13,19 @@ import { getDeviceId } from './device';
 const SESSION_KEY = 'tilepulse_session_v1';
 const REQUEST_TIMEOUT_MS = 15_000;
 
+export type StaffRole = 'moderator' | 'owner' | null;
+
 export interface AccountUser {
   id: string;
   username: string;
   displayName: string;
+  /** In-app staff: moderators and the owner can verify / remove content and warn / ban players. */
+  staffRole?: StaffRole;
 }
+
+/** Moderators and the owner. */
+export const isStaff = (user: AccountUser | null | undefined) =>
+  user?.staffRole === 'moderator' || user?.staffRole === 'owner';
 
 export interface Session {
   token: string;
@@ -95,7 +103,17 @@ async function saveSession(session: Session | null) {
 /** Keeps the stored session's name in sync after a profile change. */
 export async function updateSessionUser(user: AccountUser): Promise<void> {
   const s = await getSession();
-  if (s) await saveSession({ ...s, user: { id: user.id, username: user.username, displayName: user.displayName } });
+  if (!s) return;
+  const next = {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    staffRole: user.staffRole !== undefined ? user.staffRole : (s.user.staffRole ?? null),
+  };
+  const same =
+    next.id === s.user.id && next.username === s.user.username && next.displayName === s.user.displayName &&
+    next.staffRole === (s.user.staffRole ?? null);
+  if (!same) await saveSession({ ...s, user: next });
 }
 
 /* --------------------------------- requests -------------------------------- */
@@ -175,7 +193,7 @@ type AuthResponse = { user: AccountUser; token: string; expiresAt: number };
 const toSession = (r: AuthResponse): Session => ({
   token: r.token,
   expiresAt: r.expiresAt,
-  user: { id: r.user.id, username: r.user.username, displayName: r.user.displayName },
+  user: { id: r.user.id, username: r.user.username, displayName: r.user.displayName, staffRole: r.user.staffRole ?? null },
 });
 
 export async function signIn(username: string, password: string): Promise<Session> {

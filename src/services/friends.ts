@@ -3,7 +3,8 @@
  * server every minute while the app is open) and the leaderboard.
  */
 import { AppState } from 'react-native';
-import { apiRequest, getSession, onSessionChange } from './account';
+import { apiRequest, getSession, onSessionChange, updateSessionUser, type StaffRole } from './account';
+import { setUnreadCount } from './notifications';
 import type { ImageRef, Presence } from './profile';
 
 export interface PlayerCard {
@@ -11,6 +12,8 @@ export interface PlayerCard {
   username: string;
   displayName: string;
   avatar: ImageRef | null;
+  /** Main badge id (owner, developer, moderator, …), on leaderboard rows. */
+  badge?: string | null;
 }
 
 export interface Friend extends PlayerCard {
@@ -67,11 +70,16 @@ let timer: ReturnType<typeof setInterval> | null = null;
 let started = false;
 
 async function beat() {
-  if (AppState.currentState !== 'active' || !(await getSession())) return;
+  const session = await getSession();
+  if (AppState.currentState !== 'active' || !session) return;
   try {
-    await apiRequest('POST', '/me/presence', {
+    // The reply carries the inbox's unread count and your staff role (so a
+    // promotion shows up without signing in again)
+    const r = await apiRequest<{ unread?: number; staffRole?: StaffRole } | undefined>('POST', '/me/presence', {
       json: { kind: activity.kind, ...(activity.detail ? { detail: activity.detail.slice(0, 120) } : {}) },
     });
+    if (typeof r?.unread === 'number') setUnreadCount(r.unread);
+    if (r && r.staffRole !== undefined) await updateSessionUser({ ...session.user, staffRole: r.staffRole });
   } catch {
     /* offline: try again on the next beat */
   }

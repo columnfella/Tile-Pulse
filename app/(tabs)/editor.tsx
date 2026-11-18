@@ -52,6 +52,7 @@ import { SongSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
 import { useDefaultBackground } from '../../src/services/settings';
 import * as ImagePicker from 'expo-image-picker';
 import { setActivity } from '../../src/services/friends';
+import { holdMenuMusic } from '../../src/services/menuMusic';
 
 const PIXELS_PER_BEAT = 96; // 1/4 snap cells are 24px, 1/2 cells 48px
 const TILE_GAP = 2; // px inset so neighbouring notes never visually touch
@@ -1211,10 +1212,14 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     if (next !== bpm) commit({ bpm: next });
   };
 
-  // Friends see that you're in the editor
+  // Friends see that you're in the editor; the menu music fades out while you edit
   useEffect(() => {
     setActivity('editing', songRef.current.title);
-    return () => setActivity('menu');
+    const releaseMusic = holdMenuMusic('editor');
+    return () => {
+      setActivity('menu');
+      releaseMusic();
+    };
   }, []);
 
   // Customize: name, background and cover picture (moved here from the Songs tab)

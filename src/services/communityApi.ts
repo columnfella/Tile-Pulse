@@ -50,6 +50,8 @@ export interface LevelFilters {
   notes?: NoteFilter;
   hasAudio?: boolean;
   hasCover?: boolean;
+  /** Only levels verified by a moderator (these count for the leaderboard). */
+  verified?: boolean;
   sort?: LevelSort;
   limit?: number;
   offset?: number;
@@ -79,6 +81,8 @@ export interface CommunityLevel {
   comments: number;
   /** Star difficulty (1–8) voted by players who finished it. */
   difficultyVotes: DifficultyVotes;
+  /** Verified by a moderator: only these levels give leaderboard points. */
+  verified?: boolean;
   song: {
     id: string;
     title: string;

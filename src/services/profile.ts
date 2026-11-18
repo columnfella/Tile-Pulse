@@ -11,6 +11,12 @@ export interface ImageRef {
   sha256: string;
 }
 
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface Privacy {
   profile: boolean;
   history: boolean;
@@ -25,6 +31,7 @@ export interface MyProfile extends AccountUser {
   privacy: Privacy;
   stats: { plays: number; uploads: number };
   role: 'player' | 'admin';
+  badges: Badge[];
   createdAt: number;
 }
 
@@ -61,6 +68,8 @@ export interface PublicProfile {
   avatar: ImageRef | null;
   banner: ImageRef | null;
   bannerColor: string | null;
+  staffRole?: 'moderator' | 'owner' | null;
+  badges: Badge[];
   createdAt: number;
   private: boolean;
   self?: boolean;
@@ -135,18 +144,23 @@ export async function getProfile(username: string): Promise<PublicProfile> {
   return profile;
 }
 
-/** Records a finished run of a community level (only when signed in; failures are ignored). */
+/**
+ * Records a finished run of a community level (only when signed in; failures
+ * are ignored). Resolves whether it earned leaderboard points (only verified
+ * levels made by someone else do), or null when it wasn't sent.
+ */
 export async function submitScore(
   levelId: string,
   s: { score: number; accuracy: number; maxCombo: number; perfect: number; great: number; good: number; miss: number },
   hardcore: boolean
-): Promise<void> {
-  if (!(await getSession())) return;
+): Promise<{ ranked: boolean; verified: boolean } | null> {
+  if (!(await getSession())) return null;
   try {
-    await apiRequest('POST', `/beatmaps/${levelId}/scores`, {
+    const r = await apiRequest<{ ranked?: boolean; verified?: boolean }>('POST', `/beatmaps/${levelId}/scores`, {
       json: { ...s, accuracy: Math.max(0, Math.min(100, s.accuracy)), hardcore: hardcore && s.miss === 0 },
     });
+    return { ranked: Boolean(r?.ranked), verified: Boolean(r?.verified) };
   } catch {
-    /* offline or level removed: the run still counts locally */
+    return null; // offline or level removed: the run still counts locally
   }
 }

@@ -25,6 +25,8 @@ export interface SocialState {
   /** likes − dislikes (can be negative) */
   score: number;
   comments: number;
+  /** Verified by a moderator (only verified levels count for the leaderboard). */
+  verified?: boolean;
   /** Star difficulty from player votes (1–8). */
   difficulty: DifficultyVotes & { distribution: number[] };
   myVote: Vote;
@@ -37,8 +39,10 @@ export interface LevelComment {
   id: string;
   body: string;
   createdAt: number;
-  author: { id: string; username: string; displayName: string; avatar: ImageRef | null };
+  author: { id: string; username: string; displayName: string; avatar: ImageRef | null; badge?: string | null };
   canDelete: boolean;
+  /** You're a moderator and this is someone else's comment: remove it with a reason. */
+  canModerate?: boolean;
   likes: number;
   dislikes: number;
   score: number;

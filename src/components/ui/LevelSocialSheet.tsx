@@ -3,6 +3,8 @@
  * negative), star difficulty votes (1–8; the majority becomes official at 200
  * votes, like Geometry Dash's community difficulty)
  * and comments (each can be liked / disliked; tap a name to see the profile).
+ * Moderators also get tools here: verify / unverify the level, remove it, and
+ * remove other people's comments (always with a reason the player is told).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -21,9 +23,12 @@ import { PixelIcon } from './PixelIcon';
 import { PressableScale } from './PressableScale';
 import { useScreenInsets } from './useScreenInsets';
 import { ProfileSheet } from './ProfileSheet';
+import { BadgeIcon } from './Badges';
+import { ReasonModal } from './ReasonModal';
 import { FONTS, PIXEL } from '../../theme/pixel';
 import { API_BASE, ApiUnavailableError } from '../../services/communityApi';
-import { getSession, onSessionChange } from '../../services/account';
+import { getSession, isStaff, onSessionChange } from '../../services/account';
+import { removeComment, removeLevel, unverifyLevel, verifyLevel } from '../../services/moderation';
 import { avatarUrl } from '../../services/profile';
 import {
   deleteComment,
@@ -138,11 +143,35 @@ interface Props {
   onClose: () => void;
   /** Called with fresh counts so the card can update. */
   onChanged?: (s: SocialState) => void;
+  /** Verified by a moderator (only verified levels count for the leaderboard). */
+  verified?: boolean;
+  /** A moderator verified / unverified it here. */
+  onVerifiedChange?: (verified: boolean) => void;
+  /** A moderator removed the level here (the sheet closes). */
+  onRemoved?: () => void;
 }
 
-export function LevelSocialSheet({ visible, levelId, name, description, onClose, onChanged }: Props) {
+const LEVEL_REASONS = ['Stolen / copied chart', 'Broken or unplayable', 'Inappropriate content', 'Spam'];
+const COMMENT_REASONS = ['Spam', 'Rude or hateful', 'Inappropriate', 'Off-topic'];
+
+export function LevelSocialSheet({
+  visible,
+  levelId,
+  name,
+  description,
+  onClose,
+  onChanged,
+  verified = false,
+  onVerifiedChange,
+  onRemoved,
+}: Props) {
   const insets = useScreenInsets();
   const [signedIn, setSignedIn] = useState(false);
+  const [staff, setStaff] = useState(false);
+  const [isVerified, setIsVerified] = useState(verified);
+  // Which reason dialog is open: removing the level, or one comment
+  const [asking, setAsking] = useState<{ kind: 'level' } | { kind: 'comment'; comment: LevelComment } | null>(null);
+  useEffect(() => setIsVerified(verified), [verified]);
   const [social, setSocial] = useState<SocialState | null>(null);
   const [comments, setComments] = useState<LevelComment[]>([]);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
@@ -169,6 +198,7 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
     try {
       const [s, c] = await Promise.all([getSocial(levelId), getComments(levelId)]);
       setSocial(s);
+      if (typeof s.verified === 'boolean') setIsVerified(s.verified);
       setComments(c.comments);
       setNextBefore(c.nextBefore);
     } catch (err) {
@@ -180,9 +210,15 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
 
   useEffect(() => {
     if (!visible) return;
-    void getSession().then((s) => setSignedIn(Boolean(s)));
+    void getSession().then((s) => {
+      setSignedIn(Boolean(s));
+      setStaff(isStaff(s?.user));
+    });
     void load();
-    return onSessionChange((s) => setSignedIn(Boolean(s)));
+    return onSessionChange((s) => {
+      setSignedIn(Boolean(s));
+      setStaff(isStaff(s?.user));
+    });
   }, [visible, load]);
 
   const act = async (key: string, fn: () => Promise<void>) => {
@@ -233,6 +269,13 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
       if (social) update({ ...social, comments: Math.max(0, social.comments - 1) });
     });
 
+  const toggleVerified = () =>
+    act('verify', async () => {
+      const r = isVerified ? await unverifyLevel(levelId) : await verifyLevel(levelId);
+      setIsVerified(r.verified);
+      onVerifiedChange?.(r.verified);
+    });
+
   const more = () =>
     act('more', async () => {
       if (!nextBefore) return;
@@ -253,6 +296,12 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
             <Text style={styles.title} numberOfLines={1}>
               {name}
             </Text>
+            {isVerified ? (
+              <View style={styles.verifiedChip}>
+                <PixelIcon name="check" size={10} color="#000000" />
+                <Text style={styles.verifiedText}>VERIFIED</Text>
+              </View>
+            ) : null}
           </View>
           <PressableScale scaleTo={0.88} style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
             <PixelIcon name="close" size={14} color="#cdd6ea" />
@@ -261,6 +310,34 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {description ? <Text style={styles.description}>{description}</Text> : null}
+
+          {!isVerified ? (
+            <Text style={styles.muted}>Not verified yet: scores on this level don’t count for the leaderboard.</Text>
+          ) : null}
+
+          {staff ? (
+            <View style={[styles.section, styles.modSection]}>
+              <View style={styles.modHead}>
+                <PixelIcon name="shield" size={12} color="#7dff8a" />
+                <Text style={styles.modTitle}>MODERATOR</Text>
+              </View>
+              <View style={styles.modRow}>
+                <PressableScale
+                  scaleTo={0.95}
+                  onPress={toggleVerified}
+                  disabled={busyKey === 'verify'}
+                  style={[styles.modBtn, isVerified ? styles.modBtnOff : styles.modBtnOn]}
+                >
+                  {busyKey === 'verify' ? <ActivityIndicator size="small" color="#000000" /> : <PixelIcon name="check" size={11} color={isVerified ? '#7dff8a' : '#000000'} />}
+                  <Text style={[styles.modBtnText, isVerified && styles.modBtnTextOff]}>{isVerified ? 'UNVERIFY' : 'VERIFY'}</Text>
+                </PressableScale>
+                <PressableScale scaleTo={0.95} onPress={() => setAsking({ kind: 'level' })} style={[styles.modBtn, styles.modBtnDanger]}>
+                  <PixelIcon name="trash" size={11} color="#ffffff" />
+                  <Text style={[styles.modBtnText, styles.modBtnTextDanger]}>REMOVE LEVEL</Text>
+                </PressableScale>
+              </View>
+            </View>
+          ) : null}
 
           {/* Likes / dislikes */}
           <View style={styles.section}>
@@ -403,16 +480,24 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
                     )}
                   </PressableScale>
                   <View style={styles.flex}>
-                    <PressableScale scaleTo={0.97} onPress={() => setViewing(c.author.username)}>
-                      <Text style={styles.commentHead}>
-                        <Text style={styles.commentName}>{c.author.displayName}</Text>
-                        <Text style={styles.muted}>  @{c.author.username} · {timeAgo(c.createdAt)}</Text>
+                    <PressableScale scaleTo={0.97} onPress={() => setViewing(c.author.username)} style={styles.commentHead}>
+                      <Text style={styles.commentName} numberOfLines={1}>
+                        {c.author.displayName}
+                      </Text>
+                      <BadgeIcon id={c.author.badge} size={11} />
+                      <Text style={styles.muted} numberOfLines={1}>
+                        {'  '}@{c.author.username} · {timeAgo(c.createdAt)}
                       </Text>
                     </PressableScale>
                     <Text style={styles.commentBody}>{c.body}</Text>
                     <VoteButtons small score={c.score ?? 0} myVote={c.myVote ?? 0} onVote={(v) => voteOnComment(c, v)} disabled={!signedIn} busy={busyKey === c.id} />
                   </View>
-                  {c.canDelete ? (
+                  {c.canModerate ? (
+                    // Moderator: remove with a reason (the writer is told why)
+                    <PressableScale scaleTo={0.85} onPress={() => setAsking({ kind: 'comment', comment: c })} style={styles.deleteBtn} accessibilityLabel="Remove comment (moderator)">
+                      <PixelIcon name="shield" size={12} color="#ff7a73" />
+                    </PressableScale>
+                  ) : c.canDelete ? (
                     <PressableScale scaleTo={0.85} onPress={() => remove(c)} style={styles.deleteBtn} accessibilityLabel="Delete comment">
                       <PixelIcon name="trash" size={12} color={PIXEL.textDim} />
                     </PressableScale>
@@ -428,6 +513,31 @@ export function LevelSocialSheet({ visible, levelId, name, description, onClose,
           </View>
         </ScrollView>
         <ProfileSheet username={viewing} onClose={() => setViewing(null)} />
+        <ReasonModal
+          visible={asking !== null}
+          title={asking?.kind === 'level' ? 'REMOVE LEVEL' : 'REMOVE COMMENT'}
+          message={
+            asking?.kind === 'level'
+              ? `"${name}" will be deleted for everyone. The creator is told the reason.`
+              : 'The comment will be deleted. Its writer is told the reason.'
+          }
+          confirmLabel="REMOVE"
+          destructive
+          presets={asking?.kind === 'level' ? LEVEL_REASONS : COMMENT_REASONS}
+          onClose={() => setAsking(null)}
+          onConfirm={async (reason) => {
+            if (asking?.kind === 'level') {
+              await removeLevel(levelId, reason);
+              onRemoved?.();
+              onClose();
+            } else if (asking?.kind === 'comment') {
+              const target = asking.comment;
+              await removeComment(target.id, reason);
+              setComments((prev) => prev.filter((x) => x.id !== target.id));
+              if (social) update({ ...social, comments: Math.max(0, social.comments - 1) });
+            }
+          }}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -501,8 +611,21 @@ const styles = StyleSheet.create({
   comment: { flexDirection: 'row', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#111a2e' },
   avatar: { width: 32, height: 32, backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: '#000000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10 },
-  commentHead: { flexDirection: 'row' },
-  commentName: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 18 },
+  commentHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' },
+  commentName: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 18, flexShrink: 1 },
+  verifiedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#4d8dff', borderWidth: 2, borderColor: '#000000', paddingHorizontal: 5, paddingVertical: 3 },
+  verifiedText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 6 },
+  modSection: { borderColor: '#2f6b3a', backgroundColor: 'rgba(125,255,138,0.05)' },
+  modHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  modTitle: { color: '#7dff8a', fontFamily: FONTS.pixel, fontSize: 8 },
+  modRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  modBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 2, borderColor: '#000000' },
+  modBtnOn: { backgroundColor: '#7dff8a' },
+  modBtnOff: { backgroundColor: 'transparent', borderColor: '#2f6b3a' },
+  modBtnDanger: { backgroundColor: '#d8342f' },
+  modBtnText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 7 },
+  modBtnTextOff: { color: '#7dff8a' },
+  modBtnTextDanger: { color: '#ffffff' },
   commentBody: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18, marginTop: 2 },
   deleteBtn: { padding: 6 },
   moreBtn: { alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 8, borderWidth: 2, borderColor: PIXEL.panelLight },

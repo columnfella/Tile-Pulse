@@ -12,6 +12,7 @@ import { audioService } from '../services/audio';
 import { storageService } from '../services/storage';
 import { AppSplash } from '../src/components/ui/AppSplash';
 import { startPresence } from '../src/services/friends';
+import { startMenuMusic } from '../src/services/menuMusic';
 import * as Updates from 'expo-updates';
 
 /**
@@ -70,6 +71,11 @@ export default function RootLayout() {
   // Tell friends you're online (a small heartbeat while the app is open and you're signed in)
   useEffect(() => {
     startPresence();
+  }, []);
+
+  // Menu music starts with the app (fades in; off in Settings → Menu music)
+  useEffect(() => {
+    startMenuMusic();
   }, []);
 
   // Dark native root view, so nothing light can show between screen transitions

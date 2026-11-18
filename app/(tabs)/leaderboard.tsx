@@ -10,6 +10,7 @@ import { ScreenView } from '../../src/components/ui/ScreenView';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { ProfileSheet } from '../../src/components/ui/ProfileSheet';
+import { BadgeIcon } from '../../src/components/ui/Badges';
 import { listItemIn } from '../../src/components/ui/motion';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 import { API_BASE, ApiUnavailableError } from '../../src/services/communityApi';
@@ -71,10 +72,13 @@ export default function LeaderboardScreen() {
             )}
           </View>
           <View style={styles.flex}>
-            <Text style={styles.name} numberOfLines={1}>
-              {item.player.displayName}
-              {isMe ? <Text style={styles.you}>  YOU</Text> : null}
-            </Text>
+            <View style={styles.nameLine}>
+              <Text style={[styles.name, styles.nameShrink]} numberOfLines={1}>
+                {item.player.displayName}
+                {isMe ? <Text style={styles.you}>  YOU</Text> : null}
+              </Text>
+              <BadgeIcon id={item.player.badge} size={11} />
+            </View>
             <Text style={styles.muted} numberOfLines={1}>
               @{item.player.username} · {item.levels} {item.levels === 1 ? 'level' : 'levels'}
             </Text>
@@ -100,7 +104,7 @@ export default function LeaderboardScreen() {
               <Text style={styles.title}>LEADERBOARD</Text>
             </View>
             <Text style={styles.muted}>
-              Total score = your best run on every community level. Replaying a level only counts if you beat your best.
+              Total score = your best run on every VERIFIED community level (made by someone else). Replaying a level only counts if you beat your best.
             </Text>
             {data?.me ? (
               <View style={styles.meCard}>
@@ -110,7 +114,7 @@ export default function LeaderboardScreen() {
                   {data.me.total.toLocaleString()} pts · {data.me.levels} levels
                   {data.totalPlayers ? ` · ${data.totalPlayers} players` : ''}
                 </Text>
-                {!data.me.rank ? <Text style={styles.muted}>Finish a community level from Discover to get ranked.</Text> : null}
+                {!data.me.rank ? <Text style={styles.muted}>Finish a verified level from Discover to get ranked.</Text> : null}
               </View>
             ) : data ? (
               <Text style={styles.muted}>Sign in (Profile tab) to see your own rank.</Text>
@@ -132,6 +136,8 @@ export default function LeaderboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  nameLine: { flexDirection: 'row', alignItems: 'center' },
+  nameShrink: { flexShrink: 1 },
   root: { backgroundColor: PIXEL.bg },
   flex: { flex: 1 },
   list: { padding: 16, paddingBottom: 40, gap: 6 },

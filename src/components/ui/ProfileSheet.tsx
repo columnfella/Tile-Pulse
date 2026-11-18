@@ -1,7 +1,8 @@
 /**
  * Someone's public profile (opened from comments, friends, the leaderboard):
  * banner, picture, stats, what they're playing (friends only), history and
- * uploads when they're public, and an add-friend button.
+ * uploads when they're public, and an add-friend button. Badges are listed
+ * under the name. Moderators see warnings and can warn / ban / unban.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -9,9 +10,12 @@ import { PixelIcon, type PixelIconName } from './PixelIcon';
 import { PressableScale } from './PressableScale';
 import { useScreenInsets } from './useScreenInsets';
 import { DIFFICULTY_COLOR } from './LevelCardParts';
+import { BadgeIcon, BadgeList } from './Badges';
+import { ReasonModal } from './ReasonModal';
 import { FONTS, PIXEL } from '../../theme/pixel';
 import { API_BASE, ApiUnavailableError } from '../../services/communityApi';
-import { getSession } from '../../services/account';
+import { getSession, isStaff } from '../../services/account';
+import { banUser, getModUser, unbanUser, warnUser, type ModUserSummary } from '../../services/moderation';
 import {
   DEFAULT_BANNER_COLOR,
   avatarUrl,
@@ -68,6 +72,18 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
   const [busy, setBusy] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [tab, setTab] = useState<'history' | 'uploads'>('history');
+  const [staff, setStaff] = useState(false);
+  const [mod, setMod] = useState<ModUserSummary | null>(null);
+  const [asking, setAsking] = useState<'warn' | 'ban' | null>(null);
+
+  const loadMod = useCallback(async () => {
+    if (!username) return;
+    try {
+      setMod(await getModUser(username));
+    } catch {
+      setMod(null);
+    }
+  }, [username]);
 
   const load = useCallback(async () => {
     if (!username) return;
@@ -81,12 +97,32 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
 
   useEffect(() => {
     setProfile(null);
+    setMod(null);
     setTab('history');
     if (username) {
       void load();
-      void getSession().then((s) => setSignedIn(Boolean(s)));
+      void getSession().then((s) => {
+        setSignedIn(Boolean(s));
+        const isMod = isStaff(s?.user);
+        setStaff(isMod);
+        if (isMod && s?.user.username.toLowerCase() !== username.toLowerCase()) void loadMod();
+      });
     }
-  }, [username, load]);
+  }, [username, load, loadMod]);
+
+  const unban = async () => {
+    if (!mod) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await unbanUser(mod.username);
+      await loadMod();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const friendAction = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -140,8 +176,16 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
                       <Text style={styles.avatarText}>{(p.displayName[0] ?? '?').toUpperCase()}</Text>
                     )}
                   </View>
-                  <Text style={styles.name}>{p.displayName}</Text>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.name}>{p.displayName}</Text>
+                    <BadgeIcon id={p.badges?.[0]?.id} size={14} />
+                  </View>
                   <Text style={styles.username}>@{p.username}</Text>
+                  {p.badges?.length ? (
+                    <View style={styles.badges}>
+                      <BadgeList badges={p.badges} />
+                    </View>
+                  ) : null}
                   {p.presence ? (
                     <View style={styles.presenceRow}>
                       <View style={[styles.dot, p.presence.online && styles.dotOn, p.presence.activity === 'playing' && styles.dotPlaying]} />
@@ -181,6 +225,47 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
               </View>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              {staff && mod ? (
+                <View style={[styles.section, styles.modSection]}>
+                  <View style={styles.modHead}>
+                    <PixelIcon name="shield" size={12} color="#7dff8a" />
+                    <Text style={styles.modTitle}>MODERATOR</Text>
+                  </View>
+                  {mod.bannedAt ? (
+                    <Text style={styles.banned}>BANNED{mod.banReason ? ` — ${mod.banReason}` : ''}</Text>
+                  ) : null}
+                  <Text style={styles.muted}>
+                    {mod.warningCount} warning{mod.warningCount === 1 ? '' : 's'} · {mod.levels} level{mod.levels === 1 ? '' : 's'}
+                  </Text>
+                  {mod.warnings.slice(0, 3).map((w, i) => (
+                    <Text key={i} style={styles.warnLine} numberOfLines={2}>
+                      • {w.reason} <Text style={styles.warnMeta}>({new Date(w.at).toLocaleDateString()}{w.by ? `, @${w.by}` : ''})</Text>
+                    </Text>
+                  ))}
+                  {mod.protected ? (
+                    <Text style={styles.muted}>Staff account: can’t be warned or banned.</Text>
+                  ) : (
+                    <View style={styles.modRow}>
+                      <PressableScale scaleTo={0.95} onPress={() => setAsking('warn')} style={[styles.modBtn, styles.modWarn]}>
+                        <PixelIcon name="warning" size={11} color="#000000" />
+                        <Text style={styles.modBtnText}>WARN</Text>
+                      </PressableScale>
+                      {mod.bannedAt ? (
+                        <PressableScale scaleTo={0.95} disabled={busy} onPress={unban} style={[styles.modBtn, styles.modUnban]}>
+                          <PixelIcon name="check" size={11} color="#000000" />
+                          <Text style={styles.modBtnText}>UNBAN</Text>
+                        </PressableScale>
+                      ) : (
+                        <PressableScale scaleTo={0.95} onPress={() => setAsking('ban')} style={[styles.modBtn, styles.modBan]}>
+                          <PixelIcon name="close" size={11} color="#ffffff" />
+                          <Text style={[styles.modBtnText, styles.modBtnTextLight]}>BAN</Text>
+                        </PressableScale>
+                      )}
+                    </View>
+                  )}
+                </View>
+              ) : null}
 
               {p.private ? (
                 <View style={styles.section}>
@@ -225,6 +310,25 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
             </>
           )}
         </ScrollView>
+        <ReasonModal
+          visible={asking !== null}
+          title={asking === 'ban' ? `BAN @${username ?? ''}` : `WARN @${username ?? ''}`}
+          message={
+            asking === 'ban'
+              ? 'Their account is suspended and signed out, and their devices are banned. You can unban later.'
+              : 'They get a warning with this reason in their inbox.'
+          }
+          confirmLabel={asking === 'ban' ? 'BAN' : 'SEND WARNING'}
+          destructive={asking === 'ban'}
+          presets={asking === 'ban' ? ['Repeated spam', 'Harassment', 'Cheating', 'Stolen levels'] : ['Be respectful in comments', 'No spam', 'Don’t upload stolen charts', 'Keep it appropriate']}
+          onClose={() => setAsking(null)}
+          onConfirm={async (reason) => {
+            if (!username) return;
+            if (asking === 'ban') await banUser(username, reason);
+            else await warnUser(username, reason);
+            await loadMod();
+          }}
+        />
       </View>
     </Modal>
   );
@@ -246,7 +350,22 @@ const styles = StyleSheet.create({
   cardBody: { paddingHorizontal: 14, paddingBottom: 14 },
   avatar: { width: 76, height: 76, marginTop: -40, marginBottom: 8, borderWidth: 4, borderColor: PIXEL.panel, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 26 },
-  name: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 13 },
+  name: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 13, flexShrink: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
+  badges: { marginTop: 8 },
+  modSection: { borderColor: '#2f6b3a', backgroundColor: 'rgba(125,255,138,0.05)' },
+  modHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  modTitle: { color: '#7dff8a', fontFamily: FONTS.pixel, fontSize: 8 },
+  banned: { color: '#ff7a73', fontFamily: FONTS.pixel, fontSize: 7 },
+  warnLine: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 16 },
+  warnMeta: { color: '#6b7a99' },
+  modRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  modBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: '#000000' },
+  modWarn: { backgroundColor: '#ffb84d' },
+  modBan: { backgroundColor: '#d8342f' },
+  modUnban: { backgroundColor: '#7dff8a' },
+  modBtnText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 7 },
+  modBtnTextLight: { color: '#ffffff' },
   username: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 19, marginTop: 4 },
   presenceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   dot: { width: 8, height: 8, backgroundColor: '#3a4a70' },

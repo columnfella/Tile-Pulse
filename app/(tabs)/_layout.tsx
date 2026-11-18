@@ -4,9 +4,11 @@ import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { UnmountOnBlur } from '../../src/components/ui/UnmountOnBlur';
 import { ACTIVE_THEME } from '../../constants/theme';
 import { FONTS } from '../../src/theme/pixel';
+import { useUnreadCount } from '../../src/services/notifications';
 
 export default function TabLayout() {
   const { ui } = ACTIVE_THEME;
+  const unread = useUnreadCount();
 
   return (
     <Tabs
@@ -22,8 +24,8 @@ export default function TabLayout() {
           // inset itself (e.g. the iPhone home indicator).
         },
         tabBarActiveTintColor: '#FF6B4A',
-        // Six tabs: a slightly smaller label so they all fit on narrow phones
-        tabBarLabelStyle: { fontFamily: FONTS.body, fontSize: 13 },
+        // Seven tabs: a smaller label so they all fit on narrow phones
+        tabBarLabelStyle: { fontFamily: FONTS.body, fontSize: 12 },
         tabBarInactiveTintColor: '#9aa7c2',
       }}
     >
@@ -61,6 +63,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <PixelIcon name="friends" size={size || 22} color={String(color)} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          title: 'Inbox',
+          tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#FF6B4A', color: '#000000', fontFamily: FONTS.body, fontSize: 12 },
+          tabBarIcon: ({ color, size }) => <PixelIcon name="bell" size={size || 22} color={String(color)} />,
         }}
       />
       <Tabs.Screen

@@ -97,6 +97,7 @@ interface Filters {
   length: number; // index into LENGTH_RANGES
   notes: NoteFilter;
   playableOnly: boolean; // levels with audio uploaded
+  verifiedOnly: boolean; // verified by a moderator (these count for the leaderboard)
 }
 
 const DEFAULT_FILTERS: Filters = {
@@ -107,6 +108,7 @@ const DEFAULT_FILTERS: Filters = {
   length: 0,
   notes: 'any',
   playableOnly: true,
+  verifiedOnly: false,
 };
 
 function activeFilterCount(f: Filters): number {
@@ -116,7 +118,8 @@ function activeFilterCount(f: Filters): number {
     (f.bpm !== 0 ? 1 : 0) +
     (f.length !== 0 ? 1 : 0) +
     (f.notes !== 'any' ? 1 : 0) +
-    (f.playableOnly !== DEFAULT_FILTERS.playableOnly ? 1 : 0)
+    (f.playableOnly !== DEFAULT_FILTERS.playableOnly ? 1 : 0) +
+    (f.verifiedOnly ? 1 : 0)
   );
 }
 
@@ -225,6 +228,7 @@ export default function DiscoverScreen() {
       maxDurationSec: len.max,
       notes: filters.notes,
       hasAudio: filters.playableOnly ? true : undefined,
+      verified: filters.verifiedOnly ? true : undefined,
       limit: PAGE_SIZE,
     };
   }, [query, field, sort, filters]);
@@ -367,6 +371,12 @@ export default function DiscoverScreen() {
           active={filters.playableOnly}
           onPress={() => updateFilters({ playableOnly: !filters.playableOnly })}
         />
+        <Chip
+          label="Verified only"
+          icon="shield"
+          active={filters.verifiedOnly}
+          onPress={() => updateFilters({ verifiedOnly: !filters.verifiedOnly })}
+        />
         <PressableScale
           scaleTo={0.92}
           style={styles.resetBtn}
@@ -402,9 +412,16 @@ export default function DiscoverScreen() {
           <View style={[styles.cardTop, cover ? styles.cardTopOverCover : null]}>
             <LevelBadge level={item.level} difficulty={item.difficulty} />
             <View style={styles.cardInfo}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {item.name}
-              </Text>
+              <View style={styles.cardTitleRow}>
+                <Text style={[styles.cardTitle, styles.titleShrink]} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                {item.verified ? (
+                  <View style={styles.verifiedTag} accessibilityLabel="Verified level">
+                    <PixelIcon name="check" size={8} color="#000000" />
+                  </View>
+                ) : null}
+              </View>
               <Text style={styles.cardSong} numberOfLines={1}>
                 {item.song.title}
                 {item.song.artist ? ` · ${item.song.artist}` : ''}
@@ -674,6 +691,12 @@ export default function DiscoverScreen() {
           name={socialLevel.name}
           description={socialLevel.description}
           onClose={() => setSocialLevel(null)}
+          verified={Boolean(socialLevel.verified)}
+          onVerifiedChange={(verified) => {
+            setLevels((prev) => prev.map((l) => (l.id === socialLevel.id ? { ...l, verified } : l)));
+            setSocialLevel((prev) => (prev ? { ...prev, verified } : prev));
+          }}
+          onRemoved={() => setLevels((prev) => prev.filter((l) => l.id !== socialLevel.id))}
           onChanged={(st: SocialState) =>
             setLevels((prev) =>
               prev.map((l) =>
@@ -690,6 +713,9 @@ export default function DiscoverScreen() {
 }
 
 const styles = StyleSheet.create({
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  titleShrink: { flexShrink: 1 },
+  verifiedTag: { backgroundColor: '#4d8dff', borderWidth: 2, borderColor: '#000000', padding: 2 },
   description: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18, lineHeight: 21 },
   negative: { color: '#ff7a73' },
   starsOfficial: { color: '#f5b83d' },

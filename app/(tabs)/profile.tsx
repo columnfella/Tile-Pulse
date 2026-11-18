@@ -25,6 +25,7 @@ import { ScreenView } from '../../src/components/ui/ScreenView';
 import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { DIFFICULTY_COLOR } from '../../src/components/ui/LevelCardParts';
+import { BadgeIcon, BadgeList } from '../../src/components/ui/Badges';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 import { API_BASE, ApiUnavailableError } from '../../src/services/communityApi';
 import { deleteAccount, getSession, onSessionChange, register, signIn, signOut, type Session } from '../../src/services/account';
@@ -661,13 +662,21 @@ export default function ProfileScreen() {
                   <View style={styles.avatarWrap}>
                     <Avatar uri={avatar} name={me.displayName} color={bannerColor} size={84} />
                   </View>
-                  <Text style={styles.displayName} numberOfLines={1}>
-                    {me.displayName}
-                  </Text>
+                  <View style={styles.nameRow}>
+                    <Text style={[styles.displayName, styles.nameShrink]} numberOfLines={1}>
+                      {me.displayName}
+                    </Text>
+                    <BadgeIcon id={me.badges?.[0]?.id} size={16} />
+                  </View>
                   <Text style={styles.username}>
                     @{me.username}
                     {me.role === 'admin' ? '  · ADMIN' : ''}
                   </Text>
+                  {me.badges?.length ? (
+                    <View style={styles.badgeWrap}>
+                      <BadgeList badges={me.badges} />
+                    </View>
+                  ) : null}
                   <Text style={styles.muted}>Joined {new Date(me.createdAt).toLocaleDateString()}</Text>
                   <View style={styles.statsRow}>
                     <View style={styles.statBox}>
@@ -765,6 +774,9 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
+  nameShrink: { flexShrink: 1 },
+  badgeWrap: { marginTop: 8, marginBottom: 4 },
   root: { backgroundColor: PIXEL.bg },
   flex: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 40 },
