@@ -1,0 +1,72 @@
+/* Claude's warm orange, alongside the game's blue/coral palette */
+.pill,
+.card {
+  --claude: #d97757;
+  text-decoration: none;
+  transition: transform 80ms ease, box-shadow 80ms ease, border-color 80ms ease;
+}
+
+.spark {
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Small pill (hero) */
+.pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 2px solid var(--claude);
+  background: rgba(217, 119, 87, 0.1);
+  color: var(--text);
+  font-family: var(--font-pixel), monospace;
+  font-size: 10px;
+  box-shadow: 3px 3px 0 #000;
+}
+
+.name {
+  color: var(--claude);
+  font-weight: normal;
+}
+
+/* Larger card (footer) */
+.card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 34em;
+  padding: 14px 16px;
+  border: 2px solid var(--claude);
+  border-left-width: 6px;
+  background: rgba(217, 119, 87, 0.08);
+  color: var(--text-dim);
+}
+
+.cardText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cardTitle {
+  font-family: var(--font-pixel), monospace;
+  font-size: 11px;
+  color: var(--claude);
+}
+
+.cardBody {
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.pill:hover,
+.card:hover {
+  transform: translate(1px, 1px);
+  border-color: #f0a283;
+}
+
+.pill:hover {
+  box-shadow: 2px 2px 0 #000;
+}

@@ -13,6 +13,12 @@ export const site = {
   platforms: 'Android · iOS · Browser',
 };
 
+/** Credit for the AI the game and this site were built with. */
+export const builtWith = {
+  url: 'https://claude.com/claude-code',
+  note: 'TilePulse — the game, its server and this website — was built with Claude Code, the AI coding assistant made by Anthropic.',
+};
+
 /**
  * The Android test build, hosted on Expo (the page has the Install button and a
  * QR code). EAS (free plan) keeps a build for a limited time, so when a new APK

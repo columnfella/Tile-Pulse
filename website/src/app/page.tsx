@@ -1,3 +1,4 @@
+import { ClaudeBadge } from '@/components/ClaudeBadge';
 import { Logo } from '@/components/Logo';
 import { TileRain } from '@/components/TileRain';
 import { pillars, principles, site, testBuild } from '@/content/site';
@@ -55,6 +56,7 @@ export default function Home() {
               </a>
             </div>
             <p className={styles.platforms}>{site.platforms}</p>
+            <ClaudeBadge />
           </div>
           <div className={styles.heroArt}>
             <TileRain />
@@ -149,6 +151,7 @@ export default function Home() {
         <div className={styles.footerInner}>
           <Logo />
           {versionLabel && <p className={styles.faint}>Game version {versionLabel}</p>}
+          <ClaudeBadge variant="card" />
           <p>Please only share audio you have the right to use.</p>
           <p className={styles.faint}>
             No license has been chosen yet — all rights reserved by the author.
