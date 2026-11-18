@@ -19,7 +19,7 @@
 }
 
 .ready {
-  opacity: 0.9;
+  opacity: 0.75;
 }
 
 /* Slightly darkens the swirl (more towards the edges) so the text on top stays easy to read */
@@ -27,6 +27,6 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 45%, rgba(5, 7, 13, 0), rgba(5, 7, 13, 0.45) 80%),
-    linear-gradient(180deg, rgba(5, 7, 13, 0.15), rgba(5, 7, 13, 0.35));
+    radial-gradient(ellipse at 50% 45%, rgba(6, 12, 28, 0.1), rgba(6, 12, 28, 0.5) 80%),
+    linear-gradient(180deg, rgba(6, 12, 28, 0.2), rgba(6, 12, 28, 0.4));
 }

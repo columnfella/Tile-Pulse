@@ -23,7 +23,7 @@
   color: var(--text);
   font-family: var(--font-pixel), monospace;
   font-size: 10px;
-  box-shadow: 3px 3px 0 #000;
+  box-shadow: 3px 3px 0 var(--shadow);
 }
 
 .name {
@@ -68,5 +68,5 @@
 }
 
 .pill:hover {
-  box-shadow: 2px 2px 0 #000;
+  box-shadow: 2px 2px 0 var(--shadow);
 }

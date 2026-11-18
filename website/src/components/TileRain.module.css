@@ -3,9 +3,9 @@
   width: 100%;
   max-width: 300px;
   aspect-ratio: 3 / 5;
-  background: linear-gradient(180deg, #070b14 0%, #0b1220 100%);
-  border: var(--unit) solid #000;
-  box-shadow: 0 0 0 var(--unit) var(--panel-light), 12px 12px 0 #000;
+  background: linear-gradient(180deg, rgba(8, 14, 30, 0.78) 0%, rgba(11, 20, 42, 0.85) 100%);
+  border: var(--unit) solid rgba(3, 8, 24, 0.8);
+  box-shadow: 0 0 0 var(--unit) var(--edge), 10px 10px 0 var(--shadow);
   overflow: hidden;
   /* Own compositing layer: the falling tiles never repaint the rest of the page */
   contain: layout paint;

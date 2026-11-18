@@ -12,6 +12,12 @@
   --text: #e6ecf7;
   --text-dim: #9aa7c2;
   --text-faint: #6b7a99;
+  /* Surfaces over the animated swirl: translucent navy instead of solid black,
+     so panels, borders and shadows blend with the background */
+  --surface: rgba(10, 18, 38, 0.62);
+  --surface-strong: rgba(8, 14, 30, 0.82);
+  --edge: rgba(98, 146, 255, 0.22);
+  --shadow: rgba(3, 8, 24, 0.55);
   --unit: 4px; /* one "pixel" of the art */
   --max: 1080px;
 }
