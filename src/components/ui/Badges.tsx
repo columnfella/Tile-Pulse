@@ -10,8 +10,8 @@ import type { Badge } from '../../services/profile';
  */
 const LOOKS: Record<string, { icon: PixelIconName; color: string; label: string }> = {
   owner: { icon: 'crown', color: '#ffd23f', label: 'OWNER' },
-  developer: { icon: 'code', color: '#4dd6ff', label: 'DEV' },
-  moderator: { icon: 'shield', color: '#7dff8a', label: 'MOD' },
+  developer: { icon: 'terminal', color: '#4dd6ff', label: 'DEV' },
+  moderator: { icon: 'modShield', color: '#7dff8a', label: 'MOD' },
   bug_hunter: { icon: 'bug', color: '#c38bff', label: 'BUG HUNTER' },
   artist: { icon: 'note', color: '#ff8fd0', label: 'ARTIST' },
   supporter: { icon: 'heart', color: '#ff6b8a', label: 'SUPPORTER' },

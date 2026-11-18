@@ -13,6 +13,24 @@ export const site = {
   platforms: 'Android · iOS · Browser',
 };
 
+/**
+ * Early Tester badge campaign. While `open` is true, every account created in
+ * the game gets a permanent Early Tester badge (server flag: admin console
+ * "release off"). Set `open` to false on release, together with "release on".
+ */
+export const earlyTester = {
+  open: true,
+  banner: 'EARLY TESTER BADGE — ONLY UNTIL LAUNCH',
+  bannerCta: 'Join now',
+  title: 'Join now. Keep the badge forever.',
+  body: 'Every account created before TilePulse officially launches gets the Early Tester badge on its profile — permanently. The day the game launches, sign-ups stop getting it — for good.',
+  points: [
+    'Shown on your profile, forever',
+    'New accounts can’t get it once the game launches',
+    'Just download the test build and create an account',
+  ],
+};
+
 /** Credit for the AI the game and this site were built with. */
 export const builtWith = {
   url: 'https://claude.com/claude-code',

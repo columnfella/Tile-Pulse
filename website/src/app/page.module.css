@@ -235,6 +235,130 @@
   font-size: 12px;
 }
 
+/* ------------------------ early tester (FOMO) ------------------------ */
+.fomoBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 9px 16px;
+  background: linear-gradient(90deg, #c2402a, var(--coral) 50%, #c2402a);
+  background-size: 200% 100%;
+  animation: fomoSlide 6s linear infinite;
+  color: #000;
+  text-decoration: none;
+  border-bottom: 2px solid rgba(3, 8, 24, 0.7);
+  text-align: center;
+}
+
+.fomoPulse {
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.8);
+  animation: fomoPing 1.4s ease-out infinite;
+}
+
+.fomoText {
+  font-family: var(--font-pixel), monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+
+.fomoCta {
+  font-family: var(--font-pixel), monospace;
+  font-size: 9px;
+  padding: 5px 8px;
+  background: #000;
+  color: var(--coral);
+}
+
+.fomoBar:hover .fomoCta {
+  color: #fff;
+}
+
+@keyframes fomoSlide {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fomoPing {
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.fomoCard {
+  margin-top: 22px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 20px;
+  border: 3px solid var(--coral);
+  background: linear-gradient(135deg, rgba(255, 107, 74, 0.16), rgba(10, 18, 38, 0.7));
+  box-shadow: 6px 6px 0 var(--shadow);
+}
+
+.fomoBadge {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 14px;
+  border: 3px solid #ffb84d;
+  background: rgba(255, 184, 77, 0.12);
+  color: #ffb84d;
+  font-family: var(--font-pixel), monospace;
+  font-size: 9px;
+  animation: fomoGlow 2.4s ease-in-out infinite;
+}
+
+.fomoStar {
+  font-size: 34px;
+  line-height: 1;
+}
+
+@keyframes fomoGlow {
+  50% {
+    box-shadow: 0 0 18px rgba(255, 184, 77, 0.55);
+  }
+}
+
+.fomoBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--text);
+}
+
+.fomoKicker {
+  font-family: var(--font-pixel), monospace;
+  font-size: 9px;
+  color: var(--coral);
+}
+
+.fomoTitle {
+  font-size: clamp(13px, 2vw, 17px);
+  color: #fff;
+}
+
+.fomoList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+}
+
+.fomoList li::marker {
+  content: '★  ';
+  color: #ffb84d;
+}
+
 /* ------------------------------ download ------------------------------ */
 .navDownload {
   color: var(--coral) !important;
@@ -370,6 +494,21 @@
 
 /* Phones */
 @media (max-width: 600px) {
+  .fomoText {
+    font-size: 8px;
+  }
+  .fomoCard {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+  }
+  .fomoBadge {
+    flex-direction: row;
+    justify-content: center;
+  }
+  .fomoStar {
+    font-size: 22px;
+  }
   .headerInner {
     padding: 10px 16px;
     gap: 12px;

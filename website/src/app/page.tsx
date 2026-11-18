@@ -1,7 +1,7 @@
 import { ClaudeBadge } from '@/components/ClaudeBadge';
 import { Logo } from '@/components/Logo';
 import { TileRain } from '@/components/TileRain';
-import { pillars, principles, site, testBuild } from '@/content/site';
+import { earlyTester, pillars, principles, site, testBuild } from '@/content/site';
 import { gameVersion } from '@/content/gameVersion';
 import styles from './page.module.css';
 
@@ -10,6 +10,13 @@ export default function Home() {
 
   return (
     <>
+      {earlyTester.open ? (
+        <a href="#download" className={styles.fomoBar}>
+          <span className={styles.fomoPulse} aria-hidden="true" />
+          <span className={styles.fomoText}>{earlyTester.banner}</span>
+          <span className={styles.fomoCta}>{earlyTester.bannerCta} →</span>
+        </a>
+      ) : null}
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <a href="#top" className={styles.homeLink} aria-label={`${site.name} home`}>
@@ -49,7 +56,7 @@ export default function Home() {
             <p className={styles.intro}>{site.intro}</p>
             <div className={styles.actions}>
               <a href="#download" className={styles.primaryBtn}>
-                Try the test build
+                {earlyTester.open ? 'Get the Early Tester badge' : 'Try the test build'}
               </a>
               <a href="#philosophy" className={styles.secondaryBtn}>
                 Read the philosophy
@@ -110,6 +117,24 @@ export default function Home() {
             <span className={styles.sectionKicker}>{'// Download'}</span>
             {testBuild.title}
           </h2>
+          {earlyTester.open ? (
+            <div className={styles.fomoCard}>
+              <div className={styles.fomoBadge} aria-hidden="true">
+                <span className={styles.fomoStar}>★</span>
+                <span>EARLY TESTER</span>
+              </div>
+              <div className={styles.fomoBody}>
+                <p className={styles.fomoKicker}>LIMITED — ENDS AT LAUNCH</p>
+                <h3 className={styles.fomoTitle}>{earlyTester.title}</h3>
+                <p>{earlyTester.body}</p>
+                <ul className={styles.fomoList}>
+                  {earlyTester.points.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
           <div className={styles.download}>
             <div className={styles.downloadMain}>
               <p className={styles.sectionLead}>{testBuild.body}</p>
