@@ -737,7 +737,7 @@ const styles = StyleSheet.create({
   socialText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 18 },
   lockTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   lockText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 6 },
-  root: { flex: 1, backgroundColor: PIXEL.bg },
+  root: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4, gap: 8 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

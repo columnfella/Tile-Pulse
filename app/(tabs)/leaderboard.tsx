@@ -138,7 +138,7 @@ export default function LeaderboardScreen() {
 const styles = StyleSheet.create({
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   nameShrink: { flexShrink: 1 },
-  root: { backgroundColor: PIXEL.bg },
+  root: { backgroundColor: 'transparent' },
   flex: { flex: 1 },
   list: { padding: 16, paddingBottom: 40, gap: 6 },
   headerWrap: { gap: 10, marginBottom: 8 },

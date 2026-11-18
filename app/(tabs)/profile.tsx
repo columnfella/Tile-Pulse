@@ -777,7 +777,7 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center' },
   nameShrink: { flexShrink: 1 },
   badgeWrap: { marginTop: 8, marginBottom: 4 },
-  root: { backgroundColor: PIXEL.bg },
+  root: { backgroundColor: 'transparent' },
   flex: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 40 },
   gap12: { gap: 12 },

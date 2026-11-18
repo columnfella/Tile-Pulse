@@ -243,7 +243,7 @@ export default function InboxScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: PIXEL.bg },
+  root: { backgroundColor: 'transparent' },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 30, gap: 14 },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },

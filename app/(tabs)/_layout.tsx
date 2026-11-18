@@ -1,4 +1,6 @@
 import React from 'react';
+import { View } from 'react-native';
+import { TabsBackground } from '../../src/components/backgrounds/TabsBackground';
 import { Tabs } from 'expo-router';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { UnmountOnBlur } from '../../src/components/ui/UnmountOnBlur';
@@ -11,6 +13,9 @@ export default function TabLayout() {
   const unread = useUnreadCount();
 
   return (
+    <View style={{ flex: 1, backgroundColor: '#05070d' }}>
+      {/* One animated theme background behind every tab (hidden in the editor) */}
+      <TabsBackground />
     <Tabs
       // A tab is unmounted when you leave it (frees memory, and it starts fresh next time)
       screenLayout={({ children }) => <UnmountOnBlur>{children}</UnmountOnBlur>}
@@ -18,7 +23,9 @@ export default function TabLayout() {
         headerShown: false,
         // Tabs cross-fade through the app's navy (never the default white scene)
         animation: 'fade',
-        sceneStyle: { backgroundColor: '#05070d' },
+        // Transparent scenes: the shared background shows through (and tab
+        // fades go through it, never white)
+        sceneStyle: { backgroundColor: 'transparent' },
         tabBarStyle: {
           backgroundColor: ui.surfaceBackground,
           borderTopColor: ui.cardBorder,
@@ -95,5 +102,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </View>
   );
 }

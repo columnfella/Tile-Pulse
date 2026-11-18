@@ -16,7 +16,6 @@ import { SettingsSheet } from '../../src/components/ui/SettingsSheet';
 import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
 import { checkCopy } from '../../src/services/social';
 import { ApiUnavailableError } from '../../src/services/communityApi';
-import { AnimatedBackground } from '../../src/components/backgrounds/AnimatedBackground';
 import { CoverBanner, IconBadge, LevelBadge, cardPartStyles } from '../../src/components/ui/LevelCardParts';
 import { setDefaultBackground, useDefaultBackground } from '../../src/services/settings';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
@@ -244,8 +243,6 @@ export default function HomeScreen() {
 
   return (
     <ScreenView style={styles.safeArea}>
-      {/* Theme background (faint, behind the song list) */}
-      <AnimatedBackground id={defaultBackground} opacity={0.28} />
 
       {/* Header */}
       <Animated.View entering={FadeInDown.duration(350)} style={styles.header}>
@@ -415,14 +412,15 @@ const styles = StyleSheet.create({
   promptOk: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: '#000000' },
   promptOkText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 8 },
   promptDisabled: { opacity: 0.45 },
-  safeArea: { flex: 1, backgroundColor: PIXEL.bg },
+  safeArea: { flex: 1, backgroundColor: 'transparent' },
   header: {
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 14,
     borderBottomWidth: 2,
     borderBottomColor: PIXEL.panelLight,
-    backgroundColor: '#05070d',
+    // Slightly see-through so the theme background shows behind the header
+    backgroundColor: 'rgba(5, 7, 13, 0.78)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -455,7 +453,8 @@ const styles = StyleSheet.create({
   sectionHeaderTitle: { fontFamily: FONTS.body, fontSize: 16, color: '#9aa7c2', letterSpacing: 1 },
   sectionHeaderSub: { fontFamily: FONTS.body, fontSize: 16, color: '#4d8dff' },
 
-  card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 10, overflow: 'hidden' },
+  // See-through cards: the animated theme background shows between and behind them
+  card: { backgroundColor: 'rgba(11, 18, 32, 0.6)', borderWidth: 2, borderColor: 'rgba(77, 141, 255, 0.22)', padding: 10, overflow: 'hidden' },
   cardExpanded: { borderColor: PIXEL.accent },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardInfo: { flex: 1 },

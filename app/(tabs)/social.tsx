@@ -278,7 +278,7 @@ export default function SocialScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: PIXEL.bg },
+  root: { backgroundColor: 'transparent' },
   flex: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 40 },
   gap: { gap: 12 },
