@@ -1,0 +1,32 @@
+/* Fixed behind everything; never catches clicks */
+.wrap {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+/* The canvas is drawn at reduced resolution and stretched to the screen */
+.canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.ready {
+  opacity: 0.9;
+}
+
+/* Slightly darkens the swirl (more towards the edges) so the text on top stays easy to read */
+.shade {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(5, 7, 13, 0), rgba(5, 7, 13, 0.45) 80%),
+    linear-gradient(180deg, rgba(5, 7, 13, 0.15), rgba(5, 7, 13, 0.35));
+}

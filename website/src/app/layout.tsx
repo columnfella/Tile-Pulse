@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Press_Start_2P, VT323 } from 'next/font/google';
 import { site } from '@/content/site';
+import { SwirlBackground } from '@/components/swirl/SwirlBackground';
 import './globals.css';
 
 // The game's two pixel fonts (both SIL Open Font License), self-hosted by next/font
@@ -27,7 +28,10 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     // managers…) add attributes to <html>/<body> before React loads, which would
     // otherwise log a hydration mismatch. It only ignores attributes on these two tags.
     <html lang="en" className={`${pixel.variable} ${body.variable}`} suppressHydrationWarning>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <SwirlBackground />
+        {children}
+      </body>
     </html>
   );
 }
