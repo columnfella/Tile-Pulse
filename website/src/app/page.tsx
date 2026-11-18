@@ -15,8 +15,12 @@ export default function Home() {
             <Logo />
           </a>
           <nav aria-label="Sections" className={styles.nav}>
-            <a href="#philosophy">Philosophy</a>
-            <a href="#game">The game</a>
+            <a href="#philosophy" className={styles.navSection}>
+              Philosophy
+            </a>
+            <a href="#game" className={styles.navSection}>
+              The game
+            </a>
             <a href="#download" className={styles.navDownload}>
               Download
             </a>

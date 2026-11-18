@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <!-- TilePulse tab icon: a 4-lane board with pixel tiles falling, in the game's colours -->
+  <rect width="16" height="16" fill="#05070d"/>
+  <!-- coral hit line -->
+  <rect y="14" width="16" height="1" fill="#ff6b4a" opacity=".55"/>
+  <!-- lane 1: blue tap tile (light top/left, dark bottom/right bevel) -->
+  <rect x="4" y="1" width="4" height="5" fill="#2f6bff"/>
+  <rect x="4" y="1" width="4" height="1" fill="#7aa4ff"/>
+  <rect x="4" y="1" width="1" height="5" fill="#7aa4ff"/>
+  <rect x="7" y="2" width="1" height="4" fill="#123a9e"/>
+  <rect x="5" y="5" width="3" height="1" fill="#123a9e"/>
+  <!-- lane 0: blue tap tile -->
+  <rect x="0" y="7" width="4" height="5" fill="#2f6bff"/>
+  <rect x="0" y="7" width="4" height="1" fill="#7aa4ff"/>
+  <rect x="0" y="7" width="1" height="5" fill="#7aa4ff"/>
+  <rect x="3" y="8" width="1" height="4" fill="#123a9e"/>
+  <rect x="1" y="11" width="3" height="1" fill="#123a9e"/>
+  <!-- lane 2: blue tap tile -->
+  <rect x="8" y="4" width="4" height="5" fill="#2f6bff"/>
+  <rect x="8" y="4" width="4" height="1" fill="#7aa4ff"/>
+  <rect x="8" y="4" width="1" height="5" fill="#7aa4ff"/>
+  <rect x="11" y="5" width="1" height="4" fill="#123a9e"/>
+  <rect x="9" y="8" width="3" height="1" fill="#123a9e"/>
+  <!-- lane 3: coral tile landing on the hit line -->
+  <rect x="12" y="9" width="4" height="5" fill="#ff6b4a"/>
+  <rect x="12" y="9" width="4" height="1" fill="#ffa58f"/>
+  <rect x="12" y="9" width="1" height="5" fill="#ffa58f"/>
+  <rect x="15" y="10" width="1" height="4" fill="#a83a22"/>
+  <rect x="13" y="13" width="3" height="1" fill="#a83a22"/>
+</svg>

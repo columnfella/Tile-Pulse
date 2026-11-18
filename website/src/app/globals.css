@@ -22,6 +22,11 @@
 
 html {
   scroll-behavior: smooth;
+  /* Keep phones from inflating text on their own when rotated */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Section links land below the sticky header instead of under it */
+  scroll-padding-top: 76px;
 }
 
 body {
@@ -33,6 +38,14 @@ body {
   font-size: 22px;
   line-height: 1.25;
   -webkit-font-smoothing: antialiased;
+  /* Nothing (e.g. the board's drop shadow) may make a phone scroll sideways */
+  overflow-x: clip;
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 20px;
+  }
 }
 
 h1,

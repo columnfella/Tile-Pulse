@@ -162,7 +162,7 @@
   padding: 0;
   margin: 36px 0 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -348,26 +348,103 @@
 }
 
 /* ----------------------------- small screens ----------------------------- */
+/* Tablets and phones: one column, board above the text */
 @media (max-width: 820px) {
   .hero {
     grid-template-columns: 1fr;
-    padding-top: 48px;
+    gap: 32px;
+    padding: 40px 20px 56px;
   }
   .heroArt {
     order: -1;
+  }
+  .heroArt > * {
+    max-width: 220px;
   }
   .pillars,
   .download {
     grid-template-columns: 1fr;
   }
+  .section {
+    padding: 48px 20px;
+  }
 }
 
-@media (max-width: 480px) {
-  .nav {
-    gap: 14px;
-    font-size: 19px;
-  }
+/* Phones */
+@media (max-width: 600px) {
   .headerInner {
-    flex-wrap: wrap;
+    padding: 10px 16px;
+    gap: 12px;
+  }
+  .nav {
+    gap: 16px;
+    font-size: 20px;
+  }
+  /* The page itself is short to scroll; keep only the two links that matter */
+  .navSection {
+    display: none;
+  }
+
+  .hero {
+    padding: 28px 16px 44px;
+    gap: 24px;
+  }
+  /* A smaller board so the headline is still visible without scrolling */
+  .heroArt > * {
+    max-width: 150px;
+    box-shadow: 0 0 0 var(--unit) var(--panel-light), 6px 6px 0 #000;
+  }
+  .heroText {
+    gap: 14px;
+  }
+  .badge {
+    font-size: 8px;
+    line-height: 1.6;
+  }
+  .lead {
+    font-size: 24px;
+  }
+
+  /* Full-width, thumb-sized buttons */
+  .actions {
+    flex-direction: column;
+  }
+  .primaryBtn,
+  .secondaryBtn {
+    text-align: center;
+    padding: 16px 14px;
+    min-height: 48px;
+  }
+
+  .section {
+    padding: 40px 16px;
+  }
+  .sectionLead {
+    margin-top: 14px;
+  }
+  .principles,
+  .pillars {
+    margin-top: 24px;
+    gap: 12px;
+  }
+  .principle,
+  .pillar,
+  .steps {
+    padding: 16px;
+  }
+
+  .footerInner {
+    padding: 28px 16px 36px;
+  }
+}
+
+/* Very narrow phones (≈320–360 px): shrink the wordmark so the header stays on one line */
+@media (max-width: 360px) {
+  .nav {
+    gap: 12px;
+    font-size: 18px;
+  }
+  .title {
+    font-size: 22px;
   }
 }

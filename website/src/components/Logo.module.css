@@ -25,3 +25,18 @@
 .accent {
   color: var(--coral);
 }
+
+/* Narrow phones: a smaller mark and wordmark so the header fits on one line */
+@media (max-width: 400px) {
+  .logo {
+    gap: 8px;
+  }
+  .mark {
+    grid-template-columns: repeat(2, 8px);
+    grid-template-rows: repeat(2, 8px);
+  }
+  .word {
+    font-size: 11px;
+    letter-spacing: 0;
+  }
+}
