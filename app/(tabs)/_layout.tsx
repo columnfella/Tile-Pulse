@@ -16,7 +16,9 @@ export default function TabLayout() {
       screenLayout={({ children }) => <UnmountOnBlur>{children}</UnmountOnBlur>}
       screenOptions={{
         headerShown: false,
+        // Tabs cross-fade through the app's navy (never the default white scene)
         animation: 'fade',
+        sceneStyle: { backgroundColor: '#05070d' },
         tabBarStyle: {
           backgroundColor: ui.surfaceBackground,
           borderTopColor: ui.cardBorder,

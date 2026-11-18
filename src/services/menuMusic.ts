@@ -1,10 +1,13 @@
 /**
- * Background music for the menus.
+ * Background music for the menus: a shuffled playlist of every track in
+ * src/assets/audio/menu/ (see menuMusicTracks.ts).
  *
- * - Starts when the app launches, loops forever.
- * - Around every loop point the volume follows a smooth curve: it eases down
- *   to silence over the last seconds of the track, and eases back up over the
- *   first seconds after it starts again, so the loop never "clicks".
+ * - Starts when the app launches and keeps going: tracks play in random order,
+ *   each once before any repeats, never the same one twice in a row (a single
+ *   track just loops).
+ * - At every track change the volume follows a smooth curve: it eases down to
+ *   silence over the last seconds of a track and eases back up over the first
+ *   seconds of the next, so changes never "click".
  * - Fades out (then pauses) while you play a level or use the editor, when the
  *   app goes to the background, or when you switch it off in Settings; fades
  *   back in afterwards.
@@ -16,13 +19,13 @@ import { AppState } from 'react-native';
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
-import { MENU_MUSIC_SOURCE } from './menuMusicSource';
+import { MENU_TRACKS, type MenuTrack } from './menuMusicTracks';
 
 const SETTINGS_KEY = 'tilepulse_menu_music_v1';
 const TICK_MS = 50;
-/** Loop-point fades (seconds of the track). */
-const LOOP_FADE_OUT_S = 4;
-const LOOP_FADE_IN_S = 3;
+/** Fades at the end / start of each track (seconds of the track). */
+const TRACK_FADE_OUT_S = 4;
+const TRACK_FADE_IN_S = 3;
 /** Fades when switching off / pausing for gameplay / coming back (seconds). */
 const MASTER_FADE_OUT_S = 0.8;
 const MASTER_FADE_IN_S = 1.6;
@@ -41,21 +44,83 @@ const ease = (t: number) => {
 
 let settings: MenuMusicSettings = { enabled: true, volume: 0.6 };
 let settingsLoaded = false;
-const settingListeners = new Set<() => void>();
+let nowPlaying: string | null = null;
+/** Set every time a track starts playing (drives the credit pop-up). */
+export interface TrackStart {
+  id: number;
+  track: MenuTrack;
+  at: number;
+}
+let trackStart: TrackStart | null = null;
+let trackStartId = 0;
+const listeners = new Set<() => void>();
 
 let player: AudioPlayer | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let started = false;
+/** Last position seen, to notice a single looping track starting over. */
+let lastPos = 0;
 /** 0–1, multiplied in: fades the whole thing in / out. */
 let master = 0;
 let masterTarget = 0;
 /** Why the music should be quiet right now ('play', 'editor', 'background'). */
 const holds = new Set<string>();
 
-export const hasMenuMusic = () => MENU_MUSIC_SOURCE != null;
+/* --------------------------------- playlist --------------------------------- */
 
-function emitSettings() {
-  settingListeners.forEach((l) => l());
+let bag: number[] = [];
+let current = -1;
+
+/** Next track index: a shuffled "bag" of all tracks, refilled when empty. */
+function nextIndex(): number {
+  const n = MENU_TRACKS.length;
+  if (n <= 1) return 0;
+  if (bag.length === 0) {
+    bag = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [bag[i], bag[j]] = [bag[j], bag[i]];
+    }
+    // Never the same track twice in a row across refills
+    if (bag[0] === current) bag.push(bag.shift()!);
+  }
+  return bag.shift()!;
+}
+
+function playTrack(index: number) {
+  const track = MENU_TRACKS[index];
+  if (!track) return;
+  current = index;
+  nowPlaying = track.title;
+  emit();
+  try {
+    if (!player) {
+      player = createAudioPlayer(track.source, { updateInterval: 250 });
+      player.addListener('playbackStatusUpdate', (status) => {
+        if (status.didJustFinish && MENU_TRACKS.length > 1) playTrack(nextIndex());
+      });
+    } else {
+      player.replace(track.source);
+    }
+    player.loop = MENU_TRACKS.length === 1;
+    player.volume = 0;
+    if (masterTarget > 0) {
+      player.play();
+      trackStart = { id: ++trackStartId, track, at: Date.now() };
+      emit();
+    }
+  } catch (err) {
+    console.warn('Menu music failed to load:', err);
+  }
+}
+
+/* ---------------------------------- engine ---------------------------------- */
+
+export const hasMenuMusic = () => MENU_TRACKS.length > 0;
+export const menuTrackCount = () => MENU_TRACKS.length;
+
+function emit() {
+  listeners.forEach((l) => l());
 }
 
 async function loadSettings() {
@@ -69,7 +134,7 @@ async function loadSettings() {
         enabled: typeof s.enabled === 'boolean' ? s.enabled : true,
         volume: typeof s.volume === 'number' ? Math.min(1, Math.max(0, s.volume)) : 0.6,
       };
-      emitSettings();
+      emit();
     }
   } catch {
     /* defaults */
@@ -80,26 +145,30 @@ function wantsSound() {
   return settings.enabled && settings.volume > 0 && holds.size === 0;
 }
 
-/** Volume from the position in the track: quiet near the loop point, full in between. */
-function loopGain(p: AudioPlayer): number {
+/** Volume from the position in the track: quiet at its start and end, full in between. */
+function trackGain(p: AudioPlayer): number {
   const pos = p.currentTime || 0;
   const dur = p.duration || 0;
-  if (!dur || dur < LOOP_FADE_IN_S + LOOP_FADE_OUT_S + 1) return 1;
-  const fadeIn = ease(pos / LOOP_FADE_IN_S);
-  const fadeOut = ease((dur - pos) / LOOP_FADE_OUT_S);
-  return Math.min(fadeIn, fadeOut);
+  if (!dur || dur < TRACK_FADE_IN_S + TRACK_FADE_OUT_S + 1) return 1;
+  return Math.min(ease(pos / TRACK_FADE_IN_S), ease((dur - pos) / TRACK_FADE_OUT_S));
 }
 
 function tick() {
   const p = player;
   if (!p) return;
-  // Master fade towards its target
   const step = TICK_MS / 1000 / (masterTarget > master ? MASTER_FADE_IN_S : MASTER_FADE_OUT_S);
   if (master < masterTarget) master = Math.min(masterTarget, master + step);
   else if (master > masterTarget) master = Math.max(masterTarget, master - step);
 
   try {
-    p.volume = ease(master) * loopGain(p) * settings.volume;
+    const pos = p.currentTime || 0;
+    // One track on loop: each restart counts as the song starting again (credit pop-up)
+    if (p.loop && master > 0 && pos + 1 < lastPos && current >= 0) {
+      trackStart = { id: ++trackStartId, track: MENU_TRACKS[current], at: Date.now() };
+      emit();
+    }
+    lastPos = pos;
+    p.volume = ease(master) * trackGain(p) * settings.volume;
     if (master === 0 && masterTarget === 0) {
       if (p.playing) p.pause();
       stopTicking(); // nothing to do until the music is wanted again
@@ -119,23 +188,16 @@ function stopTicking() {
 
 /** Re-evaluates whether the music should play and starts the right fade. */
 function update() {
-  if (!started || !MENU_MUSIC_SOURCE) return;
+  if (!started || !hasMenuMusic()) return;
   if (wantsSound()) {
-    if (!player) {
-      try {
-        player = createAudioPlayer(MENU_MUSIC_SOURCE, { updateInterval: 250 });
-        player.loop = true;
-        player.volume = 0;
-      } catch (err) {
-        console.warn('Menu music failed to load:', err);
-        return;
-      }
-    }
     masterTarget = 1;
-    try {
-      if (!player.playing) player.play();
-    } catch {
-      /* web autoplay can be blocked until the first tap; retried on the next update */
+    if (!player) playTrack(nextIndex());
+    else {
+      try {
+        if (!player.playing) player.play();
+      } catch {
+        /* web autoplay can be blocked until the first tap; retried on the next update */
+      }
     }
     startTicking();
   } else if (player) {
@@ -169,22 +231,40 @@ export function holdMenuMusic(reason: string): () => void {
   };
 }
 
+/** Skips to another random track (Settings → Next). */
+export function skipMenuTrack() {
+  if (MENU_TRACKS.length > 1 && player) playTrack(nextIndex());
+}
+
 export function setMenuMusicSettings(changes: Partial<MenuMusicSettings>) {
   settings = { ...settings, ...changes, volume: Math.min(1, Math.max(0, changes.volume ?? settings.volume)) };
-  emitSettings();
+  emit();
   AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)).catch(() => {});
   update();
 }
 
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  void loadSettings();
+  return () => {
+    listeners.delete(l);
+  };
+};
+
 /** Live settings for the Settings sheet. */
 export function useMenuMusicSettings(): MenuMusicSettings {
-  return useSyncExternalStore(
-    (l) => {
-      settingListeners.add(l);
-      void loadSettings();
-      return () => settingListeners.delete(l);
-    },
-    () => settings,
-    () => settings
-  );
+  return useSyncExternalStore(subscribe, () => settings, () => settings);
+}
+
+/** The latest track start (for the "now playing" credit pop-up). */
+export function useTrackStart(): TrackStart | null {
+  return useSyncExternalStore(subscribe, () => trackStart, () => null);
+}
+
+/** Credit of the track playing now, if it has one. */
+export const currentCredit = () => (current >= 0 ? (MENU_TRACKS[current]?.credit ?? null) : null);
+
+/** Title of the track playing now (null before the music starts). */
+export function useNowPlaying(): string | null {
+  return useSyncExternalStore(subscribe, () => nowPlaying, () => null);
 }

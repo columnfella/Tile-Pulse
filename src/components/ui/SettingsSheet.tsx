@@ -6,8 +6,15 @@ import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { PixelIcon } from './PixelIcon';
 import { PressableScale } from './PressableScale';
 import { FONTS, PIXEL } from '../../theme/pixel';
-import { hasMenuMusic, setMenuMusicSettings, useMenuMusicSettings } from '../../services/menuMusic';
-import { MENU_MUSIC_CREDIT } from '../../services/menuMusicSource';
+import {
+  hasMenuMusic,
+  menuTrackCount,
+  setMenuMusicSettings,
+  skipMenuTrack,
+  useMenuMusicSettings,
+  useNowPlaying,
+  useTrackStart,
+} from '../../services/menuMusic';
 
 const VOLUMES = [
   { label: '25%', value: 0.25 },
@@ -19,6 +26,9 @@ const VOLUMES = [
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const music = useMenuMusicSettings();
   const available = hasMenuMusic();
+  const tracks = menuTrackCount();
+  const nowPlaying = useNowPlaying();
+  const credit = useTrackStart()?.track.credit ?? null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -69,9 +79,39 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
             </View>
 
             {!available ? (
-              <Text style={styles.note}>No menu track is installed in this version yet.</Text>
-            ) : MENU_MUSIC_CREDIT ? (
-              <Text style={styles.note}>♪ {MENU_MUSIC_CREDIT}</Text>
+              <Text style={styles.note}>No menu music is installed in this version yet.</Text>
+            ) : (
+              <View style={styles.nowRow}>
+                <Text style={[styles.note, styles.flex]} numberOfLines={2}>
+                  {nowPlaying && music.enabled ? `♪ ${nowPlaying}` : `${tracks} track${tracks === 1 ? '' : 's'}`}
+                  {tracks > 1 ? ' · shuffled' : ''}
+                </Text>
+                {tracks > 1 && music.enabled ? (
+                  <PressableScale scaleTo={0.9} onPress={skipMenuTrack} style={styles.chip} accessibilityLabel="Next track">
+                    <Text style={styles.chipText}>NEXT ▸</Text>
+                  </PressableScale>
+                ) : null}
+              </View>
+            )}
+            {available && credit && music.enabled ? (
+              <View style={styles.credit}>
+                <Text style={styles.creditLine}>
+                  “{credit.song}”{credit.composer ? ` by ${credit.composer}` : ''}
+                </Text>
+                {credit.website ? <Text style={styles.creditLine}>{credit.website}</Text> : null}
+                {credit.license ? (
+                  <Text style={styles.creditLine}>
+                    {credit.license}
+                    {credit.licenseUrl ? ` ${credit.licenseUrl}` : ''}
+                  </Text>
+                ) : null}
+                {credit.poweredBy ? (
+                  <Text style={styles.creditLine}>
+                    {credit.poweredBy}
+                    {credit.poweredByUrl ? `: ${credit.poweredByUrl}` : ''}
+                  </Text>
+                ) : null}
+              </View>
             ) : null}
           </View>
         </Pressable>
@@ -100,4 +140,7 @@ const styles = StyleSheet.create({
   chipTextOn: { color: PIXEL.accent },
   disabled: { opacity: 0.4 },
   note: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 15, marginTop: 6 },
+  nowRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  credit: { marginTop: 4, gap: 1 },
+  creditLine: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 14 },
 });

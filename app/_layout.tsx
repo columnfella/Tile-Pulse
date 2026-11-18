@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AppState, Platform, View } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
-import { Stack } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
@@ -13,6 +13,7 @@ import { storageService } from '../services/storage';
 import { AppSplash } from '../src/components/ui/AppSplash';
 import { startPresence } from '../src/services/friends';
 import { startMenuMusic } from '../src/services/menuMusic';
+import { NowPlayingToast } from '../src/components/ui/NowPlayingToast';
 import * as Updates from 'expo-updates';
 
 /**
@@ -39,6 +40,22 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const MIN_SPLASH_MS = 1400;
 const APP_BACKGROUND = '#05070d';
+
+/**
+ * Navigation colours: the library's default theme is white, which flashed for
+ * a frame between tab switches. Every navigation surface uses the app's navy.
+ */
+const NAV_THEME = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: APP_BACKGROUND,
+    card: '#0b1220',
+    border: '#15203a',
+    primary: '#FF6B4A',
+    text: '#e6ecf7',
+  },
+};
 
 /** Seeds storage; resolves after a minimum splash time. */
 async function initializeApp(): Promise<void> {
@@ -106,6 +123,7 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
+    <ThemeProvider value={NAV_THEME}>
     <View style={{ flex: 1, backgroundColor: APP_BACKGROUND }}>
       <StatusBar hidden style="light" />
       <NavigationBar hidden style="light" />
@@ -130,7 +148,11 @@ export default function RootLayout() {
       </Stack>
 
       {/* Animated startup screen; fades out once initialization finishes */}
+      {/* Menu song credit pop-up (shown once the splash is gone) */}
+      <NowPlayingToast ready={isReady} />
+
       {!isReady && <AppSplash onReady={hideNativeSplash} />}
     </View>
+    </ThemeProvider>
   );
 }
