@@ -1,0 +1,70 @@
+# Keeps the Android test APK — and the website's "Download APK" button — up to date.
+#
+# - On every push to main: if the native code changed (runtime fingerprint), a
+#   new APK build is started on EAS. Plain code changes don't need one: they
+#   reach installed apps as OTA updates (eas-update.yml).
+# - Every 3 hours: the newest finished APK (public link + real file size) is
+#   written to website/src/content/latest-build.json and committed, so the
+#   website host redeploys with it. A build that would expire within 3 days
+#   (free plan: ~2 weeks) is replaced first, so the link never dies.
+# Needs the repository secret EXPO_TOKEN.
+name: APK build + website link
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'website/**'
+      - 'backend/**'
+      - 'admin-console/**'
+      - 'README.md'
+  schedule:
+    - cron: '23 */3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: apk-build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Build if needed, sync the website link
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build if needed, then sync the website file
+        id: sync
+        run: node scripts/sync-apk-build.mjs
+
+      - name: Commit the new download link
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/src/content/latest-build.json
+          git commit -m "chore(website): link the newest APK build [skip version]"
+          # Pushes made with GITHUB_TOKEN don't start other workflows (no loops)
+          git push origin HEAD:main

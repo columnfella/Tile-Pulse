@@ -37,20 +37,22 @@ export const builtWith = {
   note: 'TilePulse — the game, its server and this website — was built with Claude Code, the AI coding assistant made by Anthropic.',
 };
 
+import latestBuild from './latest-build.json';
+
 /**
- * The Android test build: a direct, public download of the APK file hosted by
- * Expo. (The expo.dev build *page* only opens for members of the Expo project,
- * so testers get the file link instead.)
- *
- * EAS (free plan) deletes a build after about two weeks: after each new build,
- * paste its APK link here (eas build:view <id> → "Artifact" / artifacts.buildUrl).
+ * The newest Android test build: a direct, public APK download hosted by Expo,
+ * with its real file size. latest-build.json is kept up to date automatically
+ * by .github/workflows/apk-build.yml (scripts/sync-apk-build.mjs) — never edit
+ * the link by hand.
  */
+export const apk = {
+  url: latestBuild.apkUrl,
+  /** "54.0 MB" — measured from the actual file */
+  size: `${(latestBuild.sizeBytes / 1048576).toFixed(1)} MB`,
+  version: latestBuild.appVersion,
+};
+
 export const testBuild = {
-  apkUrl: 'https://expo.dev/artifacts/eas/VLVS56KmD_cHfnmCDpSE8fewEmoJ_jamo6SYGhx9D8o.apk',
-  /** Shown next to the button. */
-  apkSize: '54 MB',
-  /** The link stops working after this date (until a new build is linked). */
-  availableUntil: 'December 2, 2026',
   title: 'Play the test build',
   body: 'TilePulse is ready for its first testers. Download the Android build, play some levels, make a chart, and enjoy it — then tell us what you think.',
   disclaimer:

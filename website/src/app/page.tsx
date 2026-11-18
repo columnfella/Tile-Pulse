@@ -2,7 +2,7 @@ import { ClaudeBadge } from '@/components/ClaudeBadge';
 import { Logo } from '@/components/Logo';
 import { PixelIcon } from '@/components/PixelIcon';
 import { TileRain } from '@/components/TileRain';
-import { earlyTester, pillars, principles, site, testBuild } from '@/content/site';
+import { apk, earlyTester, pillars, principles, site, testBuild } from '@/content/site';
 import { gameVersion } from '@/content/gameVersion';
 import styles from './page.module.css';
 
@@ -158,8 +158,8 @@ export default function Home() {
                 <span className={styles.metaTag}>Test build</span>
               </div>
               <div className={styles.actions}>
-                <a href={testBuild.apkUrl} className={styles.primaryBtn} download>
-                  Download APK ({testBuild.apkSize})
+                <a href={apk.url} className={styles.primaryBtn} download>
+                  Download APK ({apk.size})
                 </a>
               </div>
               <div className={styles.disclaimer} role="note">
