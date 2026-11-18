@@ -158,8 +158,8 @@ export default function Home() {
                 <span className={styles.metaTag}>Test build</span>
               </div>
               <div className={styles.actions}>
-                <a href={testBuild.pageUrl} target="_blank" rel="noreferrer" className={styles.primaryBtn}>
-                  Download on Expo
+                <a href={testBuild.apkUrl} className={styles.primaryBtn} download>
+                  Download APK ({testBuild.apkSize})
                 </a>
               </div>
               <div className={styles.disclaimer} role="note">
