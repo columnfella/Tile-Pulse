@@ -1,16 +1,10 @@
-import React, { useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Platform,
-  Image,
-  type GestureResponderEvent,
-} from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 import { FONTS } from '../../theme/pixel';
+// Platform files: LaneTouchSurface.tsx (app, raw multi-touch) / LaneTouchSurface.web.tsx (browser pointer events)
+import { LaneTouchSurface, type Lane } from './LaneTouchSurface';
 
 interface GameBoardBackgroundProps {
   hitLineY: number;
@@ -40,17 +34,10 @@ function EmptyPressFlash({ value }: { value: SharedValue<number> }) {
 
 export const LANE_KEYS = ['D', 'F', 'J', 'K'] as const;
 
-type Lane = 0 | 1 | 2 | 3;
-
-// React Native's responder system only lets one Pressable be touched at a
-// time, which breaks chords and holding one lane while tapping another. On
-// native we read raw multi-touch events instead and map each finger to a lane.
-const USE_MULTI_TOUCH = Platform.OS !== 'web';
-
 /**
- * 4-Lane React Native Rhythm Game Board Surface
+ * 4-Lane Rhythm Game Board Surface
  * Reads theme parameters for lane width, hit line, dividers, and background.
- * Provides multi-touch touch handling across all 4 vertical columns.
+ * Touch input comes from LaneTouchSurface (one implementation per platform).
  */
 export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   hitLineY,
@@ -66,87 +53,12 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
 }) => {
   const { board } = theme;
 
-  const boardRef = useRef<React.ComponentRef<typeof View>>(null);
-  const boardFrame = useRef({ x: 0, y: 0, width: 1 });
-  const pressY = useRef<number | null>(null);
-  const touchLanes = useRef(new Map<string, Lane>());
-  const fingerX = useRef(new Map<string, number>());
-  const emitFingers = () => onFingersChange?.([...fingerX.current.values()]);
-
-  // Hit feedback is a background flash (see useHitFlash), not a lane highlight
-  const pressLane = (lane: Lane, glide = false, y?: number) => onLanePressStart?.(lane, glide, y);
-  const releaseLane = (lane: Lane) => onLanePressEnd?.(lane);
-
-  const handleLayout = () => {
-    boardRef.current?.measureInWindow((x, y, width) => {
-      if (width > 0) boardFrame.current = { x, y, width };
-    });
-  };
-
-  /** pageX → position in lanes (0 … 4). */
-  const lanesForPageX = (pageX: number) => {
-    const { x, width } = boardFrame.current;
-    return Math.max(0, Math.min(4, ((pageX - x) / width) * 4));
-  };
-  const laneForX = (pageX: number): Lane => Math.min(3, Math.floor(lanesForPageX(pageX))) as Lane;
-
-  const handleTouchStart = (e: GestureResponderEvent) => {
-    for (const t of e.nativeEvent.changedTouches) {
-      const id = String(t.identifier);
-      if (touchLanes.current.has(id)) continue;
-      const lane = laneForX(t.pageX);
-      touchLanes.current.set(id, lane);
-      fingerX.current.set(id, lanesForPageX(t.pageX));
-      pressLane(lane, false, t.pageY - boardFrame.current.y);
-    }
-    emitFingers();
-  };
-
-  const handleTouchMove = (e: GestureResponderEvent) => {
-    for (const t of e.nativeEvent.changedTouches) {
-      const id = String(t.identifier);
-      const prev = touchLanes.current.get(id);
-      if (prev === undefined) continue;
-      fingerX.current.set(id, lanesForPageX(t.pageX));
-      const lane = laneForX(t.pageX);
-      if (lane !== prev) {
-        // Finger slid into another lane: release the old one, press the new one
-        touchLanes.current.set(id, lane);
-        if (![...touchLanes.current.values()].includes(prev)) releaseLane(prev);
-        pressLane(lane, true, t.pageY - boardFrame.current.y);
-      }
-    }
-    emitFingers();
-  };
-
-  const handleTouchEnd = (e: GestureResponderEvent) => {
-    for (const t of e.nativeEvent.changedTouches) {
-      const id = String(t.identifier);
-      const lane = touchLanes.current.get(id);
-      if (lane === undefined) continue;
-      touchLanes.current.delete(id);
-      fingerX.current.delete(id);
-      // Only release if no other finger is still on this lane
-      if (![...touchLanes.current.values()].includes(lane)) releaseLane(lane);
-    }
-    emitFingers();
-  };
-
-  const touchHandlers = USE_MULTI_TOUCH
-    ? {
-        onTouchStart: handleTouchStart,
-        onTouchMove: handleTouchMove,
-        onTouchEnd: handleTouchEnd,
-        onTouchCancel: handleTouchEnd,
-      }
-    : {};
-
   return (
-    <View
-      ref={boardRef}
-      onLayout={handleLayout}
+    <LaneTouchSurface
       style={[styles.root, { backgroundColor: board.backgroundColor }]}
-      {...touchHandlers}
+      onPressStart={(lane: Lane, glide: boolean, y?: number) => onLanePressStart?.(lane, glide, y)}
+      onPressEnd={(lane: Lane) => onLanePressEnd?.(lane)}
+      onFingersChange={onFingersChange}
     >
       {/* Optional Background Texture / Image */}
       {board.backgroundImageSource && (
@@ -165,30 +77,11 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
           const isPressed = false; // key labels are static (web only)
 
           return (
-            <Pressable
+            <View
               key={laneIndex}
+              pointerEvents="none"
               // Every other lane slightly lighter, so each reads as its own wide column
               style={[styles.laneColumn, laneIndex % 2 === 1 && styles.laneTint]}
-              disabled={USE_MULTI_TOUCH}
-              onPressIn={
-                USE_MULTI_TOUCH
-                  ? undefined
-                  : (e) => {
-                      pressY.current = e.nativeEvent.locationY;
-                      fingerX.current.set(`lane${laneIndex}`, laneIndex + 0.5);
-                      pressLane(laneIndex, false, pressY.current ?? undefined);
-                      emitFingers();
-                    }
-              }
-              onPressOut={
-                USE_MULTI_TOUCH
-                  ? undefined
-                  : () => {
-                      fingerX.current.delete(`lane${laneIndex}`);
-                      releaseLane(laneIndex);
-                      emitFingers();
-                    }
-              }
             >
               {emptyPressFlash?.[laneIndex] ? <EmptyPressFlash value={emptyPressFlash[laneIndex]} /> : null}
 
@@ -227,7 +120,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                 </View>
               )}
 
-            </Pressable>
+            </View>
           );
         })}
       </View>
@@ -255,8 +148,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
       <View pointerEvents="none" style={styles.tilesLayer}>
         {children}
       </View>
-
-    </View>
+    </LaneTouchSurface>
   );
 };
 

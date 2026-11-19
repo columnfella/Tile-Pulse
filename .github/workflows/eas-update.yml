@@ -9,6 +9,11 @@ on:
     # Only changes to the game itself publish an update
     paths:
       - 'game/**'
+      # Web-only files (web version on Vercel) never reach the app
+      - '!game/**/*.web.ts'
+      - '!game/**/*.web.tsx'
+      - '!game/public/**'
+      - '!game/vercel.json'
       - '.github/workflows/eas-update.yml'
 
 # Only the newest push matters: cancel an older run that is still going

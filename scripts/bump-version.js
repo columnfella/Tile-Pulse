@@ -39,7 +39,10 @@ if (/\[skip version\]/i.test(message)) process.exit(0);
 // The version is the game's: only commits that touch game/ bump it
 const GAME_DIR = 'game/';
 const changed = git('diff-tree --root --no-commit-id --name-only -r HEAD').split('\n').filter(Boolean);
-if (!changed.some((f) => f.startsWith(GAME_DIR))) process.exit(0);
+// Web-only files (the web version on Vercel) don't change the app, so they don't bump its version
+const WEB_ONLY = [/\.web\.(ts|tsx|js)$/, /^game\/public\//, /^game\/vercel\.json$/];
+const isWebOnly = (f) => WEB_ONLY.some((re) => re.test(f));
+if (!changed.some((f) => f.startsWith(GAME_DIR) && !isWebOnly(f))) process.exit(0);
 
 const header = message.split('\n')[0];
 const m = /^(\w+)(\([^)]*\))?(!)?:/.exec(header);

@@ -7,8 +7,8 @@
  * storage on web). It is random — not derived from the hardware — so it says
  * nothing about the phone itself. (Apps can't read a phone's MAC address.)
  */
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+// Platform files: secureKeyValue.ts (app keystore) / secureKeyValue.web.ts (browser storage)
+import { secureKeyValue } from './secureKeyValue';
 
 const KEY = 'tilepulse_device_id_v1';
 const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -29,8 +29,7 @@ function newId(): string {
 
 async function read(): Promise<string | null> {
   try {
-    if (Platform.OS === 'web') return localStorage.getItem(KEY);
-    return await SecureStore.getItemAsync(KEY);
+    return await secureKeyValue.get(KEY);
   } catch {
     return null;
   }
@@ -38,8 +37,7 @@ async function read(): Promise<string | null> {
 
 async function write(id: string): Promise<void> {
   try {
-    if (Platform.OS === 'web') localStorage.setItem(KEY, id);
-    else await SecureStore.setItemAsync(KEY, id);
+    await secureKeyValue.set(KEY, id);
   } catch {
     /* storage unavailable: the id lasts until the app restarts */
   }

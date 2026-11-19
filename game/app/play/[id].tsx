@@ -5,10 +5,9 @@ import {
   StyleSheet,
   Pressable,
   AppState,
-  useWindowDimensions,
-  type LayoutChangeEvent,
 } from 'react-native';
 import { useScreenInsets } from '../../src/components/ui/useScreenInsets';
+import { usePlayAreaSize } from '../../src/components/game/usePlayAreaSize';
 import Animated, {
   FadeIn,
   FadeInUp,
@@ -220,22 +219,10 @@ export default function PlayScreen() {
 
   const insets = useScreenInsets();
   const defaultBackground = useDefaultBackground();
-  // Measured height of the play area (the real screen size once system bars are hidden)
-  const [measuredHeight, setBoardHeight] = useState<number>(0);
-  const [measuredWidth, setBoardWidth] = useState<number>(0);
-  // The play screen fills the window. In the web version (iPhone Safari) the
-  // root layout event never arrives, which left the board at 0 px and mounted
-  // no tiles at all; fall back to the window size until a measurement comes in.
-  const windowSize = useWindowDimensions();
-  const boardHeight = measuredHeight > 0 ? measuredHeight : windowSize.height;
-  const boardWidth = measuredWidth > 0 ? measuredWidth : windowSize.width;
+  // Size of the play area (platform files: usePlayAreaSize.ts / usePlayAreaSize.web.ts)
+  const { boardHeight, boardWidth, onLayout: handleRootLayout } = usePlayAreaSize();
   const { geometry } = ACTIVE_THEME;
   const hitLineY = Math.round(boardHeight * (geometry.hitLineYPercent / 100));
-
-  const handleRootLayout = (e: LayoutChangeEvent) => {
-    setBoardHeight(e.nativeEvent.layout.height);
-    setBoardWidth(e.nativeEvent.layout.width);
-  };
 
   // Pre-computed timing data (sorted by start time) so per-frame and per-tap
   // work doesn't repeatedly filter / sort / recompute the beatmap.

@@ -5,8 +5,7 @@
  * Keystore / iOS Keychain). The browser preview has no keystore, so it falls
  * back to localStorage there. Passwords are never stored on the device.
  */
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { secureKeyValue } from './secureKeyValue';
 import { API_BASE, ApiUnavailableError } from './communityApi';
 import { getDeviceId } from './device';
 
@@ -35,39 +34,11 @@ export interface Session {
 
 /* ------------------------------ token storage ----------------------------- */
 
+// Platform files: secureKeyValue.ts (app keystore) / secureKeyValue.web.ts (browser storage)
 const store = {
-  async get(): Promise<string | null> {
-    if (Platform.OS === 'web') {
-      try {
-        return localStorage.getItem(SESSION_KEY);
-      } catch {
-        return null;
-      }
-    }
-    return SecureStore.getItemAsync(SESSION_KEY);
-  },
-  async set(value: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      try {
-        localStorage.setItem(SESSION_KEY, value);
-      } catch {
-        /* storage blocked: session lasts until reload */
-      }
-      return;
-    }
-    await SecureStore.setItemAsync(SESSION_KEY, value);
-  },
-  async remove(): Promise<void> {
-    if (Platform.OS === 'web') {
-      try {
-        localStorage.removeItem(SESSION_KEY);
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    await SecureStore.deleteItemAsync(SESSION_KEY);
-  },
+  get: () => secureKeyValue.get(SESSION_KEY),
+  set: (value: string) => secureKeyValue.set(SESSION_KEY, value),
+  remove: () => secureKeyValue.remove(SESSION_KEY),
 };
 
 let cached: Session | null | undefined;

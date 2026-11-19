@@ -16,6 +16,11 @@ on:
     # Only changes to the game can need a new APK
     paths:
       - 'game/**'
+      # Web-only files (web version on Vercel) never reach the app
+      - '!game/**/*.web.ts'
+      - '!game/**/*.web.tsx'
+      - '!game/public/**'
+      - '!game/vercel.json'
       - 'scripts/sync-apk-build.mjs'
       - '.github/workflows/apk-build.yml'
   schedule:
