@@ -90,7 +90,7 @@ const SlideShape = memo(function SlideShape({
   const path = tile.path!;
   const height = tile.durationBeats * pixelsPerBeat;
   const boardWidth = laneWidth * 4;
-  const strokeW = Math.max(16, laneWidth - 8); // a little gap to the lane edges
+  const strokeW = Math.max(16, laneWidth - 6); // a small gap to the lane edges
   const noteTime = tile.noteTime;
 
   const geo = useMemo(() => {

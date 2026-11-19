@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 import { PIXEL } from '../../theme/pixel';
+import { TILE_INSET } from './HoldTileView';
 
 interface TapTileViewProps {
   y: number;
@@ -103,15 +104,15 @@ export const TapTileView = memo(function TapTileView({
 const styles = StyleSheet.create({
   tile: {
     position: 'absolute',
-    left: 3,
-    right: 3,
+    left: TILE_INSET,
+    right: TILE_INSET,
     borderWidth: BEVEL,
   },
   flash: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#ffffff' },
   ring: {
     position: 'absolute',
-    left: 3,
-    right: 3,
+    left: TILE_INSET,
+    right: TILE_INSET,
     borderWidth: 2,
     borderColor: TILE_STATES.hit.light,
   },

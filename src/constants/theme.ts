@@ -14,10 +14,10 @@ import { ImageSourcePropType } from 'react-native';
  * PLAY SCREEN SIZE DIAL — change SCALE to resize the whole play grid at once:
  * the tiles AND the spacing between notes grow or shrink together (the timing
  * doesn't change, only how tall things are and how fast they scroll).
- *   SCALE 1 = the original size · 1.5 = 50 % taller · 2 = double (current)
+ *   SCALE 1 = the original size · 1.5 = 50 % taller (current) · 2 = double
  */
 export const PLAY_GRID = {
-  SCALE: 2,
+  SCALE: 1.5,
   /** Pixels the board scrolls per beat at SCALE 1. */
   BASE_PIXELS_PER_BEAT: 260,
   /** Tallest a tap tile gets at SCALE 1. */

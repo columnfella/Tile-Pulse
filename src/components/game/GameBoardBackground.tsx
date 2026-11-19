@@ -8,6 +8,7 @@ import {
   Image,
   type GestureResponderEvent,
 } from 'react-native';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 import { FONTS } from '../../theme/pixel';
 
@@ -27,6 +28,14 @@ interface GameBoardBackgroundProps {
   children?: React.ReactNode;
   /** Animated layer drawn behind the lanes (e.g. the song's background). */
   backdrop?: React.ReactNode;
+  /** Per lane (0–3): 0…1 strength of the soft red "nothing to hit here" flash. */
+  emptyPressFlash?: SharedValue<number>[];
+}
+
+/** Soft red overlay on a lane after a press that hit no tile. */
+function EmptyPressFlash({ value }: { value: SharedValue<number> }) {
+  const style = useAnimatedStyle(() => ({ opacity: value.value }));
+  return <Animated.View pointerEvents="none" style={[styles.emptyFlash, style]} />;
 }
 
 export const LANE_KEYS = ['D', 'F', 'J', 'K'] as const;
@@ -53,6 +62,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   showKeyLabels = false,
   children,
   backdrop,
+  emptyPressFlash,
 }) => {
   const { board } = theme;
 
@@ -157,7 +167,8 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
           return (
             <Pressable
               key={laneIndex}
-              style={styles.laneColumn}
+              // Every other lane slightly lighter, so each reads as its own wide column
+              style={[styles.laneColumn, laneIndex % 2 === 1 && styles.laneTint]}
               disabled={USE_MULTI_TOUCH}
               onPressIn={
                 USE_MULTI_TOUCH
@@ -179,6 +190,8 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                     }
               }
             >
+              {emptyPressFlash?.[laneIndex] ? <EmptyPressFlash value={emptyPressFlash[laneIndex]} /> : null}
+
               {/* Lane Key Badge / Prompt at Hit Line */}
               {showKeyLabels && (
                 <View
@@ -263,6 +276,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     opacity: 0.3,
   },
+  laneTint: { backgroundColor: 'rgba(154, 167, 194, 0.035)' },
+  emptyFlash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255, 77, 77, 0.28)' },
   dividers: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   divider: { position: 'absolute', top: 0, bottom: 0 },
   tilesLayer: {

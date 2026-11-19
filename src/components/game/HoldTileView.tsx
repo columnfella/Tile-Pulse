@@ -25,7 +25,7 @@ export const HOLD_HEAD_HEIGHT = HEAD_HEIGHT;
 const BEVEL = PIXEL.unit;
 
 /** Width of a tile's slot inside its lane (3 px gap each side). */
-export const TILE_INSET = 3;
+export const TILE_INSET = 2;
 
 /** Coral "being pressed" colours for the head. */
 const CORAL = { base: '#FF6B4A', light: '#ffb39f', dark: '#a83a22' } as const;
@@ -327,8 +327,8 @@ export const HoldTileView = memo(function HoldTileView({
 const styles = StyleSheet.create({
   body: {
     position: 'absolute',
-    left: 3,
-    right: 3,
+    left: TILE_INSET,
+    right: TILE_INSET,
     borderWidth: BEVEL,
     overflow: 'hidden',
   },

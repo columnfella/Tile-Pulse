@@ -15,6 +15,8 @@ import Animated, {
   useAnimatedStyle,
   useFrameCallback,
   useSharedValue,
+  withSequence,
+  withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -149,6 +151,19 @@ export default function PlayScreen() {
   const [song, setSong] = useState<Song | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
+  // Soft red flash on a lane pressed where there was nothing to hit (UI thread)
+  const flash0 = useSharedValue(0);
+  const flash1 = useSharedValue(0);
+  const flash2 = useSharedValue(0);
+  const flash3 = useSharedValue(0);
+  const emptyPressFlash = useMemo(() => [flash0, flash1, flash2, flash3], [flash0, flash1, flash2, flash3]);
+  const flashEmptyLane = useCallback(
+    (lane: 0 | 1 | 2 | 3) => {
+      const v = emptyPressFlash[lane];
+      v.value = withSequence(withTiming(1, { duration: 60 }), withTiming(0, { duration: 940 }));
+    },
+    [emptyPressFlash]
+  );
   // Menu music fades out while a level is open (the song plays instead)
   useEffect(() => holdMenuMusic('play'), []);
   // Whether the finished run earned leaderboard points (null: not sent / unknown)
@@ -496,9 +511,11 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
           triggerFlash(result.judgment);
         }
         bumpTiles();
+      } else if (!glide) {
+        flashEmptyLane(lane); // nothing to hit here
       }
     },
-    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, tilesById, bumpTiles, pixelsPerBeat, hitLineY, geometry.defaultTapTileHeightPx, rowBeats]
+    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, tilesById, bumpTiles, pixelsPerBeat, hitLineY, geometry.defaultTapTileHeightPx, rowBeats, flashEmptyLane]
   );
 
   const handleFingersChange = useCallback((fingers: number[]) => {
@@ -854,6 +871,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         onLanePressStart={handleLanePressStart}
         onLanePressEnd={handleLanePressEnd}
         onFingersChange={handleFingersChange}
+        emptyPressFlash={emptyPressFlash}
         backdrop={
           <>
             <AnimatedBackground
