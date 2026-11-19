@@ -2,7 +2,7 @@
   "expo": {
     "name": "TilePulse",
     "slug": "tilepulse-rhythm-game",
-    "version": "0.19.0",
+    "version": "0.19.1",
     "runtimeVersion": {
       "policy": "fingerprint"
     },

@@ -22,7 +22,7 @@ import Animated, {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Song, type SlidePoint } from '../../types/song';
 import { HitJudgment, GameStats, ActiveTileState } from '../../types/game';
-import { ACTIVE_THEME } from '../../constants/theme';
+import { ACTIVE_THEME, PLAY_GRID } from '../../constants/theme';
 import {
   calculateNoteTimeSeconds,
   evaluateHitJudgment,
@@ -223,7 +223,6 @@ export default function PlayScreen() {
   const [boardHeight, setBoardHeight] = useState<number>(0);
   const [boardWidth, setBoardWidth] = useState<number>(0);
   const { geometry } = ACTIVE_THEME;
-  const pixelsPerBeat = geometry.pixelsPerBeat;
   const hitLineY = Math.round(boardHeight * (geometry.hitLineYPercent / 100));
 
   const handleRootLayout = (e: LayoutChangeEvent) => {
@@ -269,8 +268,20 @@ export default function PlayScreen() {
         bestCount = n;
       }
     }
-    return best;
-  }, [timeline]);
+    // Keep the scroll readable: rows never pass faster than MIN_ROW_SECONDS
+    // each. If they would, a row holds a whole number of notes (2, 3, …) so the
+    // notes still land exactly on row lines.
+    const minRowBeats = song ? (PLAY_GRID.MIN_ROW_SECONDS * song.bpm) / 60 : 0;
+    return best >= minRowBeats ? best : best * Math.ceil(minRowBeats / best - 1e-9);
+  }, [timeline, song]);
+
+  // Rigid grid: one row (rowBeats) is exactly one tile tall, so the scroll speed
+  // in px per beat follows from the tile height. Consecutive rows touch and a
+  // skipped row leaves exactly one tile of space.
+  const pixelsPerBeat = useMemo(
+    () => geometry.defaultTapTileHeightPx / rowBeats,
+    [geometry.defaultTapTileHeightPx, rowBeats]
+  );
 
   const tilesById = useMemo(() => new Map(timeline.map((t) => [t.id, t])), [timeline]);
 

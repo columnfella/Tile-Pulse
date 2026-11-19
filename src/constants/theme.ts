@@ -11,17 +11,25 @@ import { ImageSourcePropType } from 'react-native';
  */
 
 /**
- * PLAY SCREEN SIZE DIAL — change SCALE to resize the whole play grid at once:
- * the tiles AND the spacing between notes grow or shrink together (the timing
- * doesn't change, only how tall things are and how fast they scroll).
+ * PLAY SCREEN SIZE DIAL — change SCALE to resize the whole play grid at once.
+ *
+ * The board is a rigid grid of rows, like Piano Tiles: one row = one tap tile.
+ * Each song's usual note spacing is exactly one row, so notes in consecutive
+ * rows touch and a skipped row leaves exactly one tile of empty space. The
+ * scroll speed follows from that (timing never changes, only sizes / speed).
  *   SCALE 1 = the original size · 1.5 = 50 % taller (current) · 2 = double
  */
 export const PLAY_GRID = {
   SCALE: 1.5,
-  /** Pixels the board scrolls per beat at SCALE 1. */
-  BASE_PIXELS_PER_BEAT: 260,
-  /** Tallest a tap tile gets at SCALE 1. */
+  /** Height of one grid row (= one tap tile) at SCALE 1. */
   BASE_MAX_TILE_HEIGHT: 144,
+  /** Fallback scroll (px per beat at SCALE 1), used only where no song is known. */
+  BASE_PIXELS_PER_BEAT: 260,
+  /**
+   * Rows can't pass faster than one per this many seconds: in very dense
+   * songs, notes closer than that share a row and their tiles shrink to fit.
+   */
+  MIN_ROW_SECONDS: 0.15,
   /** Shortest a tap tile gets at SCALE 1 (very dense passages). */
   BASE_MIN_TILE_HEIGHT: 30,
   /** Gap between rows of tiles, in px (not scaled). */
