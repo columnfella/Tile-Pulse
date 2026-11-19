@@ -251,26 +251,21 @@ export default function PlayScreen() {
     return sorted;
   }, [song]);
 
-  // The song's row size: its most common spacing between notes (in beats).
-  // Every tap tile is one row tall, so the board is a rigid, even grid.
+  // The song's row size: its SMALLEST spacing between notes (in beats). Every
+  // tap tile is one row tall and longer gaps become whole empty rows, so all
+  // tiles have the same size and the board is a rigid, even grid. (Using the
+  // most common spacing instead made tiles before shorter gaps shrink.)
   const rowBeats = useMemo(() => {
-    const counts = new Map<number, number>();
+    let smallest = Infinity;
     for (const t of timeline) {
-      if (t.gapBeats === undefined || t.gapBeats > 2) continue;
-      const key = Math.round(t.gapBeats * 96) / 96; // group float noise
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+      // Ignore float noise between notes meant to be together (< 1/48 beat)
+      if (t.gapBeats === undefined || t.gapBeats < 1 / 48) continue;
+      smallest = Math.min(smallest, Math.round(t.gapBeats * 96) / 96);
     }
-    let best = 1;
-    let bestCount = 0;
-    for (const [beats, n] of counts) {
-      if (n > bestCount || (n === bestCount && beats < best)) {
-        best = beats;
-        bestCount = n;
-      }
-    }
+    const best = Number.isFinite(smallest) ? Math.min(smallest, 2) : 1;
     // Keep the scroll readable: rows never pass faster than MIN_ROW_SECONDS
     // each. If they would, a row holds a whole number of notes (2, 3, …) so the
-    // notes still land exactly on row lines.
+    // notes still land exactly on row lines (only then do tiles shrink).
     const minRowBeats = song ? (PLAY_GRID.MIN_ROW_SECONDS * song.bpm) / 60 : 0;
     return best >= minRowBeats ? best : best * Math.ceil(minRowBeats / best - 1e-9);
   }, [timeline, song]);
