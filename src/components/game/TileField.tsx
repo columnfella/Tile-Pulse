@@ -4,7 +4,7 @@ import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reani
 import type { TileNote } from '../../types/song';
 import type { ActiveTileState } from '../../types/game';
 import { TapTileView } from './TapTileView';
-import { HoldTileView } from './HoldTileView';
+import { HoldTileView, TILE_INSET } from './HoldTileView';
 import { SlideTileView } from './SlideTileView';
 import { SlideLayer } from './SlideLayer';
 import { isSlideTile } from '../../game/engine';
@@ -113,6 +113,7 @@ const MovingTile = memo(function MovingTile({
         <HoldTileView
           y={0}
           height={height}
+          width={(boardWidth ?? 0) / 4 - 2 * TILE_INSET}
           lane={tile.lane}
           isHolding={status === 'holding'}
           holdProgress={holdProgress}

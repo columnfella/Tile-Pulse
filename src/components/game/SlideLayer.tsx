@@ -10,10 +10,18 @@
  * part of that same stroke. (Web: SlideLayer.web.tsx draws nothing; the web
  * board uses the box-based SlideTileView instead.)
  */
-import React, { memo, useMemo } from 'react';
+import React, { memo, useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Canvas, Group, Path, Rect, Skia, rect, type SkPath } from '@shopify/react-native-skia';
-import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
+import { Canvas, Circle, Group, Path, RadialGradient, Skia, rect, vec, type SkPath } from '@shopify/react-native-skia';
+import {
+  Easing,
+  cancelAnimation,
+  useDerivedValue,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 import type { ActiveTileState } from '../../types/game';
 import type { TimedTile } from './TileField';
 import { TILE_STATES } from './TapTileView';
@@ -142,11 +150,38 @@ const SlideShape = memo(function SlideShape({
     const top = height - progress.value * height;
     return rect(0, top, boardWidth, height + geo.bottomExtra - top);
   });
-  // "Follow me" marker where the line crosses the progress height
-  const markerX = useDerivedValue(() => xAtY(geo.xs, geo.ys, height - progress.value * height) - 10);
-  const markerY = useDerivedValue(() => height - progress.value * height - 10);
-  const markerInnerX = useDerivedValue(() => markerX.value + 3);
-  const markerInnerY = useDerivedValue(() => markerY.value + 3);
+  // "Follow me" orb where the line crosses the progress height, with a glowing
+  // arc riding on top of it and fainter arcs drifting up ahead (like the holds)
+  const orbR = Math.round(strokeW * 0.42);
+  const arcR = orbR + 5;
+  const arcPath = useMemo(
+    () => Skia.Path.MakeFromSVGString(`M ${-arcR} 0 A ${arcR} ${arcR} 0 0 1 ${arcR} 0`)!,
+    [arcR]
+  );
+  const orbTransform = useDerivedValue(() => {
+    const y = height - progress.value * height;
+    return [{ translateX: xAtY(geo.xs, geo.ys, y) }, { translateY: y }];
+  });
+  const echo = useSharedValue(0);
+  const ring = useSharedValue(0);
+  useEffect(() => {
+    if (live) echo.value = withRepeat(withTiming(1, { duration: 620, easing: Easing.out(Easing.quad) }), -1, false);
+    else {
+      cancelAnimation(echo);
+      echo.value = 0;
+    }
+  }, [live, echo]);
+  useEffect(() => {
+    // Press: a ring bursts out of the head
+    if (isHolding) {
+      ring.value = 0;
+      ring.value = withTiming(1, { duration: 480, easing: Easing.out(Easing.cubic) });
+    }
+  }, [isHolding, ring]);
+  const echoTransform = useDerivedValue(() => [{ translateY: -echo.value * arcR * 1.4 }]);
+  const echoOpacity = useDerivedValue(() => 0.55 * (1 - echo.value));
+  const ringR = useDerivedValue(() => (0.35 + 1.25 * ring.value) * (strokeW / 2));
+  const ringOpacity = useDerivedValue(() => (ring.value > 0 && ring.value < 1 ? 0.95 * (1 - ring.value) : 0));
 
   const head = isMissed ? TILE_STATES.missed : isHolding ? CORAL : isHit ? TILE_STATES.pressed : TILE_STATES.normal;
   const headColors: StrokeColors = { outline: '#000000', rim: head.light, body: head.base, rail: head.base };
@@ -167,10 +202,27 @@ const SlideShape = memo(function SlideShape({
         </Group>
       </Group>
       {live ? (
-        <>
-          <Rect x={markerX} y={markerY} width={20} height={20} color="#ffffff" />
-          <Rect x={markerInnerX} y={markerInnerY} width={14} height={14} color={CORAL.base} />
-        </>
+        <Group transform={orbTransform}>
+          {/* Orb: white core → coral → fading blue glow */}
+          <Circle cx={0} cy={0} r={orbR + 6}>
+            <RadialGradient c={vec(0, 0)} r={orbR + 6} colors={['#ffffff', '#FF6B4A', '#2f6bff00']} positions={[0, 0.45, 1]} />
+          </Circle>
+          <Group transform={echoTransform} opacity={echoOpacity}>
+            <Path path={arcPath} style="stroke" strokeWidth={2} strokeCap="round" color="#ffd2c5" />
+          </Group>
+          <Path path={arcPath} style="stroke" strokeWidth={3} strokeCap="round" color="#ffffff" />
+        </Group>
+      ) : null}
+      {!isMissed ? (
+        <Circle
+          cx={geo.xs[0]}
+          cy={height - SLIDE_HEAD_HEIGHT / 2}
+          r={ringR}
+          style="stroke"
+          strokeWidth={3}
+          color="#FF6B4A"
+          opacity={ringOpacity}
+        />
       ) : null}
     </Group>
   );

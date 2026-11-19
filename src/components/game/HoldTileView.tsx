@@ -20,6 +20,9 @@ import { TILE_STATES } from './TapTileView';
 const HEAD_HEIGHT = 40;
 const BEVEL = PIXEL.unit;
 
+/** Width of a tile's slot inside its lane (3 px gap each side). */
+export const TILE_INSET = 3;
+
 /** Coral "being pressed" colours for the head. */
 const CORAL = { base: '#FF6B4A', light: '#ffb39f', dark: '#a83a22' } as const;
 /** Fill colours, top (leading edge) → bottom: coral → blue → navy. */
@@ -37,27 +40,85 @@ export interface LiveHoldProgress {
   duration: number; // seconds
 }
 
-/** The coloured fill plus a bright line marking how far you've held. */
-function FillContents() {
+/** Top of the rising fill: light coral → coral, continuing the fill gradient. */
+const CAP_GRADIENT = ['#ffd2c5', '#FF6B4A'] as const;
+
+/**
+ * The fill that rises as the note is held. Its leading edge is a semicircular
+ * dome (coral → blue → navy gradient) traced by a glowing white arc, with
+ * fainter arcs drifting up ahead of it like a pulse. Driven on the UI thread
+ * from the song clock while holding (`live`), or a fixed `progress`.
+ */
+function ArcFill({
+  inner,
+  live,
+  progress,
+  pulse,
+}: {
+  /** Inner width of the tile (px): the dome is a half circle this wide. */
+  inner: number;
+  live?: LiveHoldProgress;
+  progress: number;
+  pulse: SharedValue<number>;
+}) {
+  const r = Math.max(6, inner / 2);
+  const height = useAnimatedStyle(() => {
+    let p = progress;
+    if (live) p = live.duration > 0 ? (live.songTime.value - live.start) / live.duration : 1;
+    return { height: `${Math.min(1, Math.max(0, p)) * 100}%` };
+  });
+  // Echo arcs: rise and fade ahead of the edge, on repeat while holding
+  const echo = useSharedValue(0);
+  useEffect(() => {
+    if (live) echo.value = withRepeat(withTiming(1, { duration: 620, easing: Easing.out(Easing.quad) }), -1, false);
+    else {
+      cancelAnimation(echo);
+      echo.value = 0;
+    }
+  }, [live, echo]);
+  const arcStyle = useAnimatedStyle(() => ({ opacity: 0.55 + 0.45 * pulse.value }));
+  const echoStyle = useAnimatedStyle(() => ({
+    opacity: live ? 0.55 * (1 - echo.value) : 0,
+    transform: [{ translateY: -echo.value * r * 1.2 }],
+  }));
+  const dome = { top: -r + 1, height: r, borderTopLeftRadius: r, borderTopRightRadius: r };
+
   return (
-    <>
+    <Animated.View style={[styles.fill, height]}>
       <LinearGradient colors={FILL_GRADIENT} style={StyleSheet.absoluteFill} />
-      <View style={styles.fillEdge} />
-    </>
+      <View style={[styles.dome, dome]}>
+        <LinearGradient colors={CAP_GRADIENT} style={StyleSheet.absoluteFill} />
+      </View>
+      <Animated.View style={[styles.domeArc, dome, echoStyle]} />
+      <Animated.View style={[styles.domeArc, styles.domeArcMain, dome, arcStyle]} />
+    </Animated.View>
   );
 }
 
-/** Fill that rises from the head as the note is held (UI thread). */
-function LiveFill({ live }: { live: LiveHoldProgress }) {
-  const { songTime, start, duration } = live;
-  const style = useAnimatedStyle(() => {
-    const p = duration > 0 ? (songTime.value - start) / duration : 1;
-    return { height: `${Math.min(1, Math.max(0, p)) * 100}%` };
-  });
+/** Ring that bursts out of the head the moment the hold is pressed. */
+function PressRing({ inner, active }: { inner: number; active: boolean }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (active) {
+      t.value = 0;
+      t.value = withTiming(1, { duration: 480, easing: Easing.out(Easing.cubic) });
+    }
+  }, [active, t]);
+  const style = useAnimatedStyle(() => ({
+    opacity: t.value > 0 && t.value < 1 ? 0.95 * (1 - t.value) : 0,
+    transform: [{ scale: 0.35 + 1.25 * t.value }],
+    borderColor: t.value < 0.5 ? '#FF6B4A' : '#4d8dff',
+  }));
+  const size = Math.max(16, inner);
   return (
-    <Animated.View style={[styles.fill, style]}>
-      <FillContents />
-    </Animated.View>
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.ring,
+        { width: size, height: size, borderRadius: size / 2, bottom: HEAD_HEIGHT / 2 - size / 2, marginLeft: -size / 2 },
+        style,
+      ]}
+    />
   );
 }
 
@@ -72,6 +133,8 @@ interface HoldTileViewProps {
   theme?: ThemeConfig;
   /** When holding, animate the fill on the UI thread instead of via re-renders. */
   live?: LiveHoldProgress;
+  /** Width of the tile's slot in px (lane width minus the gaps); shapes the arc. */
+  width?: number;
 }
 
 /**
@@ -90,7 +153,9 @@ export const HoldTileView = memo(function HoldTileView({
   isMissed = false,
   theme = ACTIVE_THEME,
   live,
+  width = 80,
 }: HoldTileViewProps) {
+  const inner = Math.max(12, width - 2 * BEVEL);
   // Press amount (springy) and the pulse while held — both UI thread
   const press = useSharedValue(isHolding ? 1 : 0);
   const pulse = useSharedValue(0);
@@ -136,8 +201,9 @@ export const HoldTileView = memo(function HoldTileView({
     opacity: done.value > 0.45 && done.value < 1 ? 0.7 : 0,
     transform: [{ translateY: interpolate(done.value, [0.45, 1], [height, -28], 'clamp') }],
   }));
+  // Completion "breath": a brightness swell, never wider than the lane
   const doneBodyStyle = useAnimatedStyle(() => ({
-    transform: [{ scaleX: interpolate(done.value, [0, 0.5, 0.75, 1], [1, 1, 1.06, 1]) }],
+    opacity: interpolate(done.value, [0, 0.5, 0.75, 1], [1, 1, 0.85, 1]),
   }));
 
   if (theme.holdTile.imageSource) {
@@ -173,15 +239,11 @@ export const HoldTileView = memo(function HoldTileView({
     >
       {!isMissed && <LinearGradient colors={BODY_GRADIENT} style={StyleSheet.absoluteFill} />}
 
-      {/* Coral → blue fill with a bright leading edge */}
-      {!isMissed &&
-        (isHolding && live ? (
-          <LiveFill live={live} />
-        ) : progress > 0 ? (
-          <View style={[styles.fill, { height: `${progress * 100}%` }]}>
-            <FillContents />
-          </View>
-        ) : null)}
+      {/* Rising coral → blue fill with a semicircular, glowing leading edge */}
+      {!isMissed && ((isHolding && live) || progress > 0) ? (
+        <ArcFill inner={inner} live={isHolding ? live : undefined} progress={progress} pulse={pulse} />
+      ) : null}
+
 
       {/* Completed: green charge-up, flash and a shine running up the tile */}
       {isHit && !isMissed && (
@@ -212,6 +274,9 @@ export const HoldTileView = memo(function HoldTileView({
         {isHolding && <Animated.View style={[StyleSheet.absoluteFill, styles.headGlow, glowStyle]} />}
         <Text style={[styles.headText, isHolding && styles.headTextHolding]}>HOLD</Text>
       </Animated.View>
+
+      {/* The press: a ring bursts out of the head (drawn over it) */}
+      {!isMissed && <PressRing inner={inner} active={isHolding} />}
     </Animated.View>
   );
 });
@@ -225,15 +290,19 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   sprite: { width: '100%', height: '100%' },
-  fill: { position: 'absolute', bottom: 0, left: 0, right: 0, overflow: 'hidden' },
-  fillEdge: {
+  // No overflow clipping: the dome sits just above the fill's top edge
+  fill: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  dome: { position: 'absolute', left: 0, right: 0, overflow: 'hidden' },
+  domeArc: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
-    height: 3,
-    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderBottomWidth: 0,
+    borderColor: '#ffd2c5',
   },
+  domeArcMain: { borderWidth: 3, borderColor: '#ffffff' },
+  ring: { position: 'absolute', left: '50%', borderWidth: 3 },
   head: {
     position: 'absolute',
     bottom: 0,

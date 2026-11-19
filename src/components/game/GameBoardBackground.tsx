@@ -157,13 +157,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
           return (
             <Pressable
               key={laneIndex}
-              style={[
-                styles.laneColumn,
-                {
-                  borderRightWidth: laneIndex < 3 ? board.laneDividersWidth : 0,
-                  borderRightColor: board.laneDividersColor,
-                },
-              ]}
+              style={styles.laneColumn}
               disabled={USE_MULTI_TOUCH}
               onPressIn={
                 USE_MULTI_TOUCH
@@ -225,6 +219,25 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
         })}
       </View>
 
+      {/* Lane lines, centred exactly on the 25 / 50 / 75 % boundaries (as separate
+          strips, not column borders, so every tile has the same gap on both sides) */}
+      <View pointerEvents="none" style={styles.dividers}>
+        {[1, 2, 3].map((k) => (
+          <View
+            key={k}
+            style={[
+              styles.divider,
+              {
+                left: `${k * 25}%`,
+                width: board.laneDividersWidth,
+                marginLeft: -board.laneDividersWidth / 2,
+                backgroundColor: board.laneDividersColor,
+              },
+            ]}
+          />
+        ))}
+      </View>
+
       {/* Tiles Layer Mounted Inside Board */}
       <View pointerEvents="none" style={styles.tilesLayer}>
         {children}
@@ -250,6 +263,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     opacity: 0.3,
   },
+  dividers: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  divider: { position: 'absolute', top: 0, bottom: 0 },
   tilesLayer: {
     position: 'absolute',
     top: 0,

@@ -61,7 +61,8 @@ export const TapTileView = memo(function TapTileView({
   }));
   const ringStyle = useAnimatedStyle(() => ({
     opacity: pop.value > 0 && pop.value < 1 ? interpolate(pop.value, [0, 1], [0.9, 0]) : 0,
-    transform: [{ scaleX: interpolate(pop.value, [0, 1], [1, 1.12]) }, { scaleY: interpolate(pop.value, [0, 1], [1, 1.2]) }],
+    // Grows only vertically: a wider ring would poke into the neighbouring lanes
+    transform: [{ scaleY: interpolate(pop.value, [0, 1], [1, 1.2]) }],
   }));
 
   if (theme.tapTile.imageSource) {
