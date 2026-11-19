@@ -10,7 +10,7 @@ export const site = {
     'Load any song from your phone, map it in the built-in beatmap editor, and play it on a fast four-lane tile board. No fixed song list, no paywalled tracks: every song and every chart comes from the players.',
   status: 'Prototype — in active development',
   github: 'https://github.com/columnfella/Tile-Pulse',
-  platforms: 'Android · iOS · Browser',
+  platforms: 'Android app (APK) · iPhone & any browser (web)',
 };
 
 /**
@@ -27,7 +27,7 @@ export const earlyTester = {
   points: [
     'Shown on your profile, forever',
     'New accounts can’t get it once the game launches',
-    'Just download the test build and create an account',
+    'Get the Android app or play on iPhone, then create an account',
   ],
 };
 
@@ -54,14 +54,40 @@ export const apk = {
 
 export const testBuild = {
   title: 'Play the test build',
-  body: 'TilePulse is ready for its first testers. Download the Android build, play some levels, make a chart, and enjoy it — then tell us what you think.',
+  body: 'TilePulse is ready for its first testers. Play some levels, make a chart, and enjoy it — then tell us what you think. Pick your phone below.',
+  android: {
+    title: 'On Android',
+    body: 'The APK is the full app, and it installs on Android phones only. It updates itself whenever we fix something.',
+  },
   disclaimer:
     'This is an early test version of a prototype. Expect bugs, rough edges and things that change or break between updates. Your levels, scores and account may be reset while the game is being tested.',
   steps: [
-    'Open this page on your Android phone and tap Download APK.',
+    'On your Android phone, tap Download APK (Android only).',
     'Open the file. If Android blocks it, allow installs from your browser.',
     'If Play Protect warns about an unknown app, choose Install anyway.',
     'The app updates itself — just reopen it to get the latest fixes.',
+  ],
+};
+
+/**
+ * iPhone (and any browser): the web version of the game, installable from
+ * Safari with "Add to Home Screen". Same account and levels as the Android app.
+ */
+export const webApp = {
+  url: 'https://tilepulse-play.vercel.app',
+  host: 'tilepulse-play.vercel.app',
+  title: 'On iPhone',
+  body: 'There is no App Store version yet, so iPhone players play TilePulse in Safari. Add it to your Home Screen and it opens full screen with its own icon, just like an app — and your account, levels and scores are the same as on Android.',
+  steps: [
+    'Open tilepulse-play.vercel.app in Safari on your iPhone.',
+    'Tap the Share button (the square with an arrow pointing up). On newer iOS it sits in the ••• menu next to the address bar.',
+    'Scroll down and tap Add to Home Screen (it can be under Edit Actions or View More).',
+    'Keep "Open as Web App" switched on if you see it, then tap Add.',
+    'Open TilePulse from your Home Screen and sign in or create an account.',
+  ],
+  notes: [
+    'Sound starts after your first tap: Safari only plays audio once you touch the screen.',
+    'The web version is a little lighter than the Android app, and slides may feel less smooth on older iPhones.',
   ],
 };
 

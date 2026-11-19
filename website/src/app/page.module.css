@@ -380,6 +380,61 @@
 }
 
 /* ------------------------------ download ------------------------------ */
+/* "On Android" / "On iPhone" headings splitting the download section */
+.platformTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 34px;
+  font-size: clamp(12px, 1.8vw, 15px);
+  color: #fff;
+  scroll-margin-top: 90px;
+}
+
+.platformTitle svg {
+  color: var(--coral);
+}
+
+.platformBody {
+  color: var(--text);
+}
+
+.webUrl {
+  color: var(--text-dim);
+  font-size: 19px;
+}
+
+.webHost {
+  color: var(--blue-light);
+  font-family: var(--font-pixel), monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-faint);
+  font-size: 18px;
+}
+
+.stepText {
+  display: inline;
+}
+
+.shareHint {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 8px;
+  padding: 3px;
+  border: 2px solid var(--blue-light);
+  color: var(--blue-light);
+}
+
 .navDownload {
   color: var(--coral) !important;
 }

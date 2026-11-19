@@ -2,7 +2,7 @@ import { ClaudeBadge } from '@/components/ClaudeBadge';
 import { Logo } from '@/components/Logo';
 import { PixelIcon } from '@/components/PixelIcon';
 import { TileRain } from '@/components/TileRain';
-import { apk, earlyTester, pillars, principles, site, testBuild } from '@/content/site';
+import { apk, earlyTester, pillars, principles, site, testBuild, webApp } from '@/content/site';
 import { gameVersion } from '@/content/gameVersion';
 import styles from './page.module.css';
 
@@ -36,6 +36,9 @@ export default function Home() {
             <a href="#download" className={styles.navDownload}>
               Download
             </a>
+            <a href="#iphone" className={styles.navSection}>
+              iPhone
+            </a>
             <a href={site.github} target="_blank" rel="noreferrer">
               GitHub
             </a>
@@ -62,8 +65,8 @@ export default function Home() {
               <a href="#download" className={styles.primaryBtn}>
                 {earlyTester.open ? 'Get the Early Tester badge' : 'Try the test build'}
               </a>
-              <a href="#philosophy" className={styles.secondaryBtn}>
-                Read the philosophy
+              <a href="#iphone" className={styles.secondaryBtn}>
+                Play on iPhone
               </a>
             </div>
             <p className={styles.platforms}>{site.platforms}</p>
@@ -149,11 +152,18 @@ export default function Home() {
               </div>
             </div>
           ) : null}
+          <p className={styles.sectionLead}>{testBuild.body}</p>
+
+          {/* Android: the APK */}
+          <h3 id="android" className={styles.platformTitle}>
+            <PixelIcon name="phone" px={3} />
+            {testBuild.android.title}
+          </h3>
           <div className={styles.download}>
             <div className={styles.downloadMain}>
-              <p className={styles.sectionLead}>{testBuild.body}</p>
+              <p className={styles.platformBody}>{testBuild.android.body}</p>
               <div className={styles.downloadMeta}>
-                <span className={styles.metaTag}>Android</span>
+                <span className={styles.metaTag}>Android only</span>
                 {versionLabel && <span className={styles.metaTag}>Version {versionLabel}</span>}
                 <span className={styles.metaTag}>Test build</span>
               </div>
@@ -179,6 +189,50 @@ export default function Home() {
                 <li key={step}>
                   <span className={styles.stepNum}>{String(i + 1).padStart(2, '0')}</span>
                   <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* iPhone: the web version, added to the Home Screen from Safari */}
+          <h3 id="iphone" className={styles.platformTitle}>
+            <PixelIcon name="phone" px={3} />
+            {webApp.title}
+          </h3>
+          <div className={styles.download}>
+            <div className={styles.downloadMain}>
+              <p className={styles.platformBody}>{webApp.body}</p>
+              <div className={styles.downloadMeta}>
+                <span className={styles.metaTag}>iPhone &amp; iPad</span>
+                <span className={styles.metaTag}>Safari</span>
+                <span className={styles.metaTag}>No download</span>
+              </div>
+              <div className={styles.actions}>
+                <a href={webApp.url} target="_blank" rel="noreferrer" className={styles.primaryBtn}>
+                  Play on iPhone
+                </a>
+              </div>
+              <p className={styles.webUrl}>
+                Or type <span className={styles.webHost}>{webApp.host}</span> into Safari.
+              </p>
+              <ul className={styles.notes}>
+                {webApp.notes.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            </div>
+            <ol className={styles.steps} aria-label="Add TilePulse to your iPhone Home Screen">
+              {webApp.steps.map((step, i) => (
+                <li key={step}>
+                  <span className={styles.stepNum}>{String(i + 1).padStart(2, '0')}</span>
+                  <span className={styles.stepText}>
+                    {step}
+                    {i === 1 ? (
+                      <span className={styles.shareHint} aria-hidden="true">
+                        <PixelIcon name="share" px={2} />
+                      </span>
+                    ) : null}
+                  </span>
                 </li>
               ))}
             </ol>
