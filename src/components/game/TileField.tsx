@@ -13,7 +13,14 @@ export interface TimedTile extends TileNote {
   noteTime: number; // seconds
   endTime: number; // seconds (same as noteTime for tap tiles)
   durationSeconds: number;
+  /** Beats until the next note in any lane (undefined for the last note). */
+  gapBeats?: number;
 }
+
+/** Space left between a tile and the next row of notes. */
+const ROW_GAP = 4;
+/** Tap tiles never get shorter than this, even in very dense passages. */
+const MIN_TAP_HEIGHT = 30;
 
 interface TileFieldProps {
   /** Tiles near the playhead (windowed by the parent). */
@@ -171,11 +178,17 @@ export const TileField = memo(function TileField({
         // Hit tiles stay on screen in a darker "pressed" state and scroll away;
         // missed tiles turn red.
         // Slides are exactly as tall as their path, so bends land on the beat grid
+        // A tap is as tall as the default, but never taller than the gap to the
+        // next note (in any lane), so neighbouring tiles don't overlap
+        const rowHeight =
+          tile.gapBeats !== undefined
+            ? Math.max(MIN_TAP_HEIGHT, Math.min(tapHeight, tile.gapBeats * pixelsPerBeat - ROW_GAP))
+            : tapHeight;
         const height = isSlideTile(tile)
           ? tile.durationBeats * pixelsPerBeat
           : tile.durationBeats > 0
-            ? Math.max(tapHeight, tile.durationBeats * pixelsPerBeat)
-            : tapHeight;
+            ? Math.max(rowHeight, tile.durationBeats * pixelsPerBeat)
+            : rowHeight;
         return (
           <MovingTile
             key={tile.id}

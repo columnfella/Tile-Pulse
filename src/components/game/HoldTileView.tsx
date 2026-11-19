@@ -16,8 +16,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 import { FONTS, PIXEL } from '../../theme/pixel';
 import { TILE_STATES } from './TapTileView';
+import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
+import { FX_CELL, pixelCirclePath, pixelExtent } from './pixelShapes';
 
 const HEAD_HEIGHT = 40;
+/** Height of the HOLD head (the part you must press to start the hold). */
+export const HOLD_HEAD_HEIGHT = HEAD_HEIGHT;
 const BEVEL = PIXEL.unit;
 
 /** Width of a tile's slot inside its lane (3 px gap each side). */
@@ -40,14 +44,32 @@ export interface LiveHoldProgress {
   duration: number; // seconds
 }
 
-/** Top of the rising fill: light coral → coral, continuing the fill gradient. */
-const CAP_GRADIENT = ['#ffd2c5', '#FF6B4A'] as const;
+/**
+ * Pixel arc (top half of a pixel ring) drawn as one SVG path, with a stepped
+ * coral → blue gradient. `radius` in px; the arc is FX_CELL thick.
+ */
+function PixelArc({ radius, light = false }: { radius: number; light?: boolean }) {
+  const e = pixelExtent(radius);
+  const d = pixelCirclePath(radius, FX_CELL, true);
+  return (
+    <Svg width={e * 2} height={e} viewBox={`${-e} ${-e} ${e * 2} ${e}`}>
+      <Defs>
+        <SvgGradient id="arc" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={light ? '#ffd2c5' : '#ffffff'} />
+          <Stop offset="0.45" stopColor={light ? '#ffb39f' : '#FF6B4A'} />
+          <Stop offset="1" stopColor={light ? '#7aa4ff' : '#4d8dff'} />
+        </SvgGradient>
+      </Defs>
+      <Path d={d} fill="url(#arc)" />
+    </Svg>
+  );
+}
 
 /**
- * The fill that rises as the note is held. Its leading edge is a semicircular
- * dome (coral → blue → navy gradient) traced by a glowing white arc, with
- * fainter arcs drifting up ahead of it like a pulse. Driven on the UI thread
- * from the song clock while holding (`live`), or a fixed `progress`.
+ * The fill that rises as the note is held: a coral → blue → navy column with a
+ * thin pixel arc riding its top edge and fainter pixel arcs drifting up ahead,
+ * like a pulse. Driven on the UI thread from the song clock while holding
+ * (`live`), or a fixed `progress`.
  */
 function ArcFill({
   inner,
@@ -55,13 +77,14 @@ function ArcFill({
   progress,
   pulse,
 }: {
-  /** Inner width of the tile (px): the dome is a half circle this wide. */
+  /** Inner width of the tile (px): the arc spans it. */
   inner: number;
   live?: LiveHoldProgress;
   progress: number;
   pulse: SharedValue<number>;
 }) {
-  const r = Math.max(6, inner / 2);
+  const r = Math.max(FX_CELL * 3, inner / 2 - FX_CELL);
+  const e = pixelExtent(r);
   const height = useAnimatedStyle(() => {
     let p = progress;
     if (live) p = live.duration > 0 ? (live.songTime.value - live.start) / live.duration : 1;
@@ -76,49 +99,69 @@ function ArcFill({
       echo.value = 0;
     }
   }, [live, echo]);
-  const arcStyle = useAnimatedStyle(() => ({ opacity: 0.55 + 0.45 * pulse.value }));
+  const arcStyle = useAnimatedStyle(() => ({ opacity: 0.6 + 0.4 * pulse.value }));
+  // Echo moves in whole art pixels, so it stays crisp
   const echoStyle = useAnimatedStyle(() => ({
-    opacity: live ? 0.55 * (1 - echo.value) : 0,
-    transform: [{ translateY: -echo.value * r * 1.2 }],
+    opacity: live ? 0.5 * (1 - echo.value) : 0,
+    transform: [{ translateY: -Math.round((echo.value * r) / FX_CELL) * FX_CELL }],
   }));
-  const dome = { top: -r + 1, height: r, borderTopLeftRadius: r, borderTopRightRadius: r };
+  const place = { top: -e, left: (inner - e * 2) / 2 };
 
   return (
     <Animated.View style={[styles.fill, height]}>
       <LinearGradient colors={FILL_GRADIENT} style={StyleSheet.absoluteFill} />
-      <View style={[styles.dome, dome]}>
-        <LinearGradient colors={CAP_GRADIENT} style={StyleSheet.absoluteFill} />
-      </View>
-      <Animated.View style={[styles.domeArc, dome, echoStyle]} />
-      <Animated.View style={[styles.domeArc, styles.domeArcMain, dome, arcStyle]} />
+      <Animated.View style={[styles.arc, place, echoStyle]}>
+        <PixelArc radius={r} light />
+      </Animated.View>
+      <Animated.View style={[styles.arc, place, arcStyle]}>
+        <PixelArc radius={r} />
+      </Animated.View>
     </Animated.View>
   );
 }
 
-/** Ring that bursts out of the head the moment the hold is pressed. */
-function PressRing({ inner, active }: { inner: number; active: boolean }) {
+/** Pixel ring frames for the press burst: small → big, coral → blue. */
+const RING_FRAMES = [
+  { scale: 0.35, color: '#ffffff' },
+  { scale: 0.6, color: '#FF6B4A' },
+  { scale: 0.85, color: '#ff9a7f' },
+  { scale: 1.1, color: '#4d8dff' },
+] as const;
+
+/**
+ * Ring that bursts out of the head the moment the hold is pressed, played as
+ * four pixel-art frames (like a sprite animation) instead of a smooth scale.
+ */
+function PressRing({ inner }: { inner: number }) {
   const t = useSharedValue(0);
   useEffect(() => {
-    if (active) {
-      t.value = 0;
-      t.value = withTiming(1, { duration: 480, easing: Easing.out(Easing.cubic) });
-    }
-  }, [active, t]);
-  const style = useAnimatedStyle(() => ({
-    opacity: t.value > 0 && t.value < 1 ? 0.95 * (1 - t.value) : 0,
-    transform: [{ scale: 0.35 + 1.25 * t.value }],
-    borderColor: t.value < 0.5 ? '#FF6B4A' : '#4d8dff',
-  }));
-  const size = Math.max(16, inner);
+    t.value = withTiming(1, { duration: 360, easing: Easing.linear });
+  }, [t]);
+  const base = Math.max(FX_CELL * 4, inner / 2);
+  return (
+    <>
+      {RING_FRAMES.map((f, i) => (
+        <RingFrame key={i} index={i} t={t} radius={Math.round(base * f.scale)} color={f.color} />
+      ))}
+    </>
+  );
+}
+
+function RingFrame({ index, t, radius, color }: { index: number; t: SharedValue<number>; radius: number; color: string }) {
+  const e = pixelExtent(radius);
+  const style = useAnimatedStyle(() => {
+    const frame = Math.min(RING_FRAMES.length - 1, Math.floor(t.value * RING_FRAMES.length));
+    return { opacity: t.value < 1 && frame === index ? 1 : 0 };
+  });
   return (
     <Animated.View
       pointerEvents="none"
-      style={[
-        styles.ring,
-        { width: size, height: size, borderRadius: size / 2, bottom: HEAD_HEIGHT / 2 - size / 2, marginLeft: -size / 2 },
-        style,
-      ]}
-    />
+      style={[styles.ring, { width: e * 2, height: e * 2, marginLeft: -e, bottom: HEAD_HEIGHT / 2 - e }, style]}
+    >
+      <Svg width={e * 2} height={e * 2} viewBox={`${-e} ${-e} ${e * 2} ${e * 2}`}>
+        <Path d={pixelCirclePath(radius, FX_CELL)} fill={color} />
+      </Svg>
+    </Animated.View>
   );
 }
 
@@ -276,7 +319,7 @@ export const HoldTileView = memo(function HoldTileView({
       </Animated.View>
 
       {/* The press: a ring bursts out of the head (drawn over it) */}
-      {!isMissed && <PressRing inner={inner} active={isHolding} />}
+      {isHolding && !isMissed ? <PressRing inner={inner} /> : null}
     </Animated.View>
   );
 });
@@ -290,19 +333,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   sprite: { width: '100%', height: '100%' },
-  // No overflow clipping: the dome sits just above the fill's top edge
+  // No overflow clipping: the pixel arc sits just above the fill's top edge
   fill: { position: 'absolute', bottom: 0, left: 0, right: 0 },
-  dome: { position: 'absolute', left: 0, right: 0, overflow: 'hidden' },
-  domeArc: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    borderWidth: 2,
-    borderBottomWidth: 0,
-    borderColor: '#ffd2c5',
-  },
-  domeArcMain: { borderWidth: 3, borderColor: '#ffffff' },
-  ring: { position: 'absolute', left: '50%', borderWidth: 3 },
+  arc: { position: 'absolute' },
+  ring: { position: 'absolute', left: '50%' },
   head: {
     position: 'absolute',
     bottom: 0,

@@ -37,6 +37,8 @@ import { GameBoardBackground } from '../../src/components/game/GameBoardBackgrou
 import { HitJudgmentBadge } from '../../src/components/game/HitJudgmentBadge';
 import { ComboDisplay } from '../../src/components/game/ComboDisplay';
 import { TileField, type TimedTile } from '../../src/components/game/TileField';
+import { HOLD_HEAD_HEIGHT } from '../../src/components/game/HoldTileView';
+import { SLIDE_HEAD_HEIGHT } from '../../src/components/game/SlideLayer';
 import { useHitFlash } from '../../src/components/game/HitEffects';
 import { useCreateSignal, useSignal, type Signal } from '../../src/game/signal';
 import { AnimatedBackground, isBackgroundId } from '../../src/components/backgrounds/AnimatedBackground';
@@ -215,13 +217,21 @@ export default function PlayScreen() {
   // work doesn't repeatedly filter / sort / recompute the beatmap.
   const timeline = useMemo<TimedTile[]>(() => {
     if (!song) return [];
-    return song.tiles
+    const sorted: TimedTile[] = song.tiles
       .map((t) => {
         const noteTime = calculateNoteTimeSeconds(t.beat, song.bpm);
         const durationSeconds = (t.durationBeats * 60) / song.bpm;
         return { ...t, noteTime, durationSeconds, endTime: noteTime + durationSeconds };
       })
       .sort((a, b) => a.noteTime - b.noteTime);
+    // Beats until the next note in ANY lane: a tile is never taller than that
+    // gap, so tiles in neighbouring lanes never overlap (a clean row grid)
+    for (let i = 0, j = 0; i < sorted.length; i++) {
+      if (j <= i) j = i + 1;
+      while (j < sorted.length && sorted[j].beat <= sorted[i].beat + 1e-6) j++;
+      sorted[i].gapBeats = j < sorted.length ? sorted[j].beat - sorted[i].beat : undefined;
+    }
+    return sorted;
   }, [song]);
 
   const tilesById = useMemo(() => new Map(timeline.map((t) => [t.id, t])), [timeline]);
@@ -419,6 +429,15 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         const tileBottom = hitLineY - (targetTile.noteTime - curAudioTime) * speed; // head of the tile
         const tolerance = tapH * 0.6 + 16;
         if (tileBottom < fingerY - tolerance) targetTile = null; // the tile is entirely above the finger
+      }
+
+      // Holds and slides start only when pressed on their head (the bottom part,
+      // like grabbing it), not when the finger lands somewhere along the body
+      if (targetTile && targetTile.durationBeats > 0 && fingerY !== undefined && Number.isFinite(fingerY)) {
+        const tileBottom = hitLineY - (targetTile.noteTime - curAudioTime) * speed;
+        const head = isSlideTile(targetTile) ? SLIDE_HEAD_HEIGHT : HOLD_HEAD_HEIGHT;
+        const reachAbove = head + 28; // the head plus a little slack for a thumb
+        if (fingerY < tileBottom - reachAbove) targetTile = null;
       }
 
       if (targetTile) {
