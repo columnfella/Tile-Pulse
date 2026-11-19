@@ -10,6 +10,24 @@ import { ImageSourcePropType } from 'react-native';
  * If custom sprites are provided, they render <ImageBackground> / <Image> seamlessly.
  */
 
+/**
+ * PLAY SCREEN SIZE DIAL — change SCALE to resize the whole play grid at once:
+ * the tiles AND the spacing between notes grow or shrink together (the timing
+ * doesn't change, only how tall things are and how fast they scroll).
+ *   SCALE 1 = the original size · 1.5 = 50 % taller · 2 = double (current)
+ */
+export const PLAY_GRID = {
+  SCALE: 2,
+  /** Pixels the board scrolls per beat at SCALE 1. */
+  BASE_PIXELS_PER_BEAT: 260,
+  /** Tallest a tap tile gets at SCALE 1. */
+  BASE_MAX_TILE_HEIGHT: 144,
+  /** Shortest a tap tile gets at SCALE 1 (very dense passages). */
+  BASE_MIN_TILE_HEIGHT: 30,
+  /** Gap between rows of tiles, in px (not scaled). */
+  ROW_GAP: 4,
+} as const;
+
 export interface ThemeConfig {
   id: string;
   name: string;
@@ -91,8 +109,9 @@ export const MINIMAL_DARK_THEME: ThemeConfig = {
     lanesCount: 4,
     laneWidthPercent: 25,
     hitLineYPercent: 82,
-    defaultTapTileHeightPx: 144, // 20% taller than the original 120px
-    pixelsPerBeat: 260,
+    // Both come from the PLAY_GRID dial above
+    defaultTapTileHeightPx: PLAY_GRID.BASE_MAX_TILE_HEIGHT * PLAY_GRID.SCALE,
+    pixelsPerBeat: PLAY_GRID.BASE_PIXELS_PER_BEAT * PLAY_GRID.SCALE,
     borderWidth: 3,
     tileBorderRadius: 0, // pixel art: square corners
   },

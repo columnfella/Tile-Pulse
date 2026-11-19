@@ -8,6 +8,7 @@ import { HoldTileView, TILE_INSET } from './HoldTileView';
 import { SlideTileView } from './SlideTileView';
 import { SlideLayer } from './SlideLayer';
 import { isSlideTile } from '../../game/engine';
+import { PLAY_GRID } from '../../constants/theme';
 
 export interface TimedTile extends TileNote {
   noteTime: number; // seconds
@@ -17,10 +18,23 @@ export interface TimedTile extends TileNote {
   gapBeats?: number;
 }
 
-/** Space left between a tile and the next row of notes. */
-const ROW_GAP = 4;
-/** Tap tiles never get shorter than this, even in very dense passages. */
-const MIN_TAP_HEIGHT = 30;
+const ROW_GAP = PLAY_GRID.ROW_GAP;
+const MIN_TAP_HEIGHT = PLAY_GRID.BASE_MIN_TILE_HEIGHT * PLAY_GRID.SCALE;
+
+/**
+ * Height of a tap tile on the song's rigid row grid: one row (the song's usual
+ * note spacing, `rowBeats`) minus the row gap, capped by `maxHeight`. A note
+ * that comes sooner than a full row shrinks to its own gap, so nothing overlaps.
+ */
+export function rowTileHeight(
+  rowBeats: number,
+  gapBeats: number | undefined,
+  pixelsPerBeat: number,
+  maxHeight: number
+): number {
+  const beats = gapBeats !== undefined ? Math.min(rowBeats, gapBeats) : rowBeats;
+  return Math.max(MIN_TAP_HEIGHT, Math.min(maxHeight, beats * pixelsPerBeat - ROW_GAP));
+}
 
 interface TileFieldProps {
   /** Tiles near the playhead (windowed by the parent). */
@@ -29,6 +43,8 @@ interface TileFieldProps {
   hitLineY: number;
   pixelsPerBeat: number;
   tapHeight: number;
+  /** The song's row size in beats (its most common note spacing): tiles sit on this grid. */
+  rowBeats: number;
   /** Width of the whole board in px (slide tiles span all lanes). */
   boardWidth?: number;
   /** Height of the board in px (the shared slide canvas covers it). */
@@ -151,6 +167,7 @@ export const TileField = memo(function TileField({
   hitLineY,
   pixelsPerBeat,
   tapHeight,
+  rowBeats,
   boardWidth,
   boardHeight,
   songTime,
@@ -178,12 +195,9 @@ export const TileField = memo(function TileField({
         // Hit tiles stay on screen in a darker "pressed" state and scroll away;
         // missed tiles turn red.
         // Slides are exactly as tall as their path, so bends land on the beat grid
-        // A tap is as tall as the default, but never taller than the gap to the
-        // next note (in any lane), so neighbouring tiles don't overlap
-        const rowHeight =
-          tile.gapBeats !== undefined
-            ? Math.max(MIN_TAP_HEIGHT, Math.min(tapHeight, tile.gapBeats * pixelsPerBeat - ROW_GAP))
-            : tapHeight;
+        // Rigid grid: every tap is one song row tall (shorter only if the next
+        // note comes sooner), so spacing between tiles always looks even
+        const rowHeight = rowTileHeight(rowBeats, tile.gapBeats, pixelsPerBeat, tapHeight);
         const height = isSlideTile(tile)
           ? tile.durationBeats * pixelsPerBeat
           : tile.durationBeats > 0

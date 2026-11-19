@@ -10,36 +10,14 @@
  * part of that same stroke. (Web: SlideLayer.web.tsx draws nothing; the web
  * board uses the box-based SlideTileView instead.)
  */
-import React, { memo, useEffect, useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Canvas, Group, Path, Skia, rect, type SkPath } from '@shopify/react-native-skia';
-import {
-  Easing,
-  cancelAnimation,
-  useDerivedValue,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  type SharedValue,
-} from 'react-native-reanimated';
+import { Canvas, Group, Path, Rect, Skia, rect, type SkPath } from '@shopify/react-native-skia';
+import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
 import type { ActiveTileState } from '../../types/game';
 import type { TimedTile } from './TileField';
 import { TILE_STATES } from './TapTileView';
-import { FX_CELL, pixelCirclePath } from './pixelShapes';
 
-/** Pixel shapes as Skia paths, built once per size and reused by every slide. */
-const skPathCache = new Map<string, SkPath>();
-function skPixel(radius: number, thickness?: number, half = false): SkPath {
-  const key = `${radius}|${thickness ?? 'disc'}|${half}`;
-  let p = skPathCache.get(key);
-  if (!p) {
-    p = Skia.Path.MakeFromSVGString(pixelCirclePath(radius, thickness, half)) ?? Skia.Path.Make();
-    skPathCache.set(key, p);
-  }
-  return p;
-}
-const RING_FRAMES = [0.35, 0.6, 0.85, 1.1];
-const RING_COLORS = ['#ffffff', '#FF6B4A', '#ff9a7f', '#4d8dff'];
 
 /** Native: slides are drawn here, not by SlideTileView. */
 export const SLIDES_IN_LAYER = true;
@@ -165,50 +143,14 @@ const SlideShape = memo(function SlideShape({
     const top = height - progress.value * height;
     return rect(0, top, boardWidth, height + geo.bottomExtra - top);
   });
-  // "Follow me" marker where the line crosses the progress height: a pixel
-  // orb (coral with a white core) with a thin pixel arc riding on top and a
-  // fainter arc drifting up ahead. Everything is always mounted and only its
-  // opacity changes, so starting a slide never rebuilds the canvas.
-  const orbR = Math.max(FX_CELL * 3, Math.round(strokeW * 0.32));
-  const arcR = orbR + FX_CELL * 2;
-  const shapes = useMemo(
-    () => ({
-      orb: skPixel(orbR),
-      core: skPixel(Math.round(orbR * 0.45)),
-      arc: skPixel(arcR, FX_CELL, true),
-      rings: RING_FRAMES.map((f) => skPixel(Math.round((strokeW / 2) * f), FX_CELL)),
-    }),
-    [orbR, arcR, strokeW]
-  );
-  const orbTransform = useDerivedValue(() => {
+  // Minimal "follow me" marker where the line crosses the progress height: one
+  // small pixel square (white with a coral centre). Always mounted, shown by
+  // opacity, no looping animations, so a slide adds almost no work per frame.
+  const markerTransform = useDerivedValue(() => {
     const y = height - progress.value * height;
     return [{ translateX: Math.round(xAtY(geo.xs, geo.ys, y)) }, { translateY: Math.round(y) }];
   });
-  const echo = useSharedValue(0);
-  const ring = useSharedValue(1);
-  useEffect(() => {
-    if (live) echo.value = withRepeat(withTiming(1, { duration: 620, easing: Easing.out(Easing.quad) }), -1, false);
-    else {
-      cancelAnimation(echo);
-      echo.value = 0;
-    }
-  }, [live, echo]);
-  useEffect(() => {
-    // Press: a pixel ring bursts out of the head (4 frames)
-    if (isHolding) {
-      ring.value = 0;
-      ring.value = withTiming(1, { duration: 360, easing: Easing.linear });
-    }
-  }, [isHolding, ring]);
-  const orbOpacity = useDerivedValue(() => (live ? 1 : 0));
-  const echoTransform = useDerivedValue(() => [{ translateY: -Math.round((echo.value * arcR) / FX_CELL) * FX_CELL }]);
-  const echoOpacity = useDerivedValue(() => (live ? 0.5 * (1 - echo.value) : 0));
-  const ringFrame = useDerivedValue(() => (ring.value < 1 ? Math.floor(ring.value * RING_FRAMES.length) : -1));
-  const ringOps = RING_FRAMES.map((_, i) =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useDerivedValue(() => (ringFrame.value === i ? 1 : 0))
-  );
-  const headCenter = [{ translateX: Math.round(geo.xs[0]) }, { translateY: Math.round(height - SLIDE_HEAD_HEIGHT / 2) }];
+  const markerOpacity = useDerivedValue(() => (live ? 1 : 0));
 
   const head = isMissed ? TILE_STATES.missed : isHolding ? CORAL : isHit ? TILE_STATES.pressed : TILE_STATES.normal;
   const headColors: StrokeColors = { outline: '#000000', rim: head.light, body: head.base, rail: head.base };
@@ -228,18 +170,9 @@ const SlideShape = memo(function SlideShape({
           <SlideStrokes path={geo.path} width={strokeW} colors={headColors} />
         </Group>
       </Group>
-      <Group transform={orbTransform} opacity={orbOpacity}>
-        <Path path={shapes.orb} color="#FF6B4A" />
-        <Path path={shapes.core} color="#ffffff" />
-        <Group transform={echoTransform} opacity={echoOpacity}>
-          <Path path={shapes.arc} color="#ffb39f" />
-        </Group>
-        <Path path={shapes.arc} color="#ffffff" />
-      </Group>
-      <Group transform={headCenter}>
-        {shapes.rings.map((p, i) => (
-          <Path key={i} path={p} color={RING_COLORS[i]} opacity={ringOps[i]} />
-        ))}
+      <Group transform={markerTransform} opacity={markerOpacity}>
+        <Rect x={-6} y={-6} width={12} height={12} color="#ffffff" />
+        <Rect x={-3} y={-3} width={6} height={6} color={CORAL.base} />
       </Group>
     </Group>
   );

@@ -90,6 +90,7 @@ const WindowedTileField = React.memo(function WindowedTileField({
   hitLineY,
   pixelsPerBeat,
   tapHeight,
+  rowBeats,
   songTime,
   getTileState,
   step,
@@ -102,6 +103,7 @@ const WindowedTileField = React.memo(function WindowedTileField({
   hitLineY: number;
   pixelsPerBeat: number;
   tapHeight: number;
+  rowBeats: number;
   songTime: SharedValue<number>;
   getTileState: (id: string) => ActiveTileState | undefined;
   step: Signal<number>;
@@ -123,6 +125,7 @@ const WindowedTileField = React.memo(function WindowedTileField({
       hitLineY={hitLineY}
       pixelsPerBeat={pixelsPerBeat}
       tapHeight={tapHeight}
+      rowBeats={rowBeats}
       songTime={songTime}
       getTileState={getTileState}
       version={tileVersion}
@@ -233,6 +236,26 @@ export default function PlayScreen() {
     }
     return sorted;
   }, [song]);
+
+  // The song's row size: its most common spacing between notes (in beats).
+  // Every tap tile is one row tall, so the board is a rigid, even grid.
+  const rowBeats = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const t of timeline) {
+      if (t.gapBeats === undefined || t.gapBeats > 2) continue;
+      const key = Math.round(t.gapBeats * 96) / 96; // group float noise
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    let best = 1;
+    let bestCount = 0;
+    for (const [beats, n] of counts) {
+      if (n > bestCount || (n === bestCount && beats < best)) {
+        best = beats;
+        bestCount = n;
+      }
+    }
+    return best;
+  }, [timeline]);
 
   const tilesById = useMemo(() => new Map(timeline.map((t) => [t.id, t])), [timeline]);
 
@@ -431,12 +454,12 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         if (tileBottom < fingerY - tolerance) targetTile = null; // the tile is entirely above the finger
       }
 
-      // Holds and slides start only when pressed on their head (the bottom part,
-      // like grabbing it), not when the finger lands somewhere along the body
+      // Holds and slides start when pressed in their bottom part (a generous area
+      // around the head: at least one grid row), not from high up on the body
       if (targetTile && targetTile.durationBeats > 0 && fingerY !== undefined && Number.isFinite(fingerY)) {
         const tileBottom = hitLineY - (targetTile.noteTime - curAudioTime) * speed;
         const head = isSlideTile(targetTile) ? SLIDE_HEAD_HEIGHT : HOLD_HEAD_HEIGHT;
-        const reachAbove = head + 28; // the head plus a little slack for a thumb
+        const reachAbove = Math.max(head + 110, rowBeats * pixelsPerBeat);
         if (fingerY < tileBottom - reachAbove) targetTile = null;
       }
 
@@ -475,7 +498,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         bumpTiles();
       }
     },
-    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, tilesById, bumpTiles, pixelsPerBeat, hitLineY, geometry.defaultTapTileHeightPx]
+    [phase, isPaused, isCompleted, song, registerHit, tilesByLane, tilesById, bumpTiles, pixelsPerBeat, hitLineY, geometry.defaultTapTileHeightPx, rowBeats]
   );
 
   const handleFingersChange = useCallback((fingers: number[]) => {
@@ -852,6 +875,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
             hitLineY={hitLineY}
             pixelsPerBeat={pixelsPerBeat}
             tapHeight={geometry.defaultTapTileHeightPx}
+            rowBeats={rowBeats}
             songTime={songTime}
             getTileState={getTileState}
             step={stepSig}
