@@ -23,13 +23,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** The Expo app: EAS and the fingerprint run here. */
+const GAME = path.join(ROOT, 'game');
 const OUT = path.join(ROOT, 'website', 'src', 'content', 'latest-build.json');
 const PROFILE = 'preview';
 const EXPIRY_MARGIN_MS = 3 * 24 * 3600 * 1000;
 const syncOnly = process.argv.includes('--sync-only');
 const EAS = process.env.EAS_BIN || (process.env.CI ? 'eas' : 'npx eas-cli');
 
-const run = (cmd) => execSync(cmd, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+const run = (cmd) => execSync(cmd, { cwd: GAME, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
 /** First JSON value in a command's output (CLIs sometimes print a line before it). */
 const json = (text) => JSON.parse(text.slice(Math.min(...['[', '{'].map((c) => text.indexOf(c)).filter((i) => i >= 0))));
 const setOutput = (key, value) => {

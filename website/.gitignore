@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated before each build / dev start (scripts/game-version.mjs)
+/src/content/game-version.json

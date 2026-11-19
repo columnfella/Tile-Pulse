@@ -6,6 +6,10 @@ name: EAS Update (preview)
 on:
   push:
     branches: [main]
+    # Only changes to the game itself publish an update
+    paths:
+      - 'game/**'
+      - '.github/workflows/eas-update.yml'
 
 # Only the newest push matters: cancel an older run that is still going
 concurrency:
@@ -19,6 +23,10 @@ jobs:
   update:
     name: Publish OTA update
     runs-on: ubuntu-latest
+    # The Expo app lives in game/
+    defaults:
+      run:
+        working-directory: game
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -49,6 +57,7 @@ jobs:
         with:
           node-version: 22
           cache: ${{ steps.pm.outputs.manager != 'bun' && steps.pm.outputs.manager || '' }}
+          cache-dependency-path: game/package-lock.json
 
       - name: Install dependencies
         run: |

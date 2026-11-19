@@ -13,11 +13,11 @@ name: APK build + website link
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'website/**'
-      - 'backend/**'
-      - 'admin-console/**'
-      - 'README.md'
+    # Only changes to the game can need a new APK
+    paths:
+      - 'game/**'
+      - 'scripts/sync-apk-build.mjs'
+      - '.github/workflows/apk-build.yml'
   schedule:
     - cron: '23 */3 * * *'
   workflow_dispatch:
@@ -45,8 +45,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: game/package-lock.json
 
       - name: Install dependencies
+        working-directory: game
         run: npm ci
 
       - name: Set up EAS

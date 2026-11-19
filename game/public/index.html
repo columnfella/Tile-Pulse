@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!--
+      Web version of TilePulse (for iPhones and any browser). Saved to an
+      iPhone home screen ("Add to Home Screen") it opens full screen with its
+      own icon, like an app. No pinch / double-tap zoom: taps must land on
+      tiles instantly during play.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>TilePulse</title>
+    <meta name="description" content="TilePulse — a community-driven rhythm game where you bring the music." />
+    <meta name="theme-color" content="#05070d" />
+
+    <!-- Installable app (Android / desktop) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+
+    <!-- iPhone / iPad: home screen icon, full screen, dark status bar -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="TilePulse" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        background: #05070d;
+      }
+      body {
+        overflow: hidden;
+        margin: 0;
+        /* Game feel on phones: no grey tap flash, no text selection or long-press
+           menus, no double-tap zoom, no pull-to-refresh / rubber banding */
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+        overscroll-behavior: none;
+      }
+      /* Text fields stay selectable */
+      input,
+      textarea {
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>TilePulse needs JavaScript to run.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

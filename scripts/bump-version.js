@@ -13,7 +13,9 @@
  *
  * Skipped for amends, merges, rebases, cherry-picks, messages containing
  * [skip version], and commits that only touch folders that aren't the game
- * (NOT_GAME_DIRS, e.g. the website). Keeps package.json and app.json (Expo) in sync.
+ * (the website, the server, the admin console, tooling): only commits that
+ * change something in game/ bump it. Keeps game/package.json and
+ * game/app.json (Expo) in sync.
  */
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -34,10 +36,10 @@ if (/^commit \((amend|merge)\)/.test(action)) process.exit(0);
 const message = git('log -1 --format=%B');
 if (/\[skip version\]/i.test(message)) process.exit(0);
 
-// The version is the game's: a commit that only changes the website doesn't bump it
-const NOT_GAME_DIRS = ['website/'];
+// The version is the game's: only commits that touch game/ bump it
+const GAME_DIR = 'game/';
 const changed = git('diff-tree --root --no-commit-id --name-only -r HEAD').split('\n').filter(Boolean);
-if (changed.length && changed.every((f) => NOT_GAME_DIRS.some((dir) => f.startsWith(dir)))) process.exit(0);
+if (!changed.some((f) => f.startsWith(GAME_DIR))) process.exit(0);
 
 const header = message.split('\n')[0];
 const m = /^(\w+)(\([^)]*\))?(!)?:/.exec(header);
@@ -46,8 +48,8 @@ const breaking = Boolean(m && m[3]) || /^BREAKING[ -]CHANGE:/m.test(message);
 const NO_BUMP = ['docs', 'chore', 'style', 'test', 'ci', 'build'];
 if (!m || (NO_BUMP.includes(type) && !breaking)) process.exit(0);
 
-const pkgPath = path.join(root, 'package.json');
-const appPath = path.join(root, 'app.json');
+const pkgPath = path.join(root, 'game', 'package.json');
+const appPath = path.join(root, 'game', 'app.json');
 const files = [pkgPath, appPath].filter((f) => fs.existsSync(f));
 
 // Don't sweep someone's unstaged edits to these files into the commit

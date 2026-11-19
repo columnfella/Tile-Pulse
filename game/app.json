@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "TilePulse",
+    "slug": "tilepulse-rhythm-game",
+    "version": "0.19.3",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/e095c22e-2444-4617-a090-e59c697fbec4"
+    },
+    "orientation": "portrait",
+    "icon": "./src/assets/images/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#05070d",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#05070d"
+    },
+    "scheme": "tilepulse",
+    "plugins": [
+      "expo-router",
+      "expo-audio",
+      "expo-document-picker",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#05070d",
+          "imageWidth": 120
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "granularPermissions": [
+            "audio"
+          ],
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-font",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tilepulse.rhythm"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/images/adaptive-icon.png",
+        "monochromeImage": "./src/assets/images/adaptive-mono.png",
+        "backgroundColor": "#05070d"
+      },
+      "package": "com.tilepulse.rhythm"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e095c22e-2444-4617-a090-e59c697fbec4"
+      }
+    },
+    "owner": "sadoxz"
+  }
+}
