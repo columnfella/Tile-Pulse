@@ -14,7 +14,7 @@ import { useIsFocused, usePathname } from 'expo-router';
 import { AnimatedBackground } from './AnimatedBackground';
 import { useDefaultBackground } from '../../services/settings';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles } from '../../theme/palette';
 /** Strength behind the tabs: visible, but text and cards stay easy to read. */
 const OPACITY = 0.38;
 
@@ -36,6 +36,6 @@ export function TabsBackground() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   base: { backgroundColor: C.bg },
-});
+}));

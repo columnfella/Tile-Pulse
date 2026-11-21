@@ -57,7 +57,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { setActivity } from '../../src/services/friends';
 import { holdMenuMusic } from '../../src/services/menuMusic';
 
-import { C, alpha } from '../../src/theme/palette';
+import { C, alpha, themedStyles, themed } from '../../src/theme/palette';
 const PIXELS_PER_BEAT = 96; // 1/4 snap cells are 24px, 1/2 cells 48px
 const TILE_GAP = 2; // px inset so neighbouring notes never visually touch
 const DEFAULT_HOLD_BEATS = 1;
@@ -92,12 +92,12 @@ const DEFAULT_SLIDE_BEATS = 2;
 const laneOfX = (x: number) => Math.max(0, Math.min(3, Math.floor(x + 1e-6))) as 0 | 1 | 2 | 3;
 
 /** Guide line types for tap-recording (index = GuideMark.type). */
-const GUIDE_TYPES = [
+const GUIDE_TYPES = themed(() => ([
   { label: 'Beat', color: C.accent },
   { label: 'Accent', color: C.blue },
   { label: 'Drop', color: C.textStrong },
   { label: 'Mark', color: C.yellow },
-] as const;
+] as const));
 /** A tap on the grid within this many px of a guide removes it (in guide mode). */
 const GUIDE_HIT_PX = 12;
 const GUIDE_PANEL_HEIGHT = 132;
@@ -2019,7 +2019,7 @@ export default function EditorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   safeArea: {
     flex: 1,
   },
@@ -2308,7 +2308,7 @@ const styles = StyleSheet.create({
   snapLabel: {
     fontFamily: FONTS.body,
     fontSize: 15,
-    color: C.textMuted,
+    color: C.textSubtle,
     marginRight: 4,
   },
   snapBadge: {
@@ -2495,7 +2495,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   guideHint: {
-    color: C.textMuted,
+    color: C.textSubtle,
     fontFamily: FONTS.body,
     fontSize: 14,
     textAlign: 'center',
@@ -2674,7 +2674,7 @@ const styles = StyleSheet.create({
   noteTypeHint: {
     flex: 1,
     textAlign: 'right',
-    color: C.textMuted,
+    color: C.textSubtle,
     fontFamily: FONTS.body,
     fontSize: 15,
   },
@@ -2694,7 +2694,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 40,
     elevation: 8,
-    backgroundColor: 'rgba(58, 26, 18, 0.94)',
+    backgroundColor: alpha(C.dangerDeep, 0.94),
     borderBottomWidth: 2,
     borderBottomColor: alpha(C.accentDark, 0.5),
     paddingHorizontal: 16,
@@ -2840,12 +2840,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   gridTileBeat: {
-    color: '#c4d9ff',
+    color: C.blueMist,
     fontFamily: FONTS.body,
     fontSize: 12,
   },
   gridTileDuration: {
-    color: '#e3edff',
+    color: C.blueSky,
     fontFamily: FONTS.body,
     fontSize: 13,
     textAlign: 'center',
@@ -2974,4 +2974,4 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.body,
     fontSize: 17,
   },
-});
+}));

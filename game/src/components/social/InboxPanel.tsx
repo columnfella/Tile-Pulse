@@ -22,7 +22,7 @@ import {
   type NotificationKind,
 } from '../../services/notifications';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles, themed } from '../../theme/palette';
 const errorText = (err: unknown) =>
   err instanceof ApiUnavailableError
     ? `Can’t reach the community server (${API_BASE}).`
@@ -30,7 +30,7 @@ const errorText = (err: unknown) =>
       ? err.message
       : 'Something went wrong.';
 
-const LOOK: Record<NotificationKind, { icon: PixelIconName; color: string }> = {
+const LOOK: Record<NotificationKind, { icon: PixelIconName; color: string }> = themed(() => ({
   friend_request: { icon: 'userPlus', color: PIXEL.accent2 },
   friend_accepted: { icon: 'friends', color: C.success },
   warning: { icon: 'warning', color: C.warning },
@@ -40,7 +40,7 @@ const LOOK: Record<NotificationKind, { icon: PixelIconName; color: string }> = {
   comment_removed: { icon: 'comment', color: C.dangerSoft },
   badge_granted: { icon: 'crown', color: C.yellow },
   unbanned: { icon: 'check', color: C.success },
-};
+}));
 
 function timeAgo(ms: number): string {
   const s = Math.max(0, (Date.now() - ms) / 1000);
@@ -237,7 +237,7 @@ export function InboxPanel() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1, backgroundColor: 'transparent' },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 30, gap: 14 },
   flex: { flex: 1 },
@@ -250,15 +250,15 @@ const styles = StyleSheet.create({
   list: { gap: 8 },
   empty: { alignItems: 'center', gap: 10, marginTop: 40 },
   item: { flexDirection: 'row', gap: 10, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 10 },
-  itemNew: { borderColor: '#2f4a8a' },
-  itemWarning: { borderColor: '#7a5a1e', backgroundColor: alpha(C.warning, 0.06) },
+  itemNew: { borderColor: C.tint2 },
+  itemWarning: { borderColor: alpha(C.warning, 0.5), backgroundColor: alpha(C.warning, 0.06) },
   iconBox: { width: 32, height: 32, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bgDeep },
   itemHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   itemTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 8, lineHeight: 13, flexShrink: 1 },
   newDot: { width: 7, height: 7, backgroundColor: PIXEL.accent },
   itemBody: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18, marginTop: 4 },
   reasonLabel: { color: C.warning },
-  time: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15, marginTop: 3 },
+  time: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 15, marginTop: 3 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   acceptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: C.success, borderWidth: 2, borderColor: C.outline },
   acceptText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 7 },
@@ -268,4 +268,4 @@ const styles = StyleSheet.create({
   linkText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 7 },
   dismiss: { padding: 4, alignSelf: 'flex-start' },
   moreBtn: { alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 8, borderWidth: 2, borderColor: PIXEL.panelLight },
-});
+}));

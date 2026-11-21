@@ -24,7 +24,7 @@ import {
   type FriendRequest,
 } from '../../services/friends';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles } from '../../theme/palette';
 const POLL_MS = 20_000;
 
 const errorText = (err: unknown) =>
@@ -206,7 +206,7 @@ export function FriendsPanel() {
                     setMessage(null);
                   }}
                   placeholder="@username"
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={C.textSubtle}
                   autoCapitalize="none"
                   autoCorrect={false}
                   maxLength={33}
@@ -272,7 +272,7 @@ export function FriendsPanel() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 40 },
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   dotOn: { backgroundColor: C.success },
   dotPlaying: { backgroundColor: PIXEL.accent },
   name: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 19 },
-  status: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 16 },
+  status: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 16 },
   statusOn: { color: C.success },
   statusPlaying: { color: PIXEL.accent },
   reqBtns: { flexDirection: 'row', gap: 6 },
@@ -319,4 +319,4 @@ const styles = StyleSheet.create({
   declineBtn: { width: 36, height: 32, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.danger },
   cancelBtn: { paddingHorizontal: 10, paddingVertical: 6, borderWidth: 2, borderColor: PIXEL.panelLight },
   cancelText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 7 },
-});
+}));

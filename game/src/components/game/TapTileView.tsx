@@ -11,7 +11,7 @@ import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 import { PIXEL } from '../../theme/pixel';
 import { TILE_INSET } from './HoldTileView';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles, themed } from '../../theme/palette';
 interface TapTileViewProps {
   y: number;
   height: number;
@@ -22,15 +22,15 @@ interface TapTileViewProps {
 }
 
 /** Colours for each tile state: base fill + bevel highlight/shadow. */
-export const TILE_STATES = {
-  normal: { base: C.blueStrong, light: C.bluePale, dark: '#163fa8' },
+export const TILE_STATES = themed(() => ({
+  normal: { base: C.blueStrong, light: C.blueLight, dark: C.blueDark },
   // Pressed like a button: darker, with the bevel flipped (pushed in) — used by hold / slide heads
-  pressed: { base: '#163a8f', light: '#0c2260', dark: '#3f6fd6' },
+  pressed: { base: C.blueDeeper, light: C.blueAbyss, dark: C.blueLight },
   // A tapped tile turns green
-  hit: { base: C.success, light: '#8af5b8', dark: C.successDark },
+  hit: { base: C.success, light: C.successBright, dark: C.successDark },
   // Missed: turns red as it scrolls off the screen
   missed: { base: C.danger, light: C.dangerSoft, dark: C.dangerDeep },
-} as const;
+} as const));
 
 const BEVEL = PIXEL.unit;
 const HIT_MS = 260;
@@ -102,7 +102,7 @@ export const TapTileView = memo(function TapTileView({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   tile: {
     position: 'absolute',
     left: TILE_INSET,
@@ -118,4 +118,4 @@ const styles = StyleSheet.create({
     borderColor: TILE_STATES.hit.light,
   },
   sprite: { width: '100%', height: '100%' },
-});
+}));

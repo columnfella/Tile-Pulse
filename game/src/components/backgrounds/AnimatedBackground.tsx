@@ -20,18 +20,25 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ShaderBackground, type SwirlPalette } from './ShaderBackground';
+import { C, alpha, themed, themedStyles } from '../../theme/palette';
 
 export type SwirlId = 'swirl_ember' | 'swirl_ocean' | 'swirl_sunset' | 'swirl_neon' | 'swirl_mint';
 export type BackgroundId = 'none' | 'aurora' | 'pulse' | 'particles' | 'waves' | 'grid' | 'stars' | SwirlId;
 
-/** Colour palettes for the Swirl shader (RGB 0–1). */
-export const SWIRL_PALETTES: Record<SwirlId, SwirlPalette> = {
-  swirl_ember: { c1: [1.0, 0.42, 0.29], c2: [0.18, 0.42, 1.0], c3: [0.02, 0.03, 0.06] }, // coral + blue
-  swirl_ocean: { c1: [0.3, 0.55, 1.0], c2: [0.1, 0.24, 0.6], c3: [0.01, 0.02, 0.05] }, // deep blue
-  swirl_sunset: { c1: [1.0, 0.42, 0.29], c2: [0.55, 0.2, 0.12], c3: [0.02, 0.02, 0.03] }, // coral
-  swirl_neon: { c1: [0.45, 0.7, 1.0], c2: [1.0, 0.42, 0.29], c3: [0.02, 0.04, 0.1] }, // electric
-  swirl_mint: { c1: [0.12, 0.25, 0.6], c2: [0.05, 0.1, 0.28], c3: [0.0, 0.01, 0.03] }, // midnight
+/** A theme colour as RGB 0–1 (for the shader). */
+const rgb01 = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.replace('#', '').slice(0, 6), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 };
+
+/** Colour palettes for the Swirl shader, built from the active theme. */
+export const SWIRL_PALETTES: Record<SwirlId, SwirlPalette> = themed(() => ({
+  swirl_ember: { c1: rgb01(C.primary), c2: rgb01(C.highlight), c3: rgb01(C.background) }, // accent + highlight
+  swirl_ocean: { c1: rgb01(C.secondary), c2: rgb01(C.surfaceActive), c3: rgb01(C.background) }, // deep
+  swirl_sunset: { c1: rgb01(C.highlight), c2: rgb01(C.secondary), c3: rgb01(C.background) }, // warm
+  swirl_neon: { c1: rgb01(C.primaryHover), c2: rgb01(C.primary), c3: rgb01(C.background) }, // bright
+  swirl_mint: { c1: rgb01(C.surfaceActive), c2: rgb01(C.surface), c3: rgb01(C.background) }, // dim
+}));
 
 const isSwirl = (id: BackgroundId): id is SwirlId => id.startsWith('swirl_');
 
@@ -43,17 +50,18 @@ export const BACKGROUNDS: { id: BackgroundId; name: string; description: string 
   { id: 'waves', name: 'Light Waves', description: 'Soft bands of light sweeping down' },
   { id: 'grid', name: 'Neon Grid', description: 'Retro synthwave grid' },
   { id: 'stars', name: 'Starfield', description: 'Twinkling stars' },
-  { id: 'swirl_ember', name: 'Swirl · Coral Blue', description: 'Flowing paint swirl in coral and blue' },
-  { id: 'swirl_ocean', name: 'Swirl · Deep Blue', description: 'Flowing paint swirl in deep blues' },
-  { id: 'swirl_sunset', name: 'Swirl · Coral', description: 'Flowing paint swirl in coral on black' },
-  { id: 'swirl_neon', name: 'Swirl · Electric', description: 'Bright blue swirl with coral accents' },
-  { id: 'swirl_mint', name: 'Swirl · Midnight', description: 'Dark navy swirl' },
+  { id: 'swirl_ember', name: 'Swirl · Accent', description: 'Flowing paint swirl in the theme accent and highlight' },
+  { id: 'swirl_ocean', name: 'Swirl · Deep', description: 'Flowing paint swirl in deep theme tones' },
+  { id: 'swirl_sunset', name: 'Swirl · Warm', description: 'Flowing paint swirl in the theme highlight' },
+  { id: 'swirl_neon', name: 'Swirl · Bright', description: 'Bright swirl in the theme accent' },
+  { id: 'swirl_mint', name: 'Swirl · Dim', description: 'Dark, subtle swirl' },
 ];
 
 export const isBackgroundId = (v: unknown): v is BackgroundId =>
   typeof v === 'string' && BACKGROUNDS.some((b) => b.id === v);
 
-const PALETTE = ['#2f6bff', '#4d8dff', '#FF6B4A', '#1a3d99'] as const;
+// Colours of the glows, rings, particles and stars: from the active theme
+const PALETTE = themed(() => [C.primary, C.highlight, C.primaryHover, C.secondary]);
 
 /** Deterministic pseudo-random numbers so layouts are stable between renders. */
 function seeded(seed: number) {
@@ -180,7 +188,7 @@ const Pulse = ({
           glow,
         ]}
       >
-        <LinearGradient colors={['#4d8dff55', '#4d8dff00']} style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]} />
+        <LinearGradient colors={[alpha(C.highlight, 0x55 / 255), alpha(C.highlight, 0)]} style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]} />
       </Animated.View>
       {Array.from({ length: RING_COUNT }, (_, i) => (
         <PulseRing key={i} phase={phase} width={width} height={height} index={i} />
@@ -288,7 +296,7 @@ const Grid = (p: LayerProps) => {
   return (
     <>
       <LinearGradient
-        colors={['#FF6B4A00', '#FF6B4A44', '#4d8dff00']}
+        colors={[alpha(C.primary, 0), alpha(C.primary, 0x44 / 255), alpha(C.highlight, 0)]}
         locations={[0, 0.38, 0.6]}
         style={StyleSheet.absoluteFill}
       />
@@ -331,7 +339,7 @@ const Star = ({ clock, width, height, seed }: LayerProps & { seed: number }) => 
       size: 1.5 + r() * 3,
       period: 2 + r() * 4,
       offset: r() * 10,
-      color: r() > 0.7 ? PALETTE[Math.floor(r() * PALETTE.length)] : '#ffffff',
+      color: r() > 0.7 ? PALETTE[Math.floor(r() * PALETTE.length)] : C.white,
     };
   }, [seed, width, height]);
   const style = useAnimatedStyle(() => ({
@@ -440,9 +448,9 @@ export const AnimatedBackground = memo(function AnimatedBackground({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { overflow: 'hidden' },
-  plainFlash: { backgroundColor: '#2f6bff' },
+  plainFlash: { backgroundColor: C.primary },
   blob: { position: 'absolute', overflow: 'hidden' },
   ring: { position: 'absolute', borderWidth: 2 },
   dot: {
@@ -450,6 +458,6 @@ const styles = StyleSheet.create({
     top: 0,
   },
   band: { position: 'absolute', left: 0, top: 0 },
-  gridLine: { position: 'absolute', left: 0, top: 0, height: 1.5, backgroundColor: '#FF6B4A' },
-  vLine: { position: 'absolute', width: 1, marginLeft: -0.5, backgroundColor: '#4d8dff55' },
-});
+  gridLine: { position: 'absolute', left: 0, top: 0, height: 1.5, backgroundColor: C.primary },
+  vLine: { position: 'absolute', width: 1, marginLeft: -0.5, backgroundColor: alpha(C.highlight, 0x55 / 255) },
+}));

@@ -6,7 +6,7 @@ import { FONTS } from '../../theme/pixel';
 // Platform files: LaneTouchSurface.tsx (app, raw multi-touch) / LaneTouchSurface.web.tsx (browser pointer events)
 import { LaneTouchSurface, type Lane } from './LaneTouchSurface';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 interface GameBoardBackgroundProps {
   hitLineY: number;
   /** `glide`: the finger slid into this lane instead of touching down. */
@@ -153,7 +153,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: {
     flex: 1,
     width: '100%',
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   laneTint: { backgroundColor: alpha(C.textDim, 0.035) },
-  emptyFlash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255, 77, 77, 0.28)' },
+  emptyFlash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: alpha(C.error, 0.28) },
   dividers: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   divider: { position: 'absolute', top: 0, bottom: 0 },
   tilesLayer: {
@@ -248,4 +248,4 @@ const styles = StyleSheet.create({
     borderTopColor: alpha(C.blue, 0.3),
     borderBottomColor: alpha(C.blue, 0.3),
   },
-});
+}));

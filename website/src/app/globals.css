@@ -1,23 +1,26 @@
-/* Palette and type from the game (src/theme/pixel.ts): black, blue and coral. */
+/*
+ * Colours: the game's default theme (Dusty Dusk), as CSS variables in
+ * theme.generated.css (made from game/src/theme/themes.json before every
+ * build). The website always uses that one theme. The names below are the
+ * ones the website's styles use, pointing at the theme's colours.
+ */
 :root {
-  --bg: #05070d;
-  --panel: #0b1220;
-  --panel-light: #15203a;
-  --line: #1f2e52;
-  --blue: #2f6bff;
-  --blue-light: #4d8dff;
-  --blue-dark: #123a9e;
-  --coral: #ff6b4a;
-  --coral-dark: #a83a22;
-  --text: #e6ecf7;
-  --text-dim: #9aa7c2;
-  --text-faint: #6b7a99;
-  /* Surfaces over the animated swirl: translucent navy instead of solid black,
-     so panels, borders and shadows blend with the background */
-  --surface: rgba(10, 18, 38, 0.62);
-  --surface-strong: rgba(8, 14, 30, 0.82);
-  --edge: rgba(98, 146, 255, 0.22);
-  --shadow: rgba(3, 8, 24, 0.55);
+  --bg: var(--background);
+  --panel: var(--surface);
+  --panel-light: var(--surface-hover);
+  --line: var(--border);
+  --blue: var(--primary);
+  --blue-light: var(--highlight);
+  --blue-dark: var(--secondary);
+  --coral: var(--primary);
+  --coral-dark: var(--secondary);
+  --text-dim: var(--text-muted);
+  /* --text, --text-faint come from the theme directly */
+  /* Panels over the animated swirl: see-through, so they blend with it */
+  --glass: rgba(var(--surface-rgb), 0.62);
+  --glass-strong: rgba(var(--background-secondary-rgb), 0.85);
+  --edge: rgba(var(--primary-rgb), 0.24);
+  --shadow: rgba(var(--ink-rgb), 0.55);
   --unit: 4px; /* one "pixel" of the art */
   --max: 1080px;
 }

@@ -4,24 +4,24 @@ import { PixelIcon, type PixelIconName } from './PixelIcon';
 import { FONTS, PIXEL } from '../../theme/pixel';
 import type { Badge } from '../../services/profile';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles, themed } from '../../theme/palette';
 /**
  * Badge looks (icon + colour). The server decides who has which badge; ids it
  * doesn't know yet (from a newer server) fall back to a plain star.
  */
-const LOOKS: Record<string, { icon: PixelIconName; color: string; label: string }> = {
+const LOOKS: Record<string, { icon: PixelIconName; color: string; label: string }> = themed(() => ({
   owner: { icon: 'crown', color: C.yellow, label: 'OWNER' },
-  developer: { icon: 'terminal', color: '#4dd6ff', label: 'DEV' },
+  developer: { icon: 'terminal', color: C.blueMist, label: 'DEV' },
   moderator: { icon: 'modShield', color: C.successBright, label: 'MOD' },
-  bug_hunter: { icon: 'bug', color: '#c38bff', label: 'BUG HUNTER' },
-  artist: { icon: 'note', color: '#ff8fd0', label: 'ARTIST' },
-  supporter: { icon: 'heart', color: '#ff6b8a', label: 'SUPPORTER' },
+  bug_hunter: { icon: 'bug', color: C.tint2, label: 'BUG HUNTER' },
+  artist: { icon: 'note', color: C.accentSoft, label: 'ARTIST' },
+  supporter: { icon: 'heart', color: C.dangerSoft, label: 'SUPPORTER' },
   verified_creator: { icon: 'check', color: C.blue, label: 'VERIFIED CREATOR' },
   hardcore_hero: { icon: 'skull', color: C.accent, label: 'HARDCORE' },
   early_tester: { icon: 'star', color: C.warning, label: 'EARLY TESTER' },
   creator: { icon: 'pencil', color: C.textDim, label: 'CREATOR' },
-};
-const FALLBACK = { icon: 'star' as PixelIconName, color: PIXEL.textDim, label: 'BADGE' };
+}));
+const FALLBACK = themed(() => ({ icon: 'star' as PixelIconName, color: PIXEL.textDim, label: 'BADGE' }));
 
 export const badgeLook = (id: string) => LOOKS[id] ?? FALLBACK;
 
@@ -70,7 +70,7 @@ export function BadgeList({ badges }: { badges: Badge[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   icon: { marginLeft: 5, alignItems: 'center', justifyContent: 'center' },
   listWrap: { gap: 6 },
   list: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -88,4 +88,4 @@ const styles = StyleSheet.create({
   // sits on the icon's centre line
   chipText: { fontFamily: FONTS.pixel, fontSize: 7, lineHeight: 10, includeFontPadding: false, textAlignVertical: 'center' },
   description: { fontFamily: FONTS.body, fontSize: 17, color: PIXEL.textDim },
-});
+}));

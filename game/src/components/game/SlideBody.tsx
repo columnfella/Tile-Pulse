@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { SlideEdge, SlideStrip } from '../../game/engine';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles, themed } from '../../theme/palette';
 const LANE = 25; // % of the board per lane
 
 export interface SlideColors {
@@ -15,12 +15,12 @@ export interface SlideColors {
   rail: string;
 }
 
-export const SLIDE_COLORS = {
+export const SLIDE_COLORS = themed(() => ({
   normal: { body: C.blueDark, light: C.bluePale, dark: C.blueAbyss, rail: C.blue },
-  filled: { body: C.blueStrong, light: '#b3caff', dark: '#163fa8', rail: C.accent },
-  missed: { body: C.dangerDeep, light: C.dangerSoft, dark: '#4a0b09', rail: C.danger },
-  selected: { body: '#1d4fd1', light: C.white, dark: C.white, rail: C.accent },
-} satisfies Record<string, SlideColors>;
+  filled: { body: C.blueStrong, light: C.bluePale, dark: C.blueDeeper, rail: C.accent },
+  missed: { body: C.dangerDeep, light: C.dangerSoft, dark: C.dangerDeep, rail: C.danger },
+  selected: { body: C.blueLight, light: C.white, dark: C.white, rail: C.accent },
+} satisfies Record<string, SlideColors>));
 
 interface SlideBodyProps {
   strips: SlideStrip[];
@@ -99,6 +99,6 @@ export const SlideBody = memo(function SlideBody({ strips, edges, colors, bevel,
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   abs: { position: 'absolute' },
-});
+}));

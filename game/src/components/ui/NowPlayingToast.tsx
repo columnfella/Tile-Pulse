@@ -12,7 +12,7 @@ import { PixelIcon } from './PixelIcon';
 import { FONTS, PIXEL } from '../../theme/pixel';
 import { useMenuMusicSettings, useTrackStart, type TrackStart } from '../../services/menuMusic';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles, useThemeId } from '../../theme/palette';
 const SHOW_MS = 7000;
 /** A track that started this recently still gets its pop-up once the app is visible (after the splash). */
 const LATE_MS = 15000;
@@ -21,6 +21,7 @@ const shortUrl = (url?: string) => (url ? url.replace(/^https?:\/\/(www\.)?/, ''
 
 export function NowPlayingToast({ ready = true }: { ready?: boolean }) {
   const start = useTrackStart();
+  useThemeId(); // lives above the screens: re-render on its own when the theme changes
   const { enabled } = useMenuMusicSettings();
   const insets = useSafeAreaInsets();
   const [shown, setShown] = useState<TrackStart | null>(null);
@@ -96,7 +97,7 @@ export function NowPlayingToast({ ready = true }: { ready?: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { position: 'absolute', left: 12, right: 12, zIndex: 1000, elevation: 20 },
   card: {
     flexDirection: 'row',
@@ -121,4 +122,4 @@ const styles = StyleSheet.create({
   by: { color: PIXEL.accent2 },
   line: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 15 },
   close: { padding: 4, alignSelf: 'flex-start' },
-});
+}));

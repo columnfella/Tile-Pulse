@@ -27,7 +27,7 @@ import {
 } from '../../services/songInfo';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 const SEARCH_DEBOUNCE_MS = 500;
 
 type Mode = 'song' | 'artist' | 'songByArtist';
@@ -371,12 +371,12 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
           ) : (
             <>
               <View style={styles.searchBox}>
-                <PixelIcon name="discover" size={14} color={C.textMuted} />
+                <PixelIcon name="discover" size={14} color={C.textSubtle} />
                 <TextInput
                   value={query}
                   onChangeText={setQuery}
                   placeholder={mode === 'song' ? 'Song title…' : 'Artist name…'}
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={C.textSubtle}
                   style={styles.searchInput}
                   returnKeyType="search"
                   autoCorrect={false}
@@ -385,12 +385,12 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
               </View>
               {mode === 'songByArtist' && (
                 <View style={styles.searchBox}>
-                  <PixelIcon name="note" size={14} color={C.textMuted} />
+                  <PixelIcon name="note" size={14} color={C.textSubtle} />
                   <TextInput
                     value={songQuery}
                     onChangeText={setSongQuery}
                     placeholder="Song title…"
-                    placeholderTextColor={C.textMuted}
+                    placeholderTextColor={C.textSubtle}
                     style={styles.searchInput}
                     returnKeyType="search"
                     autoCorrect={false}
@@ -408,7 +408,7 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1, backgroundColor: PIXEL.bg },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, gap: 8 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -461,9 +461,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
   },
-  statLabel: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
+  statLabel: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
   statValue: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 13, marginTop: 4 },
-  statMissing: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 18 },
+  statMissing: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 18 },
   sourceText: { color: C.textFaint, fontFamily: FONTS.body, fontSize: 15, marginTop: 6, textAlign: 'center' },
   applyBtn: {
     flexDirection: 'row',
@@ -481,4 +481,4 @@ const styles = StyleSheet.create({
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
   errorText: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
   attribution: { color: C.textFaint, fontFamily: FONTS.body, fontSize: 13, textAlign: 'center', paddingVertical: 6 },
-});
+}));

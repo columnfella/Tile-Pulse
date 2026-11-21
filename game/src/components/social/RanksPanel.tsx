@@ -17,8 +17,8 @@ import { getSession } from '../../services/account';
 import { avatarUrl } from '../../services/profile';
 import { getLeaderboard, type Leaderboard, type LeaderboardEntry } from '../../services/friends';
 
-import { C } from '../../theme/palette';
-const MEDAL = [C.gold, C.textSoft, '#d08a4f'] as const; // gold, silver, bronze
+import { C, themedStyles, themed, mix } from '../../theme/palette';
+const MEDAL = themed(() => ([C.gold, C.textSoft, mix(C.gold, C.danger, 0.5)] as const)); // gold, silver, bronze
 
 export function RanksPanel() {
   const [data, setData] = useState<Leaderboard | null>(null);
@@ -131,7 +131,7 @@ export function RanksPanel() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   nameShrink: { flexShrink: 1 },
   root: { flex: 1, backgroundColor: 'transparent' },
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   empty: { textAlign: 'center', marginTop: 30 },
 
   meCard: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.accent, padding: 12, gap: 4 },
-  meLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7 },
+  meLabel: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 7 },
   meRank: { color: PIXEL.accent, fontFamily: FONTS.pixel, fontSize: 20 },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight },
@@ -156,4 +156,4 @@ const styles = StyleSheet.create({
   name: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 19 },
   you: { color: PIXEL.accent, fontFamily: FONTS.pixel, fontSize: 7 },
   total: { color: C.gold, fontFamily: FONTS.pixel, fontSize: 10 },
-});
+}));

@@ -7,7 +7,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, StyleSheet, T
 import { PressableScale } from './PressableScale';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 const MAX = 300;
 
 interface Props {
@@ -70,7 +70,7 @@ export function ReasonModal({ visible, title, message, confirmLabel, presets = [
             value={reason}
             onChangeText={setReason}
             placeholder="Reason (the player will see it)"
-            placeholderTextColor={C.textMuted}
+            placeholderTextColor={C.textSubtle}
             maxLength={MAX}
             multiline
             style={styles.input}
@@ -96,7 +96,7 @@ export function ReasonModal({ visible, title, message, confirmLabel, presets = [
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   backdrop: { flex: 1, backgroundColor: alpha(C.black, 0.7), justifyContent: 'center', padding: 20 },
   card: { backgroundColor: PIXEL.panel, borderWidth: 3, borderColor: C.outline, padding: 16, gap: 10 },
   title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11 },
@@ -127,4 +127,4 @@ const styles = StyleSheet.create({
   confirmText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 8 },
   confirmTextDanger: { color: C.textStrong },
   disabled: { opacity: 0.45 },
-});
+}));

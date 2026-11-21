@@ -9,15 +9,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { PixelIcon, type PixelIconName } from './PixelIcon';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles, themed } from '../../theme/palette';
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
-export const DIFFICULTY_COLOR: Record<Difficulty, string> = {
+export const DIFFICULTY_COLOR: Record<Difficulty, string> = themed(() => ({
   easy: C.blueSky,
   normal: C.blue,
   hard: C.blueStrong,
   expert: PIXEL.accent,
-};
+}));
 
 /** Cover picture behind the top of a card: fades in once loaded and fades out into the card. */
 export function CoverBanner({ uri, tall = false }: { uri: string; tall?: boolean }) {
@@ -69,12 +69,12 @@ export function IconBadge({ label, icon, color = PIXEL.accent2 }: { label: strin
   );
 }
 
-export const cardPartStyles = StyleSheet.create({
+export const cardPartStyles = themedStyles(() => ({
   /** Push the card's content below the top of the cover. */
   overCover: { marginTop: 44 },
-});
+}));
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   coverBanner: { position: 'absolute', top: 0, left: 0, right: 0, height: 96 },
   coverBannerTall: { height: 150 },
   badge: { width: 46, height: 46, borderWidth: 2, backgroundColor: C.bgDeep, alignItems: 'center' },
@@ -82,4 +82,4 @@ const styles = StyleSheet.create({
   badgeTopText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 6 },
   badgeLevel: { fontFamily: FONTS.pixel, fontSize: 13, marginTop: 5 },
   badgeIcon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-});
+}));

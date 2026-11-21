@@ -9,6 +9,7 @@ import { SlideTileView } from './SlideTileView';
 import { SlideLayer } from './SlideLayer';
 import { isSlideTile } from '../../game/engine';
 import { PLAY_GRID } from '../../constants/theme';
+import { themedStyles } from '../../theme/palette';
 
 export interface TimedTile extends TileNote {
   noteTime: number; // seconds
@@ -223,7 +224,7 @@ export const TileField = memo(function TileField({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   tile: {
     position: 'absolute',
     top: 0,
@@ -231,4 +232,4 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   slide: { left: 0, width: '100%' },
-});
+}));

@@ -23,7 +23,7 @@ import {
 import type { Song } from '../../types/song';
 import { FONTS } from '../../theme/pixel';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 const MAX_TITLE_LENGTH = 60;
 
 /* --------------------------- Background picker -------------------------- */
@@ -93,7 +93,7 @@ export function BackgroundPicker({ value, onChange, defaultBackground, bpm }: Ba
 
 /* --------------------------- Shared sheet shell ------------------------- */
 
-function Sheet({
+export function Sheet({
   title,
   icon,
   onClose,
@@ -195,7 +195,7 @@ export function SongSettingsSheet({ song, defaultBackground, onSave, onClose, co
         }}
         maxLength={MAX_TITLE_LENGTH}
         placeholder="Song name"
-        placeholderTextColor={C.textMuted}
+        placeholderTextColor={C.textSubtle}
         style={styles.input}
         returnKeyType="done"
       />
@@ -255,26 +255,7 @@ export function SongSettingsSheet({ song, defaultBackground, onSave, onClose, co
 
 /* ----------------------------- Theme settings --------------------------- */
 
-interface ThemeSettingsSheetProps {
-  value: BackgroundId;
-  onChange: (bg: BackgroundId) => void;
-  onClose: () => void;
-}
-
-/** App-wide theme: the default background for menus and songs set to "Theme default". */
-export function ThemeSettingsSheet({ value, onChange, onClose }: ThemeSettingsSheetProps) {
-  return (
-    <Sheet title="App theme" icon={<PixelIcon name="palette" size={18} color={C.blue} />} onClose={onClose}>
-      <Text style={styles.sectionLabel}>THEME BACKGROUND</Text>
-      <Text style={styles.sectionHint}>
-        Shown behind the song list, and during any song whose background is set to “Theme default”.
-      </Text>
-      <BackgroundPicker value={value} onChange={(v) => v !== 'default' && onChange(v)} />
-    </Sheet>
-  );
-}
-
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1 },
   coverBox: {
     height: 120,
@@ -319,7 +300,7 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11, },
   scrollContent: { paddingBottom: 16 },
-  sectionLabel: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15, letterSpacing: 1.5, marginTop: 8, marginBottom: 6 },
+  sectionLabel: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 15, letterSpacing: 1.5, marginTop: 8, marginBottom: 6 },
   sectionHint: { color: C.textDim, fontFamily: FONTS.body, fontSize: 16, marginBottom: 10, lineHeight: 16 },
   input: {
     backgroundColor: C.bgDeep,
@@ -377,4 +358,4 @@ const styles = StyleSheet.create({
   },
   saveBtnBusy: { opacity: 0.6 },
   saveText: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 20, },
-});
+}));

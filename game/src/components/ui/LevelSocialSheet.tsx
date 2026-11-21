@@ -44,7 +44,7 @@ import {
   MAX_STARS,
 } from '../../services/social';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 const COMMENT_MAX = 300;
 
 const errorText = (err: unknown) =>
@@ -446,7 +446,7 @@ export function LevelSocialSheet({
                   value={draft}
                   onChangeText={setDraft}
                   placeholder="Say something nice…"
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={C.textSubtle}
                   maxLength={COMMENT_MAX}
                   multiline
                   style={styles.input}
@@ -544,7 +544,7 @@ export function LevelSocialSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1, backgroundColor: PIXEL.bg },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, gap: 10 },
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
   description: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 19, lineHeight: 22 },
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 8 },
   sectionTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9 },
-  label: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 6 },
+  label: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 6 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
   disabled: { opacity: 0.45 },
@@ -570,24 +570,24 @@ const styles = StyleSheet.create({
   voteScoreSmall: { fontSize: 8, minWidth: 26 },
   votePositive: { color: C.success },
   voteNegative: { color: C.dangerSoft },
-  likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: '#ff7a9a', backgroundColor: 'rgba(255, 122, 154, 0.08)' },
-  likeBtnOn: { backgroundColor: '#e64980', borderColor: C.outline },
-  likeText: { color: '#ff7a9a', fontFamily: FONTS.pixel, fontSize: 8 },
+  likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: C.dangerSoft, backgroundColor: alpha(C.dangerSoft, 0.08) },
+  likeBtnOn: { backgroundColor: C.danger, borderColor: C.outline },
+  likeText: { color: C.dangerSoft, fontFamily: FONTS.pixel, fontSize: 8 },
   likeTextOn: { color: C.textStrong },
   diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   diffStars: { color: C.gold, fontFamily: FONTS.pixel, fontSize: 20 },
-  diffOf: { color: C.textMuted, fontSize: 10 },
+  diffOf: { color: C.textSubtle, fontSize: 10 },
   diffCount: { alignItems: 'flex-end' },
   diffVotes: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 12 },
   progressTrack: { height: 6, backgroundColor: C.bgDeep, borderWidth: 1, borderColor: PIXEL.panelLight },
   progressFill: { height: '100%', backgroundColor: C.gold },
   dist: { flexDirection: 'row', gap: 4, marginTop: 4 },
   distCol: { flex: 1, alignItems: 'center', gap: 2 },
-  distN: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 13 },
+  distN: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 13 },
   distTrack: { width: '100%', height: 46, justifyContent: 'flex-end', backgroundColor: C.bgDeep },
   distBar: { width: '100%', backgroundColor: C.lineStrong },
   distBarTop: { backgroundColor: C.gold },
-  distLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 6 },
+  distLabel: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 6 },
   distLabelTop: { color: C.gold },
   stars: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
   starHit: { padding: 2 },
@@ -631,4 +631,4 @@ const styles = StyleSheet.create({
   deleteBtn: { padding: 6 },
   moreBtn: { alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 8, borderWidth: 2, borderColor: PIXEL.panelLight },
   moreText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 8 },
-});
+}));

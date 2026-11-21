@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AppState, Platform, View } from 'react-native';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import * as SystemUI from 'expo-system-ui';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -16,7 +17,8 @@ import { startMenuMusic } from '../src/services/menuMusic';
 import { NowPlayingToast } from '../src/components/ui/NowPlayingToast';
 import * as Updates from 'expo-updates';
 
-import { C } from '../src/theme/palette';
+import { C, loadSavedTheme, useThemeId } from '../src/theme/palette';
+import { AppearanceHost } from '../src/components/ui/AppearanceSheet';
 /**
  * Immersive full-screen mode: hides the status bar (all platforms) and the
  * Android navigation bar (back/home/recents). Users can still swipe from the
@@ -40,23 +42,24 @@ function useImmersiveMode() {
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const MIN_SPLASH_MS = 1400;
-const APP_BACKGROUND = C.bg;
+/** How long the colours take to settle after switching themes (Appearance). */
+const THEME_FADE_MS = 180;
 
 /**
- * Navigation colours: the library's default theme is white, which flashed for
- * a frame between tab switches. Every navigation surface uses the app's navy.
+ * Navigation colours from the active theme: the library's default theme is
+ * white, which flashed for a frame between tab switches.
  */
-const NAV_THEME = {
+const navTheme = () => ({
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: APP_BACKGROUND,
+    background: C.bg,
     card: C.panel,
     border: C.panelLight,
     primary: C.accent,
     text: C.text,
   },
-};
+});
 
 /** Seeds storage; resolves after a minimum splash time. */
 async function initializeApp(): Promise<void> {
@@ -96,10 +99,30 @@ export default function RootLayout() {
     startMenuMusic();
   }, []);
 
-  // Dark native root view, so nothing light can show between screen transitions
+  // Saved theme (Appearance): restored before the first frame, so the app never
+  // flashes the default theme first. Unknown / missing values fall back to it.
+  const [themeLoaded, setThemeLoaded] = useState(false);
   useEffect(() => {
-    SystemUI.setBackgroundColorAsync(APP_BACKGROUND).catch(() => {});
+    void loadSavedTheme().finally(() => setThemeLoaded(true));
   }, []);
+  const themeId = useThemeId();
+
+  // Native root view in the theme's background, so nothing light shows between screens
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(C.bg).catch(() => {});
+  }, [themeId]);
+
+  // Switching themes: the screens re-render in the new colours behind a short
+  // fade from the new background (no reload, nothing else animates)
+  const veil = useSharedValue(0);
+  const firstTheme = React.useRef(themeId);
+  useEffect(() => {
+    if (themeId === firstTheme.current) return;
+    firstTheme.current = themeId;
+    veil.value = 1;
+    veil.value = withTiming(0, { duration: THEME_FADE_MS });
+  }, [themeId, veil]);
+  const veilStyle = useAnimatedStyle(() => ({ opacity: veil.value }));
   const [isReady, setIsReady] = useState(false);
   // Pixel fonts must be loaded before anything renders text
   const [fontsLoaded, fontError] = useFonts({ PressStart2P_400Regular, VT323_400Regular });
@@ -121,13 +144,16 @@ export default function RootLayout() {
   }, []);
 
   // Keep the native splash up until the fonts are ready (a font error falls back to system fonts)
-  if (!fontsLoaded && !fontError) return null;
+  if ((!fontsLoaded && !fontError) || !themeLoaded) return null;
 
   return (
-    <ThemeProvider value={NAV_THEME}>
-    <View style={{ flex: 1, backgroundColor: APP_BACKGROUND }}>
+    <ThemeProvider value={navTheme()}>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
       <StatusBar hidden style="light" />
       <NavigationBar hidden style="light" />
+      {/* Keyed by theme: switching themes re-renders every screen in the new
+          colours (they all read the active theme, see src/theme/palette.ts) */}
+      <View key={themeId} style={styles.flex}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -147,6 +173,13 @@ export default function RootLayout() {
           }}
         />
       </Stack>
+      </View>
+
+      {/* Theme switch: fades from the new background into the re-coloured screen */}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: C.bg }, veilStyle]} />
+
+      {/* Appearance (theme picker): above the screens, so it stays open while they re-colour */}
+      <AppearanceHost />
 
       {/* Animated startup screen; fades out once initialization finishes */}
       {/* Menu song credit pop-up (shown once the splash is gone) */}
@@ -157,3 +190,7 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+});

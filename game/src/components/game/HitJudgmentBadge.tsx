@@ -6,7 +6,7 @@ import { HitJudgment } from '../../types/game';
 import { ACTIVE_THEME } from '../../constants/theme';
 import { FONTS } from '../../theme/pixel';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles } from '../../theme/palette';
 interface HitJudgmentBadgeProps {
   judgment: HitJudgment | null;
   timeDiffMs?: number;
@@ -65,7 +65,7 @@ export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, ti
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     position: 'absolute',
     top: '32%',
@@ -87,4 +87,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
     opacity: 0.85,
   },
-});
+}));

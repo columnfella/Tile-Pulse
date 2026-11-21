@@ -11,7 +11,7 @@ import { PixelIcon } from './PixelIcon';
 import { useMyAvatar } from '../../services/myAvatar';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles } from '../../theme/palette';
 export function ProfileButton({ size = 36 }: { size?: number }) {
   const router = useRouter();
   const me = useMyAvatar();
@@ -35,9 +35,9 @@ export function ProfileButton({ size = 36 }: { size?: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   button: { backgroundColor: PIXEL.panelLight, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   signedIn: { borderWidth: 2, borderColor: PIXEL.accent },
   initialBox: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   initial: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
-});
+}));

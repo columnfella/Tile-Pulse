@@ -38,7 +38,7 @@ import {
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 import { CoverBanner, LevelBadge } from '../../src/components/ui/LevelCardParts';
 
-import { C, alpha } from '../../src/theme/palette';
+import { C, alpha, themedStyles, themed } from '../../src/theme/palette';
 const SEARCH_DEBOUNCE_MS = 400;
 const PAGE_SIZE = 20;
 
@@ -64,12 +64,12 @@ const SORTS: { key: LevelSort; label: string; icon?: PixelIconName }[] = [
   { key: 'title', label: 'A–Z' },
 ];
 
-const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = [
+const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = themed(() => ([
   { key: 'easy', label: 'Easy', color: C.blueSky },
   { key: 'normal', label: 'Normal', color: C.blue },
   { key: 'hard', label: 'Hard', color: C.blueStrong },
   { key: 'expert', label: 'Expert', color: PIXEL.accent },
-];
+]));
 
 type Range = { min?: number; max?: number };
 const BPM_RANGES: { label: string; range: Range }[] = [
@@ -450,7 +450,7 @@ export default function DiscoverScreen() {
             <Text style={styles.statDot}>■</Text>
             <Text style={styles.stat}>{item.noteCount} notes</Text>
             <View style={styles.flex} />
-            <PixelIcon name="play" size={7} color={C.textMuted} />
+            <PixelIcon name="play" size={7} color={C.textSubtle} />
             <Text style={styles.stat}>{formatPlays(item.plays)}</Text>
             <PixelIcon name={(item.score ?? 0) < 0 ? 'thumbDown' : 'thumbUp'} size={7} color={(item.score ?? 0) < 0 ? C.dangerSoft : C.success} />
             <Text style={[styles.stat, (item.score ?? 0) < 0 && styles.negative]}>{item.score ?? 0}</Text>
@@ -461,7 +461,7 @@ export default function DiscoverScreen() {
               </>
             ) : item.difficultyVotes?.leading ? (
               <>
-                <PixelIcon name="star" size={7} color={C.textMuted} />
+                <PixelIcon name="star" size={7} color={C.textSubtle} />
                 <Text style={styles.stat}>~{item.difficultyVotes.leading}</Text>
               </>
             ) : null}
@@ -606,14 +606,14 @@ export default function DiscoverScreen() {
         </View>
 
         <View style={styles.searchBox}>
-          <PixelIcon name="discover" size={14} color={C.textMuted} />
+          <PixelIcon name="discover" size={14} color={C.textSubtle} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder={
               field === 'all' ? 'Search levels, songs, mappers…' : `Search by ${SEARCH_FIELDS.find((f) => f.key === field)!.label.toLowerCase()}…`
             }
-            placeholderTextColor={C.textMuted}
+            placeholderTextColor={C.textSubtle}
             style={styles.searchInput}
             returnKeyType="search"
             autoCorrect={false}
@@ -621,7 +621,7 @@ export default function DiscoverScreen() {
           />
           {query.length > 0 ? (
             <PressableScale scaleTo={0.85} onPress={() => setQuery('')} accessibilityLabel="Clear search">
-              <PixelIcon name="close" size={14} color={C.textMuted} />
+              <PixelIcon name="close" size={14} color={C.textSubtle} />
             </PressableScale>
           ) : null}
         </View>
@@ -713,7 +713,7 @@ export default function DiscoverScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   titleShrink: { flexShrink: 1 },
   verifiedTag: { backgroundColor: C.blue, borderWidth: 2, borderColor: C.outline, padding: 2 },
@@ -775,7 +775,7 @@ const styles = StyleSheet.create({
   fieldTextActive: { color: PIXEL.accent2 },
 
   sortRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
-  sortLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginRight: 2 },
+  sortLabel: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 7, marginRight: 2 },
 
   chip: {
     flexDirection: 'row',
@@ -797,7 +797,7 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 6,
   },
-  filterLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
+  filterLabel: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   levelTo: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -834,7 +834,7 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1 },
   cardTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 21 },
   cardSong: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 17 },
-  cardAuthor: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15 },
+  cardAuthor: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 15 },
   ownedTag: {
     width: 22,
     height: 22,
@@ -866,7 +866,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: PIXEL.panelLight,
   },
-  detailLabel: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
+  detailLabel: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
   detailValue: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 10, marginTop: 3 },
   primaryBtn: {
     flexDirection: 'row',
@@ -919,6 +919,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: PIXEL.accent2,
   },
-  bannerError: { borderColor: PIXEL.accent, backgroundColor: '#1a0d0a' },
+  bannerError: { borderColor: PIXEL.accent, backgroundColor: alpha(C.danger, 0.12) },
   bannerText: { flex: 1, color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 17 },
-});
+}));

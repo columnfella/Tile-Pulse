@@ -19,19 +19,19 @@ import type { TimedTile } from './TileField';
 import { TILE_STATES } from './TapTileView';
 
 
-import { C } from '../../theme/palette';
+import { C, themedStyles, themed } from '../../theme/palette';
 /** Native: slides are drawn here, not by SlideTileView. */
 export const SLIDES_IN_LAYER = true;
 
 export const SLIDE_HEAD_HEIGHT = 36;
-const CORAL = { base: C.accent, light: C.accentSoft, dark: C.accentDeep } as const;
+const CORAL = themed(() => ({ base: C.accent, light: C.accentSoft, dark: C.accentDeep } as const));
 
 type StrokeColors = { outline: string; rim: string; body: string; rail: string };
-const COLORS = {
+const COLORS = themed(() => ({
   normal: { outline: C.outline, rim: C.bluePale, body: C.blueDark, rail: C.blue },
-  filled: { outline: C.outline, rim: '#d6e2ff', body: C.blueStrong, rail: C.accent },
+  filled: { outline: C.outline, rim: C.blueSky, body: C.blueStrong, rail: C.accent },
   missed: { outline: C.outline, rim: C.dangerSoft, body: C.dangerDeep, rail: C.danger },
-} as const;
+} as const));
 
 /** x of the polyline where it crosses height y (ys run bottom to top). Later points win on flat parts. */
 export function xAtY(xs: number[], ys: number[], y: number): number {
@@ -232,6 +232,6 @@ export const SlideLayer = memo(function SlideLayer({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   layer: { position: 'absolute', top: 0, left: 0 },
-});
+}));

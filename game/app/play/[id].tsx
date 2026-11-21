@@ -55,7 +55,7 @@ import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { backdropIn, backdropOut, cardIn, cardOut } from '../../src/components/ui/motion';
 import { FONTS } from '../../src/theme/pixel';
 
-import { C, alpha } from '../../src/theme/palette';
+import { C, alpha, themedStyles } from '../../src/theme/palette';
 interface JudgmentState {
   judgment: HitJudgment | null;
   timeDiffMs?: number;
@@ -1076,7 +1076,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   unrankedNote: { color: C.textDim, fontFamily: FONTS.body, fontSize: 16, textAlign: 'center', marginTop: 4, paddingHorizontal: 8 },
   root: {
     flex: 1,
@@ -1165,7 +1165,7 @@ const styles = StyleSheet.create({
   hudProgressTrack: { width: 110, height: 3, marginTop: 3, backgroundColor: alpha(C.white, 0.12) },
   rateResultBtn: { borderColor: C.gold },
   rateResultText: { color: C.gold },
-  failBackdrop: { backgroundColor: 'rgba(60, 6, 4, 0.78)' },
+  failBackdrop: { backgroundColor: alpha(C.dangerDeep, 0.85) },
   failCard: { borderColor: C.danger },
   failTitle: { fontFamily: FONTS.pixel, fontSize: 13, color: C.dangerSoft },
   bottomProgressFill: {
@@ -1340,4 +1340,4 @@ const styles = StyleSheet.create({
     fontSize: 17,
     marginTop: 2,
   },
-});
+}));

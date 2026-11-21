@@ -4,7 +4,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { comboBump } from '../ui/motion';
 import { FONTS } from '../../theme/pixel';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles } from '../../theme/palette';
 interface ComboDisplayProps {
   combo: number;
 }
@@ -27,7 +27,7 @@ export const ComboDisplay: React.FC<ComboDisplayProps> = ({ combo }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     position: 'absolute',
     top: '42%',
@@ -55,4 +55,4 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     color: C.blue,
   },
-});
+}));

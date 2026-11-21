@@ -14,8 +14,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { FONTS } from '../../theme/pixel';
 
-import { C } from '../../theme/palette';
-const BAR_COLORS = [C.blueStrong, C.blue, C.blueMist, C.accent];
+import { C, themedStyles, themed } from '../../theme/palette';
+const BAR_COLORS = themed(() => ([C.blueStrong, C.blue, C.blueMist, C.accent]));
 
 /** One lane bar bouncing like an equalizer, offset by `index`. */
 function LaneBar({ index }: { index: number }) {
@@ -63,7 +63,7 @@ export function AppSplash({ onReady }: AppSplashProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: {
     ...StyleSheet.absoluteFill,
     zIndex: 1000,
@@ -91,10 +91,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   subtitle: {
-    color: C.textMuted,
+    color: C.textSubtle,
     fontFamily: FONTS.body,
     fontSize: 16,
     letterSpacing: 3,
     marginTop: 6,
   },
-});
+}));

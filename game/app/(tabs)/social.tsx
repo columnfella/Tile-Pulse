@@ -19,7 +19,7 @@ import { InboxPanel } from '../../src/components/social/InboxPanel';
 import { useUnreadCount } from '../../src/services/notifications';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 
-import { C, alpha } from '../../src/theme/palette';
+import { C, alpha, themedStyles } from '../../src/theme/palette';
 type Section = 'friends' | 'ranks' | 'inbox';
 
 const SECTIONS: { id: Section; label: string; icon: PixelIconName }[] = [
@@ -82,7 +82,7 @@ export default function SocialScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { backgroundColor: 'transparent' },
   flex: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 12 },
@@ -105,4 +105,4 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: PIXEL.accent },
   badge: { minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center', backgroundColor: PIXEL.accent, borderWidth: 1, borderColor: C.outline },
   badgeText: { color: C.onAccent, fontFamily: FONTS.body, fontSize: 13, lineHeight: 14 },
-});
+}));

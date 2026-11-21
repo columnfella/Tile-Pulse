@@ -19,7 +19,7 @@ import { TILE_STATES } from './TapTileView';
 import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 import { FX_CELL, pixelCirclePath, pixelExtent } from './pixelShapes';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles, themed } from '../../theme/palette';
 const HEAD_HEIGHT = 40;
 /** Height of the HOLD head (the part you must press to start the hold). */
 export const HOLD_HEAD_HEIGHT = HEAD_HEIGHT;
@@ -29,14 +29,14 @@ const BEVEL = PIXEL.unit;
 export const TILE_INSET = 2;
 
 /** Coral "being pressed" colours for the head. */
-const CORAL = { base: C.accent, light: C.accentSoft, dark: C.accentDeep } as const;
+const CORAL = themed(() => ({ base: C.accent, light: C.accentSoft, dark: C.accentDeep } as const));
 /** Fill colours, top (leading edge) → bottom: coral → blue → navy. */
-const FILL_GRADIENT = [C.accent, C.blueStrong, C.blueDark] as const;
+const FILL_GRADIENT = themed(() => ([C.accent, C.blueStrong, C.blueDark] as const));
 /** Completed: the whole tile charges up to green. */
-const DONE_GRADIENT = ['#b6ffd6', C.success, C.successDark] as const;
+const DONE_GRADIENT = themed(() => ([C.successBright, C.success, C.successDark] as const));
 const DONE_MS = 650;
 /** Resting body: deep navy → black. */
-const BODY_GRADIENT = ['#0b1a40', C.bg] as const;
+const BODY_GRADIENT = themed(() => ([C.blueAbyss, C.bg] as const));
 
 /** Live hold progress, computed on the UI thread from the song clock. */
 export interface LiveHoldProgress {
@@ -56,7 +56,7 @@ function PixelArc({ radius, light = false }: { radius: number; light?: boolean }
     <Svg width={e * 2} height={e} viewBox={`${-e} ${-e} ${e * 2} ${e}`}>
       <Defs>
         <SvgGradient id="arc" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={light ? '#ffd2c5' : C.white} />
+          <Stop offset="0" stopColor={light ? C.accentSoft : C.white} />
           <Stop offset="0.45" stopColor={light ? C.accentSoft : C.accent} />
           <Stop offset="1" stopColor={light ? C.bluePale : C.blue} />
         </SvgGradient>
@@ -122,12 +122,12 @@ function ArcFill({
 }
 
 /** Pixel ring frames for the press burst: small → big, coral → blue. */
-const RING_FRAMES = [
+const RING_FRAMES = themed(() => ([
   { scale: 0.35, color: C.textStrong },
   { scale: 0.6, color: C.accent },
-  { scale: 0.85, color: '#ff9a7f' },
+  { scale: 0.85, color: C.accentLight },
   { scale: 1.1, color: C.blue },
-] as const;
+] as const));
 
 /**
  * Ring that bursts out of the head the moment the hold is pressed, played as
@@ -325,7 +325,7 @@ export const HoldTileView = memo(function HoldTileView({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   body: {
     position: 'absolute',
     left: TILE_INSET,
@@ -353,4 +353,4 @@ const styles = StyleSheet.create({
   shine: { position: 'absolute', top: 0, left: 0, right: 0, height: 28, backgroundColor: C.white },
   headText: { fontFamily: FONTS.pixel, fontSize: 8, color: C.onAccent, letterSpacing: 1 },
   headTextHolding: { color: C.textStrong },
-});
+}));

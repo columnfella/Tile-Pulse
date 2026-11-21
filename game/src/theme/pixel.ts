@@ -7,7 +7,7 @@
  *  - VT323 — readable terminal-style pixel font for body text
  */
 
-import { C } from './palette';
+import { C, themed } from './palette';
 
 export const FONTS = {
   /** Display / headings / numbers. */
@@ -17,13 +17,13 @@ export const FONTS = {
 } as const;
 
 /** Tile colours: blue on black, the same for every lane. */
-export const LANE_COLORS = [C.blueStrong, C.blueStrong, C.blueStrong, C.blueStrong] as const;
+export const LANE_COLORS = themed(() => ([C.blueStrong, C.blueStrong, C.blueStrong, C.blueStrong] as const));
 
 /** Lighter / darker shades for the bevelled pixel tiles. */
-export const LANE_LIGHT = [C.blueLight, C.blueLight, C.blueLight, C.blueLight] as const;
-export const LANE_DARK = [C.blueDark, C.blueDark, C.blueDark, C.blueDark] as const;
+export const LANE_LIGHT = themed(() => ([C.blueLight, C.blueLight, C.blueLight, C.blueLight] as const));
+export const LANE_DARK = themed(() => ([C.blueDark, C.blueDark, C.blueDark, C.blueDark] as const));
 
-export const PIXEL = {
+export const PIXEL = themed(() => ({
   /** Size of one "pixel" in the art (bevels, particles, borders). */
   unit: 4,
   bg: C.bg,
@@ -35,7 +35,7 @@ export const PIXEL = {
   gold: C.accent,
   text: C.text,
   textDim: C.textDim,
-} as const;
+} as const));
 
 /** Hard, offset "pixel" drop shadow for text. */
 export const pixelTextShadow = (color: string = PIXEL.outline) => ({

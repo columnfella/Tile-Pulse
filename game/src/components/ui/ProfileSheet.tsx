@@ -27,7 +27,7 @@ import {
 } from '../../services/profile';
 import { acceptFriend, addFriend, presenceText, removeFriend } from '../../services/friends';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 const errorText = (err: unknown) =>
   err instanceof ApiUnavailableError
     ? `Can’t reach the community server (${API_BASE}).`
@@ -335,7 +335,7 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1, backgroundColor: PIXEL.bg },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   modTitle: { color: C.successBright, fontFamily: FONTS.pixel, fontSize: 8 },
   banned: { color: C.dangerSoft, fontFamily: FONTS.pixel, fontSize: 7 },
   warnLine: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 16 },
-  warnMeta: { color: C.textMuted },
+  warnMeta: { color: C.textSubtle },
   modRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   modBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: C.outline },
   modWarn: { backgroundColor: C.warning },
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
   stats: { flexDirection: 'row', gap: 8, marginTop: 10 },
   stat: { flex: 1, backgroundColor: C.bgDeep, borderWidth: 2, borderColor: PIXEL.panelLight, paddingVertical: 8, alignItems: 'center', gap: 4 },
   statValue: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
-  statLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 6 },
+  statLabel: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 6 },
   friendBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 10, borderWidth: 2, borderColor: PIXEL.accent2 },
   friendPrimary: { backgroundColor: PIXEL.accent, borderColor: C.outline },
   friendDanger: { borderColor: C.danger, backgroundColor: alpha(C.danger, 0.08) },
@@ -394,4 +394,4 @@ const styles = StyleSheet.create({
   rowTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 18 },
   rowRight: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 8 },
   hc: { color: C.dangerSoft, fontFamily: FONTS.pixel, fontSize: 6, marginTop: 2 },
-});
+}));

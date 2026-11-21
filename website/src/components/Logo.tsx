@@ -5,10 +5,10 @@ export function Logo() {
   return (
     <span className={styles.logo}>
       <span className={styles.mark} aria-hidden="true">
-        <span style={{ background: '#2f6bff' }} />
-        <span style={{ background: '#FF6B4A' }} />
-        <span style={{ background: '#1a3d99' }} />
-        <span style={{ background: '#2f6bff' }} />
+        <span style={{ background: 'var(--primary)' }} />
+        <span style={{ background: 'var(--highlight)' }} />
+        <span style={{ background: 'var(--secondary)' }} />
+        <span style={{ background: 'var(--primary)' }} />
       </span>
       <span className={styles.word}>
         TILE<span className={styles.accent}>PULSE</span>

@@ -33,15 +33,15 @@ import type { Song } from '../../types/song';
 import { storageService } from '../../services/storage';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles, themed } from '../../theme/palette';
 const MAX_COVER_BYTES = 2 * 1024 * 1024;
 
-const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = [
+const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = themed(() => ([
   { key: 'easy', label: 'Easy', color: C.blueSky },
   { key: 'normal', label: 'Normal', color: C.blue },
   { key: 'hard', label: 'Hard', color: C.blueStrong },
   { key: 'expert', label: 'Expert', color: PIXEL.accent },
-];
+]));
 
 const STEP_TEXT: Record<UploadStep, string> = {
   song: 'Sending song info…',
@@ -337,7 +337,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
                   value={username}
                   onChangeText={setUsername}
                   placeholder="Username"
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={C.textSubtle}
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="username"
@@ -349,7 +349,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
                     value={displayName}
                     onChangeText={setDisplayName}
                     placeholder="Display name (shown on your levels)"
-                    placeholderTextColor={C.textMuted}
+                    placeholderTextColor={C.textSubtle}
                     maxLength={50}
                     style={styles.input}
                   />
@@ -358,7 +358,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
                   value={password}
                   onChangeText={setPassword}
                   placeholder={authMode === 'register' ? 'Password (10+ characters)' : 'Password'}
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={C.textSubtle}
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
@@ -386,7 +386,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
               value={name}
               onChangeText={setName}
               placeholder="Level name"
-              placeholderTextColor={C.textMuted}
+              placeholderTextColor={C.textSubtle}
               maxLength={60}
               style={styles.input}
             />
@@ -416,7 +416,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
               value={description}
               onChangeText={setDescription}
               placeholder="Tell players about your level (optional)"
-              placeholderTextColor={C.textMuted}
+              placeholderTextColor={C.textSubtle}
               maxLength={500}
               multiline
               style={[styles.input, styles.multiline]}
@@ -438,7 +438,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
                   value={copyPassword}
                   onChangeText={setCopyPassword}
                   placeholder={record?.copyMode === 'password' ? 'New copy password (leave empty to keep it)' : 'Copy password (4+ characters)'}
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={C.textSubtle}
                   autoCapitalize="none"
                   autoCorrect={false}
                   maxLength={64}
@@ -542,7 +542,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1, backgroundColor: PIXEL.bg },
   flex: { flex: 1 },
   gap: { gap: 8 },
@@ -569,12 +569,12 @@ const styles = StyleSheet.create({
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9 },
-  label: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
+  label: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   chip: { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep },
   chipText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
   multiline: { minHeight: 70, textAlignVertical: 'top' },
-  counter: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 14, alignSelf: 'flex-end' },
+  counter: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 14, alignSelf: 'flex-end' },
   input: {
     color: C.textStrong,
     fontFamily: FONTS.body,
@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
   body: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18 },
   strong: { color: PIXEL.accent2 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
-  note: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15, marginTop: 4 },
+  note: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 15, marginTop: 4 },
   warn: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17, textAlign: 'center' },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
 
@@ -639,4 +639,4 @@ const styles = StyleSheet.create({
     borderColor: C.outline,
   },
   primaryText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 10 },
-});
+}));

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node scripts/game-version.mjs",
+    "predev": "node scripts/game-version.mjs && node scripts/theme-css.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/game-version.mjs",
+    "prebuild": "node scripts/game-version.mjs && node scripts/theme-css.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

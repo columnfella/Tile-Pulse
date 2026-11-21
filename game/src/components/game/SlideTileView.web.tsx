@@ -7,13 +7,13 @@ import { FONTS, PIXEL } from '../../theme/pixel';
 import { TILE_STATES } from './TapTileView';
 import { SLIDE_COLORS, SlideBody } from './SlideBody';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles, themed } from '../../theme/palette';
 /** Height of one pixel-art step of the slide body. */
 const STEP = PIXEL.unit * 2;
 const BEVEL = PIXEL.unit;
 const HEAD_HEIGHT = 36;
 const LANE = 25; // % of the board per lane
-const CORAL = { base: C.accent, light: C.accentSoft, dark: C.accentDeep } as const;
+const CORAL = themed(() => ({ base: C.accent, light: C.accentSoft, dark: C.accentDeep } as const));
 
 export interface LiveSlideProgress {
   songTime: SharedValue<number>;
@@ -107,7 +107,7 @@ export const SlideTileView = memo(function SlideTileView({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { position: 'absolute', top: 0, left: 0, right: 0 },
   layer: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   fillClip: { position: 'absolute', left: 0, right: 0, bottom: 0, overflow: 'hidden' },
@@ -131,4 +131,4 @@ const styles = StyleSheet.create({
   },
   headText: { fontFamily: FONTS.pixel, fontSize: 7, color: C.onAccent },
   headTextHolding: { color: C.textStrong },
-});
+}));

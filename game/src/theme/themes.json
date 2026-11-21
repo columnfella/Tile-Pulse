@@ -1,0 +1,174 @@
+{
+  "$comment": "TilePulse colour themes. The app lets players pick one (Appearance on the Songs tab); `default` is used for new players and is also the website's fixed theme (website/scripts/theme-css.mjs turns it into CSS variables at build time). To add a theme: append an entry with all 14 colours below.",
+  "default": "dusty_dusk",
+  "themes": [
+    {
+      "id": "dusty_dusk",
+      "name": "Dusty Dusk",
+      "mood": "Nostalgic, calm twilight",
+      "colors": {
+        "background": "#211F2B",
+        "backgroundSecondary": "#272433",
+        "surface": "#2D293A",
+        "surfaceHover": "#383346",
+        "surfaceActive": "#443E56",
+        "border": "#403A4D",
+        "primary": "#9890AD",
+        "primaryHover": "#B2A9C8",
+        "secondary": "#77728E",
+        "highlight": "#C2B5B0",
+        "text": "#EAE6F0",
+        "textMuted": "#AAA4B5",
+        "success": "#91AA99",
+        "error": "#C98289"
+      }
+    },
+    {
+      "id": "cyberpunk",
+      "name": "Cyberpunk",
+      "mood": "Neon city, electric",
+      "colors": {
+        "background": "#101018",
+        "backgroundSecondary": "#171522",
+        "surface": "#1B1928",
+        "surfaceHover": "#262235",
+        "surfaceActive": "#30243E",
+        "border": "#393047",
+        "primary": "#FF2E88",
+        "primaryHover": "#FF65A9",
+        "secondary": "#A855F7",
+        "highlight": "#37E7FF",
+        "text": "#F5F0FF",
+        "textMuted": "#8D849E",
+        "success": "#48E5A4",
+        "error": "#FF5B70"
+      }
+    },
+    {
+      "id": "dark_fantasy",
+      "name": "Dark Fantasy",
+      "mood": "Ancient, gothic forest",
+      "colors": {
+        "background": "#171914",
+        "backgroundSecondary": "#1D211B",
+        "surface": "#22271F",
+        "surfaceHover": "#2C3227",
+        "surfaceActive": "#34382D",
+        "border": "#3B4033",
+        "primary": "#87916B",
+        "primaryHover": "#A4AF87",
+        "secondary": "#59664A",
+        "highlight": "#B4A27E",
+        "text": "#E4DFD2",
+        "textMuted": "#C7BCA8",
+        "success": "#91A47A",
+        "error": "#C98282"
+      }
+    },
+    {
+      "id": "retro_crt",
+      "name": "Retro CRT",
+      "mood": "Phosphor arcade monitor",
+      "colors": {
+        "background": "#161C16",
+        "backgroundSecondary": "#1B241B",
+        "surface": "#202A20",
+        "surfaceHover": "#2B382B",
+        "surfaceActive": "#344234",
+        "border": "#3C4B3C",
+        "primary": "#9BBC83",
+        "primaryHover": "#C5D6A4",
+        "secondary": "#607A57",
+        "highlight": "#D9E2C8",
+        "text": "#D9E2C8",
+        "textMuted": "#8C9B85",
+        "success": "#A7C98A",
+        "error": "#C78383"
+      }
+    },
+    {
+      "id": "sakura_night",
+      "name": "Sakura Night",
+      "mood": "Soft, dreamy night",
+      "colors": {
+        "background": "#201B27",
+        "backgroundSecondary": "#292130",
+        "surface": "#302638",
+        "surfaceHover": "#3D3044",
+        "surfaceActive": "#483448",
+        "border": "#514052",
+        "primary": "#BA829F",
+        "primaryHover": "#D9AFC2",
+        "secondary": "#76566F",
+        "highlight": "#E8D4DF",
+        "text": "#E8D4DF",
+        "textMuted": "#B4A0B6",
+        "success": "#91B39D",
+        "error": "#CB838F"
+      }
+    },
+    {
+      "id": "deep_ocean",
+      "name": "Deep Ocean",
+      "mood": "Calm midnight water",
+      "colors": {
+        "background": "#101C26",
+        "backgroundSecondary": "#142432",
+        "surface": "#182938",
+        "surfaceHover": "#203748",
+        "surfaceActive": "#243B4C",
+        "border": "#30495A",
+        "primary": "#57849A",
+        "primaryHover": "#83AFC0",
+        "secondary": "#365B70",
+        "highlight": "#C5DCE5",
+        "text": "#C5DCE5",
+        "textMuted": "#91A5B4",
+        "success": "#88B9A8",
+        "error": "#CC8589"
+      }
+    },
+    {
+      "id": "ember",
+      "name": "Ember",
+      "mood": "Warm, cozy, analog",
+      "colors": {
+        "background": "#211C1A",
+        "backgroundSecondary": "#28211E",
+        "surface": "#302622",
+        "surfaceHover": "#3B2F29",
+        "surfaceActive": "#44352F",
+        "border": "#504037",
+        "primary": "#B07B5B",
+        "primaryHover": "#D0A17D",
+        "secondary": "#795647",
+        "highlight": "#E8D5BC",
+        "text": "#E8D5BC",
+        "textMuted": "#AA9685",
+        "success": "#9AAB91",
+        "error": "#C98282"
+      }
+    },
+    {
+      "id": "monochrome",
+      "name": "Monochrome",
+      "mood": "Minimal, neutral, timeless",
+      "colors": {
+        "background": "#191A1D",
+        "backgroundSecondary": "#202226",
+        "surface": "#24262A",
+        "surfaceHover": "#2E3035",
+        "surfaceActive": "#34373C",
+        "border": "#41454B",
+        "primary": "#858C95",
+        "primaryHover": "#B5BBC3",
+        "secondary": "#555B63",
+        "highlight": "#E4E7EB",
+        "text": "#E4E7EB",
+        "textMuted": "#9BA1A9",
+        "success": "#9DAFA1",
+        "error": "#C98282"
+      }
+    }
+  ]
+}

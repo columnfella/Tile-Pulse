@@ -51,8 +51,9 @@ import {
   type PublicProfile,
 } from '../../src/services/profile';
 
-import { C, alpha } from '../../src/theme/palette';
-const BANNER_COLORS = [C.blueStrong, C.accent, C.success, '#8b5cf6', C.gold, '#e64980', '#14b8a6', C.panelLight];
+import { C, alpha, themedStyles } from '../../src/theme/palette';
+// Banner colours a player can pick: saved on the server as their choice, so fixed (not theme colours)
+const BANNER_COLORS = ['#2f6bff', '#FF6B4A', '#22c46e', '#8b5cf6', '#f5b83d', '#e64980', '#14b8a6', '#15203a'];
 const PASSWORD_MIN = 10;
 
 type Tab = 'history' | 'uploads' | 'settings';
@@ -125,7 +126,7 @@ function Button({
 }
 
 function Field(props: React.ComponentProps<typeof TextInput>) {
-  return <TextInput placeholderTextColor={C.textMuted} autoCapitalize="none" autoCorrect={false} {...props} style={styles.input} />;
+  return <TextInput placeholderTextColor={C.textSubtle} autoCapitalize="none" autoCorrect={false} {...props} style={styles.input} />;
 }
 
 function Toggle({ label, hint, value, onChange }: { label: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
@@ -791,7 +792,7 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight },
   backText: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 8 },
@@ -827,12 +828,12 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   statBox: { flex: 1, backgroundColor: C.bgDeep, borderWidth: 2, borderColor: PIXEL.panelLight, paddingVertical: 8, alignItems: 'center', gap: 4 },
   statValue: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
-  statLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 6 },
+  statLabel: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 6 },
 
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9 },
-  label: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 6 },
+  label: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 6 },
   body: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 19 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
   mutedCenter: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
@@ -912,4 +913,4 @@ const styles = StyleSheet.create({
   diffTag: { fontFamily: FONTS.pixel, fontSize: 6 },
   hcTag: { fontFamily: FONTS.pixel, fontSize: 6, color: C.onAccent, backgroundColor: C.danger, paddingHorizontal: 3, paddingVertical: 1 },
   visTag: { fontFamily: FONTS.pixel, fontSize: 6, color: PIXEL.textDim },
-});
+}));

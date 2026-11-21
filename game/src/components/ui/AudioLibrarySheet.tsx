@@ -16,7 +16,7 @@ import {
 import { formatAudioTime } from '../../game/engine';
 import { FONTS } from '../../theme/pixel';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 interface AudioLibrarySheetProps {
   /** Source URIs of songs already in the library (shown as "Added"). */
   importedUris: Set<string>;
@@ -301,12 +301,12 @@ export function AudioLibrarySheet({
               )}
             </View>
             <View style={styles.searchBox}>
-              <PixelIcon name="discover" size={18} color={C.textMuted} />
+              <PixelIcon name="discover" size={18} color={C.textSubtle} />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search songs"
-                placeholderTextColor={C.textMuted}
+                placeholderTextColor={C.textSubtle}
                 style={styles.searchInput}
               />
             </View>
@@ -343,7 +343,7 @@ export function AudioLibrarySheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   backdrop: {
     ...StyleSheet.absoluteFill,
     zIndex: 300,
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   },
   sourceText: {
     flex: 1,
-    color: C.textMuted,
+    color: C.textSubtle,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
@@ -467,16 +467,16 @@ const styles = StyleSheet.create({
     fontSize: 19,
   },
   fileNameAdded: {
-    color: C.textMuted,
+    color: C.textSubtle,
   },
   addedTag: {
-    color: C.textMuted,
+    color: C.textSubtle,
     fontFamily: FONTS.body,
     fontSize: 13,
     letterSpacing: 1,
   },
   fileDuration: {
-    color: C.textMuted,
+    color: C.textSubtle,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
@@ -575,4 +575,4 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.body,
     fontSize: 17,
   },
-});
+}));

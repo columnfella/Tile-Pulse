@@ -3,8 +3,8 @@
   width: 100%;
   max-width: 300px;
   aspect-ratio: 3 / 5;
-  background: linear-gradient(180deg, rgba(8, 14, 30, 0.78) 0%, rgba(11, 20, 42, 0.85) 100%);
-  border: var(--unit) solid rgba(3, 8, 24, 0.8);
+  background: linear-gradient(180deg, rgba(var(--background-secondary-rgb), 0.78) 0%, rgba(var(--surface-rgb), 0.85) 100%);
+  border: var(--unit) solid rgba(var(--ink-rgb), 0.8);
   box-shadow: 0 0 0 var(--unit) var(--edge), 10px 10px 0 var(--shadow);
   overflow: hidden;
   /* Own compositing layer: the falling tiles never repaint the rest of the page */
@@ -18,7 +18,7 @@
   bottom: 0;
   width: 2px;
   margin-left: -1px;
-  background: rgba(77, 141, 255, 0.15);
+  background: rgba(var(--highlight-rgb), 0.15);
 }
 
 /* A tap tile: blue with a light top/left and dark bottom/right bevel, like the game */
@@ -32,7 +32,7 @@
   background-color: var(--blue);
   border-style: solid;
   border-width: var(--unit);
-  border-color: #7aa4ff var(--blue-dark) var(--blue-dark) #7aa4ff;
+  border-color: var(--primary-hover) var(--blue-dark) var(--blue-dark) var(--primary-hover);
   animation: fall 4.8s linear infinite;
   /* Animate on the GPU only (transform), never layout */
   will-change: transform;
@@ -42,8 +42,8 @@
 .hold {
   height: 34%;
   top: -38%;
-  background-color: #0b1a40;
-  border-color: #7aa4ff var(--blue-dark) var(--coral) #7aa4ff;
+  background-color: var(--surface-active);
+  border-color: var(--primary-hover) var(--blue-dark) var(--coral) var(--primary-hover);
 }
 
 .hitGlow {
@@ -52,7 +52,7 @@
   right: 0;
   bottom: 0;
   height: 22%;
-  background: linear-gradient(0deg, rgba(255, 107, 74, 0.18), transparent);
+  background: linear-gradient(0deg, rgba(var(--primary-rgb), 0.18), transparent);
 }
 
 @keyframes fall {

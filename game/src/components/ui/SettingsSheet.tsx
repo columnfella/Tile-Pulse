@@ -16,7 +16,7 @@ import {
   useTrackStart,
 } from '../../services/menuMusic';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 const VOLUMES = [
   { label: '25%', value: 0.25 },
   { label: '50%', value: 0.5 },
@@ -121,7 +121,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   backdrop: { flex: 1, backgroundColor: alpha(C.black, 0.65), justifyContent: 'center', padding: 20 },
   card: { backgroundColor: PIXEL.panel, borderWidth: 3, borderColor: C.outline, padding: 16, gap: 12 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -140,8 +140,8 @@ const styles = StyleSheet.create({
   chipText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 7 },
   chipTextOn: { color: PIXEL.accent },
   disabled: { opacity: 0.4 },
-  note: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15, marginTop: 6 },
+  note: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 15, marginTop: 6 },
   nowRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   credit: { marginTop: 4, gap: 1 },
-  creditLine: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 14 },
-});
+  creditLine: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 14 },
+}));

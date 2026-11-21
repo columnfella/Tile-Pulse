@@ -1,6 +1,6 @@
 import { ImageSourcePropType } from 'react-native';
 
-import { C, alpha } from '../theme/palette';
+import { C, alpha, themed } from '../theme/palette';
 /**
  * Modular Theme & Texture Architecture for TilePulse
  * 
@@ -111,7 +111,7 @@ export interface ThemeConfig {
   };
 }
 
-export const MINIMAL_DARK_THEME: ThemeConfig = {
+export const MINIMAL_DARK_THEME: ThemeConfig = themed(() => ({
   id: 'minimal_dark',
   name: 'Minimal Dark Neon',
   geometry: {
@@ -161,7 +161,7 @@ export const MINIMAL_DARK_THEME: ThemeConfig = {
       perfect: { text: 'PERFECT', color: C.accent, glow: C.accent },
       great: { text: 'GREAT', color: C.blue, glow: C.blueDeeper },
       good: { text: 'GOOD', color: C.blue, glow: C.blueDeeper },
-      miss: { text: 'MISS', color: C.accent, glow: '#5c2414' },
+      miss: { text: 'MISS', color: C.accent, glow: C.dangerDeep },
     },
   },
   ui: {
@@ -174,10 +174,10 @@ export const MINIMAL_DARK_THEME: ThemeConfig = {
     secondaryAccent: C.blueStrong,
     textPrimary: C.text,
     textSecondary: C.textDim,
-    textMuted: C.textMuted,
+    textMuted: C.textSubtle,
     danger: C.accent,
     success: C.blue,
   },
-};
+}));
 
 export const ACTIVE_THEME: ThemeConfig = MINIMAL_DARK_THEME;

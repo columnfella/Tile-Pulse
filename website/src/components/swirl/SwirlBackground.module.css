@@ -27,6 +27,6 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 45%, rgba(6, 12, 28, 0.1), rgba(6, 12, 28, 0.5) 80%),
-    linear-gradient(180deg, rgba(6, 12, 28, 0.2), rgba(6, 12, 28, 0.4));
+    radial-gradient(ellipse at 50% 45%, rgba(var(--background-rgb), 0.1), rgba(var(--background-rgb), 0.5) 80%),
+    linear-gradient(180deg, rgba(var(--background-rgb), 0.2), rgba(var(--background-rgb), 0.4));
 }

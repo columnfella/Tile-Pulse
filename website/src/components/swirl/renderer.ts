@@ -1,9 +1,18 @@
 /**
- * WebGL port of the game's "Swirl · Deep Blue" background shader
+ * WebGL port of the game's "Swirl · Deep" background shader, in the default theme's colours
  * (src/components/backgrounds/ShaderBackground.tsx in the app). All the maths
  * runs per pixel on the GPU; the CPU only sets a time uniform once per frame.
  * Works on a normal <canvas> or an OffscreenCanvas inside a Web Worker.
  */
+
+import theme from '../../content/theme.json';
+
+/** '#rrggbb' → GLSL vec3 (0–1). */
+function glslColour(hex: string): string {
+  const n = parseInt(hex.replace('#', '').slice(0, 6), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => (x / 255).toFixed(3));
+  return `vec3(${c.join(', ')})`;
+}
 
 const VERTEX = `
 attribute vec2 aPos;
@@ -20,10 +29,11 @@ precision mediump float;
 uniform vec2 iResolution;
 uniform float iTime;
 
-// Deep Blue palette from the game (SWIRL_PALETTES.swirl_ocean)
-const vec3 C1 = vec3(0.30, 0.55, 1.00);
-const vec3 C2 = vec3(0.10, 0.24, 0.60);
-const vec3 C3 = vec3(0.01, 0.02, 0.05);
+// Colours of the game's default theme, like its "Swirl · Deep" background
+// (SWIRL_PALETTES.swirl_ocean: secondary, surfaceActive, background)
+const vec3 C1 = ${glslColour(theme.colors.secondary)};
+const vec3 C2 = ${glslColour(theme.colors.surfaceActive)};
+const vec3 C3 = ${glslColour(theme.colors.background)};
 
 const float TWIST = 2.6;        // how tightly the spiral winds
 const float TURN_SPEED = 0.08;  // spiral rotation speed

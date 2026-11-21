@@ -11,7 +11,7 @@ import { slideXAt } from '../../game/engine';
 import { FONTS } from '../../theme/pixel';
 import { SLIDE_HEAD_HEIGHT } from './SlideLayer';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles } from '../../theme/palette';
 export interface LiveSlideProgress {
   songTime: SharedValue<number>;
   start: number;
@@ -57,7 +57,7 @@ export const SlideTileView = memo(function SlideTileView({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { position: 'absolute', top: 0, left: 0, right: 0 },
   headText: {
     position: 'absolute',
@@ -69,4 +69,4 @@ const styles = StyleSheet.create({
     color: C.onAccent,
   },
   headTextHolding: { color: C.textStrong },
-});
+}));

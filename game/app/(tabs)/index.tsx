@@ -11,7 +11,7 @@ import { PRESET_IDS } from '../../src/game/presets';
 import { formatAudioTime } from '../../src/game/engine';
 import { PlayRow } from '../../src/components/ui/PlayRow';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
-import { ThemeSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
+import { openAppearance } from '../../src/components/ui/AppearanceSheet';
 import { SettingsSheet } from '../../src/components/ui/SettingsSheet';
 import { ProfileButton } from '../../src/components/ui/ProfileButton';
 import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
@@ -21,7 +21,7 @@ import { CoverBanner, IconBadge, LevelBadge, cardPartStyles } from '../../src/co
 import { setDefaultBackground, useDefaultBackground } from '../../src/services/settings';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 
-import { C, alpha } from '../../src/theme/palette';
+import { C, alpha, themedStyles } from '../../src/theme/palette';
 /**
  * Songs tab: your library, shown as level cards like Discover — downloaded
  * community levels, songs you created in the Editor, and the built-in samples.
@@ -39,7 +39,6 @@ export default function HomeScreen() {
   // Copying a community level into the editor: waiting for the creator's copy password
   const [copyPrompt, setCopyPrompt] = useState<{ song: Song; password: string; error: string | null; busy: boolean } | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
-  const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const defaultBackground = useDefaultBackground();
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,7 +57,6 @@ export default function HomeScreen() {
     useCallback(() => {
       loadSongs().catch((err) => console.warn('Failed to load songs:', err));
       return () => {
-        setIsThemeOpen(false);
         setExpandedId(null);
       };
     }, [loadSongs])
@@ -266,8 +264,8 @@ export default function HomeScreen() {
           <PressableScale
             scaleTo={0.88}
             style={styles.themeButton}
-            onPress={() => setIsThemeOpen(true)}
-            accessibilityLabel="Choose app theme"
+            onPress={openAppearance}
+            accessibilityLabel="Appearance"
           >
             <PixelIcon name="palette" size={18} color={C.textSoft} />
           </PressableScale>
@@ -349,7 +347,7 @@ export default function HomeScreen() {
               value={copyPrompt?.password ?? ''}
               onChangeText={(t) => setCopyPrompt((p) => (p ? { ...p, password: t, error: null } : p))}
               placeholder="Password"
-              placeholderTextColor={C.textMuted}
+              placeholderTextColor={C.textSubtle}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -377,18 +375,11 @@ export default function HomeScreen() {
       </Modal>
 
       <SettingsSheet visible={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-      {isThemeOpen && (
-        <ThemeSettingsSheet
-          value={defaultBackground}
-          onChange={(bg) => void setDefaultBackground(bg)}
-          onClose={() => setIsThemeOpen(false)}
-        />
-      )}
     </ScreenView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   headerButtons: { flexDirection: 'row', gap: 8 },
   customizeBtn: { flex: 1, paddingVertical: 9, borderColor: PIXEL.accent2, backgroundColor: alpha(C.blue, 0.08) },
   customizeText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 19, letterSpacing: 1 },
@@ -435,7 +426,7 @@ const styles = StyleSheet.create({
   logoPixel: { width: 11, height: 11 },
   appName: { fontFamily: FONTS.pixel, fontSize: 13, lineHeight: 18, color: C.textStrong, includeFontPadding: false },
   appNameAccent: { color: C.accent },
-  appSub: { fontFamily: FONTS.body, fontSize: 15, lineHeight: 16, color: C.textMuted, includeFontPadding: false },
+  appSub: { fontFamily: FONTS.body, fontSize: 15, lineHeight: 16, color: C.textSubtle, includeFontPadding: false },
   themeButton: { width: 36, height: 36, backgroundColor: C.panelLight, alignItems: 'center', justifyContent: 'center' },
 
   banner: {
@@ -465,7 +456,7 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1 },
   cardTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 21 },
   cardSong: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 17 },
-  cardOrigin: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15 },
+  cardOrigin: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 15 },
   downloadedTag: {
     width: 22,
     height: 22,
@@ -528,4 +519,4 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11 },
   emptyText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
-});
+}));

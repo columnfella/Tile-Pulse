@@ -28,7 +28,7 @@ import { formatAudioTime } from '../../game/engine';
 import type { Song } from '../../types/song';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
-import { C, alpha } from '../../theme/palette';
+import { C, alpha, themedStyles } from '../../theme/palette';
 const MIN_BPM = 40;
 const MAX_BPM = 300;
 const TIME_SIGNATURES = ['4/4', '3/4', '6/8'] as const;
@@ -226,7 +226,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
               value={title}
               onChangeText={setTitle}
               placeholder="Song name"
-              placeholderTextColor={C.textMuted}
+              placeholderTextColor={C.textSubtle}
               maxLength={60}
               style={styles.input}
             />
@@ -234,7 +234,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
               value={artist}
               onChangeText={setArtist}
               placeholder="Artist (optional)"
-              placeholderTextColor={C.textMuted}
+              placeholderTextColor={C.textSubtle}
               maxLength={60}
               style={styles.input}
             />
@@ -304,7 +304,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1, backgroundColor: PIXEL.bg },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9 },
-  label: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
+  label: { color: C.textSubtle, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   input: {
     color: C.textStrong,
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: PIXEL.accent2 },
 
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
-  note: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15 },
+  note: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 15 },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
   linkBtn: { alignSelf: 'flex-start', paddingVertical: 2, paddingHorizontal: 4, marginTop: -6 },
   linkText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 17 },
@@ -383,4 +383,4 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.5 },
   primaryText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 10 },
-});
+}));

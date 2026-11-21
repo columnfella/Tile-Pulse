@@ -42,3 +42,6 @@ next-env.d.ts
 
 # generated before each build / dev start (scripts/game-version.mjs)
 /src/content/game-version.json
+# generated from the game's default theme (scripts/theme-css.mjs)
+/src/content/theme.json
+/src/app/theme.generated.css

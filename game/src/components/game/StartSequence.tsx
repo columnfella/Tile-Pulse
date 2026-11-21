@@ -14,7 +14,7 @@ import { countdownOut, popIn } from '../ui/motion';
 import { PixelIcon } from '../ui/PixelIcon';
 import { FONTS } from '../../theme/pixel';
 
-import { C } from '../../theme/palette';
+import { C, themedStyles, alpha } from '../../theme/palette';
 interface LoadingOverlayProps {
   title?: string;
   subtitle?: string;
@@ -119,7 +119,7 @@ export function Countdown({ onDone, from = 3 }: CountdownProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: {
     ...StyleSheet.absoluteFill,
     zIndex: 200,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.blue,
   },
   loadingText: {
-    color: C.textMuted,
+    color: C.textSubtle,
     fontFamily: FONTS.body,
     fontSize: 16,
     letterSpacing: 1,
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     zIndex: 150,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(3, 7, 18, 0.35)',
+    backgroundColor: alpha(C.black, 0.35),
   },
   countdownText: {
     color: C.textStrong,
@@ -212,4 +212,4 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.pixel,
     fontSize: 50,
   },
-});
+}));

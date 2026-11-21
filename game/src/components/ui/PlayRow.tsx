@@ -10,8 +10,7 @@ import { PixelIcon } from './PixelIcon';
 import { useHardcore } from '../../services/hardcore';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
-import { C } from '../../theme/palette';
-const HARDCORE_RED = C.danger;
+import { C, themedStyles } from '../../theme/palette';
 
 export function PlayRow({ songId, style }: { songId: string; style?: StyleProp<ViewStyle> }) {
   const router = useRouter();
@@ -45,7 +44,7 @@ export function PlayRow({ songId, style }: { songId: string; style?: StyleProp<V
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: { flexDirection: 'row', gap: 8 },
   play: {
     flex: 1,
@@ -58,7 +57,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: C.outline,
   },
-  playHardcore: { backgroundColor: HARDCORE_RED },
+  playHardcore: { backgroundColor: C.danger },
   playText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 10 },
   playTextHardcore: { color: C.textStrong },
   toggle: {
@@ -70,7 +69,7 @@ const styles = StyleSheet.create({
     borderColor: PIXEL.panelLight,
     backgroundColor: C.bgDeep,
   },
-  toggleOn: { backgroundColor: '#5c0f0d', borderColor: HARDCORE_RED },
+  toggleOn: { backgroundColor: C.dangerDeep, borderColor: C.danger },
   toggleText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 7 },
   toggleTextOn: { color: C.textStrong },
-});
+}));
