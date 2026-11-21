@@ -57,6 +57,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { setActivity } from '../../src/services/friends';
 import { holdMenuMusic } from '../../src/services/menuMusic';
 
+import { C, alpha } from '../../src/theme/palette';
 const PIXELS_PER_BEAT = 96; // 1/4 snap cells are 24px, 1/2 cells 48px
 const TILE_GAP = 2; // px inset so neighbouring notes never visually touch
 const DEFAULT_HOLD_BEATS = 1;
@@ -92,10 +93,10 @@ const laneOfX = (x: number) => Math.max(0, Math.min(3, Math.floor(x + 1e-6))) as
 
 /** Guide line types for tap-recording (index = GuideMark.type). */
 const GUIDE_TYPES = [
-  { label: 'Beat', color: '#FF6B4A' },
-  { label: 'Accent', color: '#4d8dff' },
-  { label: 'Drop', color: '#ffffff' },
-  { label: 'Mark', color: '#ffd23f' },
+  { label: 'Beat', color: C.accent },
+  { label: 'Accent', color: C.blue },
+  { label: 'Drop', color: C.textStrong },
+  { label: 'Mark', color: C.yellow },
 ] as const;
 /** A tap on the grid within this many px of a guide removes it (in guide mode). */
 const GUIDE_HIT_PX = 12;
@@ -329,14 +330,14 @@ const EditorTile = memo(function EditorTile({ tile, cell, gridHeight, isSelected
           height,
           left: `${tile.lane * 25}%`,
           right: `${(3 - tile.lane) * 25}%`,
-          backgroundColor: isHold ? '#05070d' : LANE_COLORS[tile.lane],
-          borderColor: isSelected ? '#ffffff' : '#000000',
+          backgroundColor: isHold ? C.bg : LANE_COLORS[tile.lane],
+          borderColor: isSelected ? C.white : C.outline,
           borderWidth: isSelected ? 3 : 2,
         },
       ]}
     >
       {/* Hold notes: black → blue gradient, like in the game */}
-      {isHold && <LinearGradient colors={['#000000', '#123a9e', '#2f6bff']} style={StyleSheet.absoluteFill} />}
+      {isHold && <LinearGradient colors={[C.black, C.blueDark, C.blueStrong]} style={StyleSheet.absoluteFill} />}
       {/* Pixel bevel highlight */}
       <View pointerEvents="none" style={[styles.tileBevel, { backgroundColor: LANE_LIGHT[tile.lane] }]} />
       {showLabel && (
@@ -404,19 +405,19 @@ function SongPicker({ songs, loaded, onPick, onCreate, onDelete }: SongPickerPro
                 onPress={() => onDelete(songs.filter((x) => selected.has(x.id)))}
                 accessibilityLabel="Delete the selected levels"
               >
-                <PixelIcon name="trash" size={14} color="#ffffff" />
+                <PixelIcon name="trash" size={14} color={C.textStrong} />
                 <Text style={styles.deleteSelectedText}>DELETE{selected.size ? ` (${selected.size})` : ''}</Text>
               </PressableScale>
             </>
           ) : (
             <>
               <PressableScale scaleTo={0.96} style={[styles.createSongBtn, styles.flex1]} onPress={onCreate} accessibilityLabel="Create a new song">
-                <PixelIcon name="plus" size={14} color="#000000" />
+                <PixelIcon name="plus" size={14} color={C.onAccent} />
                 <Text style={styles.createSongText}>CREATE SONG</Text>
               </PressableScale>
               {songs.length > 0 ? (
                 <PressableScale scaleTo={0.96} style={styles.deleteModeBtn} onPress={() => setSelecting(true)} accessibilityLabel="Choose levels to delete">
-                  <PixelIcon name="trash" size={14} color="#FF6B4A" />
+                  <PixelIcon name="trash" size={14} color={C.accent} />
                   <Text style={styles.deleteModeText}>DELETE</Text>
                 </PressableScale>
               ) : null}
@@ -448,11 +449,11 @@ function SongPicker({ songs, loaded, onPick, onCreate, onDelete }: SongPickerPro
                 >
                   {selecting ? (
                     <View style={[styles.checkbox, isSelected && styles.checkboxOn]}>
-                      {isSelected ? <PixelIcon name="check" size={14} color="#ffffff" /> : null}
+                      {isSelected ? <PixelIcon name="check" size={14} color={C.textStrong} /> : null}
                     </View>
                   ) : (
                     <View style={styles.pickerIcon}>
-                      <PixelIcon name="note" size={21} color="#4d8dff" />
+                      <PixelIcon name="note" size={21} color={C.blue} />
                     </View>
                   )}
                   <View style={styles.pickerInfo}>
@@ -464,7 +465,7 @@ function SongPicker({ songs, loaded, onPick, onCreate, onDelete }: SongPickerPro
                       {holds > 0 ? ` (${holds} hold)` : ''}
                     </Text>
                   </View>
-                  {!selecting ? <PixelIcon name="chevronRight" size={21} color="#3a4a70" /> : null}
+                  {!selecting ? <PixelIcon name="chevronRight" size={21} color={C.textFaint} /> : null}
                 </PressableScale>
               </Animated.View>
             );
@@ -1377,13 +1378,13 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
         {/* Row 1: back · Play (centered) · undo / redo */}
         <View style={styles.topBar}>
           <PressableScale scaleTo={0.9} style={styles.backBtn} onPress={handleBack} accessibilityLabel="Back to song list">
-            <PixelIcon name="chevronLeft" size={14} color="#cdd6ea" />
+            <PixelIcon name="chevronLeft" size={14} color={C.textSoft} />
             <Text style={styles.backText}>Songs</Text>
           </PressableScale>
 
           <View style={styles.topBarCenter} pointerEvents="box-none">
             <PressableScale style={styles.playCenterBtn} onPress={handlePlayBeatmap} accessibilityLabel="Play Beatmap">
-              <PixelIcon name="play" size={14} color="#ffffff" />
+              <PixelIcon name="play" size={14} color={C.textStrong} />
               <Text style={styles.playCenterText}>PLAY</Text>
             </PressableScale>
           </View>
@@ -1395,7 +1396,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               onPress={handleOpenCustomize}
               accessibilityLabel="Customize song: name, background and cover"
             >
-              <PixelIcon name="palette" size={14} color="#e6ecf7" />
+              <PixelIcon name="palette" size={14} color={C.text} />
             </PressableScale>
             <PressableScale
               scaleTo={0.85}
@@ -1403,7 +1404,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               onPress={handleOpenUpload}
               accessibilityLabel="Upload level"
             >
-              <PixelIcon name="upload" size={14} color="#000000" />
+              <PixelIcon name="upload" size={14} color={C.onAccent} />
             </PressableScale>
             <PressableScale
               scaleTo={0.85}
@@ -1412,7 +1413,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               onPress={handleUndo}
               accessibilityLabel="Undo"
             >
-              <PixelIcon name="undo" size={14} color="#e6ecf7" />
+              <PixelIcon name="undo" size={14} color={C.text} />
             </PressableScale>
             <PressableScale
               scaleTo={0.85}
@@ -1421,7 +1422,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               onPress={handleRedo}
               accessibilityLabel="Redo"
             >
-              <PixelIcon name="redo" size={14} color="#e6ecf7" />
+              <PixelIcon name="redo" size={14} color={C.text} />
             </PressableScale>
           </View>
         </View>
@@ -1434,7 +1435,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             </Text>
             <View style={styles.bpmControl}>
               <PressableScale scaleTo={0.85} style={styles.bpmBtn} onPress={() => handleStepBpm(-1)} accessibilityLabel="Decrease BPM">
-                <PixelIcon name="minus" size={14} color="#cdd6ea" />
+                <PixelIcon name="minus" size={14} color={C.textSoft} />
               </PressableScale>
               <TextInput
                 value={bpmDraft}
@@ -1455,7 +1456,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 accessibilityLabel="BPM"
               />
               <PressableScale scaleTo={0.85} style={styles.bpmBtn} onPress={() => handleStepBpm(1)} accessibilityLabel="Increase BPM">
-                <PixelIcon name="plus" size={14} color="#cdd6ea" />
+                <PixelIcon name="plus" size={14} color={C.textSoft} />
               </PressableScale>
               <PressableScale
                 scaleTo={0.85}
@@ -1473,8 +1474,8 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             onPress={handleTogglePreview}
             accessibilityLabel={isPlayingPreview ? 'Pause Audio Preview' : 'Play Audio Preview'}
           >
-            {isPlayingPreview ? <PixelIcon name="pause" size={14} color="#000000" /> : <PixelIcon name="play" size={14} color="#4d8dff" />}
-            <Text style={[styles.previewBtnText, isPlayingPreview && { color: '#000000' }]}>
+            {isPlayingPreview ? <PixelIcon name="pause" size={14} color={C.onAccent} /> : <PixelIcon name="play" size={14} color={C.blue} />}
+            <Text style={[styles.previewBtnText, isPlayingPreview && { color: C.onAccent }]}>
               {isPlayingPreview ? 'Pause' : pausedAtSec !== null ? 'Resume' : 'Test'}
             </Text>
           </PressableScale>
@@ -1500,7 +1501,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 </PressableScale>
               ))}
               <PressableScale scaleTo={0.85} style={styles.snapClose} onPress={() => setSnapOpen(false)} accessibilityLabel="Close snap options">
-                <PixelIcon name="close" size={7} color="#9aa7c2" />
+                <PixelIcon name="close" size={7} color={C.textDim} />
               </PressableScale>
             </Animated.View>
           ) : (
@@ -1510,7 +1511,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 <Text style={styles.snapToggleValue}>
                   {activeSubdivision === 1 ? '1/1' : activeSubdivision === 0.5 ? '1/2' : '1/4'}
                 </Text>
-                <PixelIcon name="chevronDown" size={7} color="#9aa7c2" />
+                <PixelIcon name="chevronDown" size={7} color={C.textDim} />
               </PressableScale>
               <PressableScale
                 scaleTo={0.9}
@@ -1519,7 +1520,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 accessibilityLabel="Guide recording"
               >
                 <View style={[styles.recDot, guideMode && styles.recDotActive]} />
-                <Text style={[styles.guideToggleText, guideMode && { color: '#000000' }]}>
+                <Text style={[styles.guideToggleText, guideMode && { color: C.onAccent }]}>
                   GUIDES{guides.length > 0 ? ` ${guides.length}` : ''}
                 </Text>
               </PressableScale>
@@ -1579,9 +1580,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               onPress={handleResetPause}
               accessibilityLabel="Clear pause and return to the test start"
             >
-              <PixelIcon name="pause" size={7} color="#FF6B4A" />
-              <Text style={[styles.startChipText, { color: '#FF6B4A' }]}>Paused {formatStamp(pausedAtSec)}</Text>
-              <PixelIcon name="reset" size={14} color="#FF6B4A" />
+              <PixelIcon name="pause" size={7} color={C.accent} />
+              <Text style={[styles.startChipText, { color: C.accent }]}>Paused {formatStamp(pausedAtSec)}</Text>
+              <PixelIcon name="reset" size={14} color={C.accent} />
             </PressableScale>
           ) : (
           /* Where "Test" starts — tap the ruler numbers to move it */
@@ -1594,11 +1595,11 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             }}
             accessibilityLabel="Reset test start to the beginning"
           >
-            <PixelIcon name="play" size={7} color="#4d8dff" />
+            <PixelIcon name="play" size={7} color={C.blue} />
             <Text style={styles.startChipText}>
               Test from {previewStartBeat === 0 ? 'start' : `b${previewStartBeat}`}
             </Text>
-            {previewStartBeat !== 0 && <PixelIcon name="reset" size={14} color="#4d8dff" />}
+            {previewStartBeat !== 0 && <PixelIcon name="reset" size={14} color={C.blue} />}
           </PressableScale>
           )}
         </View>
@@ -1624,7 +1625,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               <Ruler beatsPerMeasure={beatsPerMeasure} totalBeats={totalBeats} range={range} onPressBeat={handleRulerPress} />
               {/* Test start flag on the ruler */}
               <View pointerEvents="none" style={[styles.startFlag, { top: Math.min(beatToY(previewStartBeat, gridHeight) - 7, gridHeight - 15) }]}>
-                <PixelIcon name="play" size={7} color="#0b1a33" />
+                <PixelIcon name="play" size={7} color={C.blueNight} />
               </View>
             </View>
 
@@ -1675,7 +1676,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                   pointerEvents="none"
                   style={[styles.pausedFlag, { top: Math.max(0, secToY(pausedAtSec, gridHeight) - 22) }]}
                 >
-                  <PixelIcon name="pause" size={7} color="#000000" />
+                  <PixelIcon name="pause" size={7} color={C.onAccent} />
                   <Text style={styles.pausedFlagText}>
                     {formatStamp(pausedAtSec)} · b{((pausedAtSec * bpm) / 60).toFixed(2)}
                   </Text>
@@ -1703,11 +1704,11 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               {!selectedIsSlide && (
                 <>
                   <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={() => handleStepSelectedDuration(-1)}>
-                    <PixelIcon name="minus" size={14} color="#ffffff" />
+                    <PixelIcon name="minus" size={14} color={C.textStrong} />
                   </PressableScale>
                   <Text style={styles.stepValueText}>{selectedTile.durationBeats}b</Text>
                   <PressableScale style={styles.stepBtn} scaleTo={0.85} onPress={() => handleStepSelectedDuration(1)}>
-                    <PixelIcon name="plus" size={14} color="#ffffff" />
+                    <PixelIcon name="plus" size={14} color={C.textStrong} />
                   </PressableScale>
                 </>
               )}
@@ -1717,7 +1718,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 </PressableScale>
               )}
               <PressableScale style={styles.deleteTileBtn} scaleTo={0.85} onPress={handleDeleteSelected}>
-                <PixelIcon name="trash" size={14} color="#FF6B4A" />
+                <PixelIcon name="trash" size={14} color={C.accent} />
               </PressableScale>
               {selectedIsSlide && (
                 <PressableScale style={styles.doneBtn} scaleTo={0.9} onPress={() => setSelectedTileId(null)}>
@@ -1749,11 +1750,11 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               <Text style={styles.slidePanelHint}>Tap a point on the slide to select it</Text>
               <View style={styles.slidePanelBtns}>
                 <PressableScale scaleTo={0.9} style={styles.slideSmallBtn} onPress={handleAddBend}>
-                  <PixelIcon name="plus" size={7} color="#e6ecf7" />
+                  <PixelIcon name="plus" size={7} color={C.text} />
                   <Text style={styles.slideSmallText}>BEND</Text>
                 </PressableScale>
                 <PressableScale scaleTo={0.9} style={styles.slideSmallBtn} onPress={handleRemovePoint}>
-                  <PixelIcon name="minus" size={7} color="#e6ecf7" />
+                  <PixelIcon name="minus" size={7} color={C.text} />
                   <Text style={styles.slideSmallText}>POINT</Text>
                 </PressableScale>
               </View>
@@ -1776,7 +1777,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                   onPress={() => handleSlidePad(dir)}
                   accessibilityLabel={`Slide ${dir}`}
                 >
-                  <PixelIcon name={icon} size={14} color={dir === 'down' ? '#FF6B4A' : '#ffffff'} />
+                  <PixelIcon name={icon} size={14} color={dir === 'down' ? C.accent : C.textStrong} />
                 </PressableScale>
               ))}
             </View>
@@ -1793,7 +1794,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 onPress={handleTogglePreview}
                 accessibilityLabel={isPlayingPreview ? 'Pause' : 'Play'}
               >
-                <PixelIcon name={isPlayingPreview ? 'pause' : 'play'} size={14} color={isPlayingPreview ? '#000000' : '#4d8dff'} />
+                <PixelIcon name={isPlayingPreview ? 'pause' : 'play'} size={14} color={isPlayingPreview ? C.onAccent : C.blue} />
               </PressableScale>
               <TimeReadout
                 playing={isPlayingPreview}
@@ -1802,7 +1803,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               />
               <View style={styles.flexSpacer} />
               <PressableScale scaleTo={0.9} style={styles.guideSmallBtn} disabled={guides.length === 0} onPress={handleUndoGuide} accessibilityLabel="Remove last guide">
-                <PixelIcon name="undo" size={14} color={guides.length === 0 ? '#3a4a70' : '#e6ecf7'} />
+                <PixelIcon name="undo" size={14} color={guides.length === 0 ? C.textFaint : C.text} />
               </PressableScale>
               <PressableScale scaleTo={0.9} style={styles.guideSmallBtn} onPress={() => setGuidesVisible((v) => !v)} accessibilityLabel="Show or hide guides">
                 <Text style={styles.guideSmallText}>{guidesVisible ? 'HIDE' : 'SHOW'}</Text>
@@ -1814,11 +1815,11 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 onPress={handleClearGuides}
                 accessibilityLabel="Clear all guides"
               >
-                <PixelIcon name="trash" size={14} color={guides.length === 0 ? '#3a4a70' : clearArmed ? '#000000' : '#FF6B4A'} />
-                {clearArmed && <Text style={[styles.guideSmallText, { color: '#000000' }]}>SURE?</Text>}
+                <PixelIcon name="trash" size={14} color={guides.length === 0 ? C.textFaint : clearArmed ? C.onAccent : C.accent} />
+                {clearArmed && <Text style={[styles.guideSmallText, { color: C.onAccent }]}>SURE?</Text>}
               </PressableScale>
               <PressableScale scaleTo={0.9} style={styles.guideSmallBtn} onPress={() => setGuideMode(false)} accessibilityLabel="Close guides">
-                <PixelIcon name="close" size={14} color="#e6ecf7" />
+                <PixelIcon name="close" size={14} color={C.text} />
               </PressableScale>
             </View>
             <View style={styles.guidePads}>
@@ -1835,8 +1836,8 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
                 >
                   {({ pressed }) => (
                     <>
-                      <Text style={[styles.guidePadLabel, { color: pressed ? '#000000' : g.color }]}>{g.label.toUpperCase()}</Text>
-                      <Text style={[styles.guidePadCount, pressed && { color: '#000000' }]}>{guideCounts[i]}</Text>
+                      <Text style={[styles.guidePadLabel, { color: pressed ? C.onAccent : g.color }]}>{g.label.toUpperCase()}</Text>
+                      <Text style={[styles.guidePadCount, pressed && { color: C.onAccent }]}>{guideCounts[i]}</Text>
                     </>
                   )}
                 </Pressable>
@@ -1851,7 +1852,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
         {/* Toast */}
         {toast && (
           <Animated.View entering={FadeInUp.springify().damping(16)} exiting={FadeOutUp.duration(200)} style={styles.toastCard}>
-            <PixelIcon name="check" size={14} color="#4d8dff" />
+            <PixelIcon name="check" size={14} color={C.blue} />
             <Text style={styles.toastText}>{toast}</Text>
           </Animated.View>
         )}
@@ -1960,7 +1961,7 @@ export default function EditorScreen() {
         <View style={styles.confirmBackdrop}>
           <View style={styles.confirmCard}>
             <View style={styles.confirmHead}>
-              <PixelIcon name="trash" size={14} color="#FF6B4A" />
+              <PixelIcon name="trash" size={14} color={C.accent} />
               <Text style={styles.confirmTitle}>
                 {pendingDelete && pendingDelete.length > 1 ? `DELETE ${pendingDelete.length} LEVELS?` : 'DELETE LEVEL?'}
               </Text>
@@ -2030,12 +2031,12 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     borderWidth: 2,
-    borderColor: 'rgba(255, 107, 74, 0.6)',
-    backgroundColor: 'rgba(255, 107, 74, 0.1)',
+    borderColor: alpha(C.accent, 0.6),
+    backgroundColor: alpha(C.accent, 0.1),
   },
-  deleteModeText: { color: '#FF6B4A', fontFamily: FONTS.pixel, fontSize: 8 },
-  selectCancelBtn: { paddingHorizontal: 14, paddingVertical: 11, borderWidth: 2, borderColor: '#15203a', justifyContent: 'center' },
-  selectCancelText: { color: '#9aa7c2', fontFamily: FONTS.pixel, fontSize: 9 },
+  deleteModeText: { color: C.accent, fontFamily: FONTS.pixel, fontSize: 8 },
+  selectCancelBtn: { paddingHorizontal: 14, paddingVertical: 11, borderWidth: 2, borderColor: C.panelLight, justifyContent: 'center' },
+  selectCancelText: { color: C.textDim, fontFamily: FONTS.pixel, fontSize: 9 },
   deleteSelectedBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -2043,32 +2044,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 11,
-    backgroundColor: '#d8342f',
+    backgroundColor: C.danger,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
-  deleteSelectedText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10 },
-  pickerCardSelected: { borderColor: '#d8342f', backgroundColor: 'rgba(216, 52, 47, 0.12)' },
-  checkbox: { width: 28, height: 28, borderWidth: 2, borderColor: '#3a4a70', alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: '#d8342f', borderColor: '#000000' },
-  confirmBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  confirmCard: { width: '100%', maxWidth: 340, backgroundColor: '#0b1220', borderWidth: 2, borderColor: '#000000', padding: 16, gap: 10 },
+  deleteSelectedText: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 10 },
+  pickerCardSelected: { borderColor: C.danger, backgroundColor: alpha(C.danger, 0.12) },
+  checkbox: { width: 28, height: 28, borderWidth: 2, borderColor: C.textFaint, alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: C.danger, borderColor: C.outline },
+  confirmBackdrop: { flex: 1, backgroundColor: alpha(C.black, 0.7), alignItems: 'center', justifyContent: 'center', padding: 24 },
+  confirmCard: { width: '100%', maxWidth: 340, backgroundColor: C.panel, borderWidth: 2, borderColor: C.outline, padding: 16, gap: 10 },
   confirmHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  confirmTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10 },
-  confirmBody: { color: '#e6ecf7', fontFamily: FONTS.body, fontSize: 18 },
-  confirmNote: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 16 },
+  confirmTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 10 },
+  confirmBody: { color: C.text, fontFamily: FONTS.body, fontSize: 18 },
+  confirmNote: { color: C.textDim, fontFamily: FONTS.body, fontSize: 16 },
   confirmRow: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end', marginTop: 4 },
-  confirmCancel: { paddingHorizontal: 14, paddingVertical: 9, borderWidth: 2, borderColor: '#15203a' },
-  confirmCancelText: { color: '#9aa7c2', fontFamily: FONTS.pixel, fontSize: 8 },
-  confirmDelete: { paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#d8342f', borderWidth: 2, borderColor: '#000000' },
-  confirmDeleteText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 8 },
+  confirmCancel: { paddingHorizontal: 14, paddingVertical: 9, borderWidth: 2, borderColor: C.panelLight },
+  confirmCancelText: { color: C.textDim, fontFamily: FONTS.pixel, fontSize: 8 },
+  confirmDelete: { paddingHorizontal: 14, paddingVertical: 9, backgroundColor: C.danger, borderWidth: 2, borderColor: C.outline },
+  confirmDeleteText: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 8 },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyText: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 20,
   },
@@ -2102,7 +2103,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   backText: {
-    color: '#cdd6ea',
+    color: C.textSoft,
     fontFamily: FONTS.body,
     fontSize: 19,
   },
@@ -2114,16 +2115,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     // Pixel bevel: light top/left, dark bottom/right
     borderWidth: 3,
-    borderTopColor: '#ff9a82',
-    borderLeftColor: '#ff9a82',
-    borderBottomColor: '#a83a22',
-    borderRightColor: '#a83a22',
+    borderTopColor: C.accentLight,
+    borderLeftColor: C.accentLight,
+    borderBottomColor: C.accentDeep,
+    borderRightColor: C.accentDeep,
   },
   playCenterText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 11,
     lineHeight: 14,
@@ -2141,7 +2142,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 0,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2149,21 +2150,21 @@ const styles = StyleSheet.create({
     opacity: 0.35,
   },
   uploadBtn: {
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   saveStatusText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 16,
     marginLeft: 4,
   },
   saveStatusSaving: {
-    color: '#9aa7c2',
+    color: C.textDim,
   },
   saveStatusError: {
-    color: '#FF6B4A',
+    color: C.accent,
     fontWeight: 'bold',
   },
   pickerHeader: {
@@ -2172,7 +2173,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   pickerTitle: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 14,
     letterSpacing: 0,
@@ -2183,17 +2184,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 11,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   createSongText: {
-    color: '#000000',
+    color: C.onAccent,
     fontFamily: FONTS.pixel,
     fontSize: 10,
   },
   pickerSub: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 17,
     marginTop: 2,
@@ -2210,14 +2211,14 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 0,
     borderWidth: 2,
-    borderColor: '#15203a',
-    backgroundColor: '#0b1220',
+    borderColor: C.panelLight,
+    backgroundColor: C.panel,
   },
   pickerIcon: {
     width: 40,
     height: 40,
     borderRadius: 0,
-    backgroundColor: 'rgba(77, 141, 255, 0.12)',
+    backgroundColor: alpha(C.blue, 0.12),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2225,12 +2226,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pickerSongTitle: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 20,
   },
   pickerMeta: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 16,
     marginTop: 2,
@@ -2245,15 +2246,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     borderRadius: 0,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   selectedSongTitle: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 17,
     flex: 1,
@@ -2263,19 +2264,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   previewBtnActive: {
-    backgroundColor: '#FF6B4A',
-    borderColor: '#FF6B4A',
+    backgroundColor: C.accent,
+    borderColor: C.accent,
   },
   previewBtnText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 17,
   },
@@ -2283,13 +2284,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   saveBtnText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 17,
   },
@@ -2307,42 +2308,42 @@ const styles = StyleSheet.create({
   snapLabel: {
     fontFamily: FONTS.body,
     fontSize: 15,
-    color: '#6b7a99',
+    color: C.textMuted,
     marginRight: 4,
   },
   snapBadge: {
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 0,
   },
   snapBadgeActive: {
-    backgroundColor: 'rgba(77, 141, 255, 0.2)',
-    borderColor: '#4d8dff',
+    backgroundColor: alpha(C.blue, 0.2),
+    borderColor: C.blue,
   },
   snapBadgeText: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
   snapBadgeTextActive: {
-    color: '#4d8dff',
+    color: C.blue,
     fontWeight: 'bold',
   },
   snapToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   snapToggleValue: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
@@ -2353,32 +2354,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   guideToggleActive: {
-    backgroundColor: '#FF6B4A',
-    borderColor: '#000000',
+    backgroundColor: C.accent,
+    borderColor: C.outline,
   },
   guideToggleText: {
-    color: '#cdd6ea',
+    color: C.textSoft,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
   recDot: {
     width: 6,
     height: 6,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
   },
   recDotActive: {
-    backgroundColor: '#000000',
+    backgroundColor: C.black,
   },
   pausedChip: {
-    backgroundColor: 'rgba(255, 107, 74, 0.12)',
-    borderColor: 'rgba(255, 107, 74, 0.5)',
+    backgroundColor: alpha(C.accent, 0.12),
+    borderColor: alpha(C.accent, 0.5),
   },
   pausedFlag: {
     position: 'absolute',
@@ -2386,14 +2387,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
   pausedFlagText: {
-    color: '#000000',
+    color: C.onAccent,
     fontFamily: FONTS.body,
     fontSize: 15,
   },
@@ -2419,9 +2420,9 @@ const styles = StyleSheet.create({
     height: GUIDE_PANEL_HEIGHT,
     zIndex: 45,
     elevation: 9,
-    backgroundColor: 'rgba(11, 18, 32, 0.97)',
+    backgroundColor: alpha(C.panel, 0.97),
     borderTopWidth: 2,
-    borderTopColor: '#FF6B4A',
+    borderTopColor: C.accent,
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 6,
@@ -2438,15 +2439,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#4d8dff',
-    backgroundColor: 'rgba(77, 141, 255, 0.12)',
+    borderColor: C.blue,
+    backgroundColor: alpha(C.blue, 0.12),
   },
   guidePlayBtnActive: {
-    backgroundColor: '#4d8dff',
-    borderColor: '#000000',
+    backgroundColor: C.blue,
+    borderColor: C.outline,
   },
   guideTime: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 10,
     marginLeft: 4,
@@ -2459,17 +2460,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   guideSmallText: {
-    color: '#e6ecf7',
+    color: C.text,
     fontFamily: FONTS.body,
     fontSize: 15,
   },
   guideClearArmed: {
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
   },
   guidePads: {
     flexDirection: 'row',
@@ -2481,20 +2482,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    backgroundColor: '#05070d',
+    backgroundColor: C.bg,
   },
   guidePadLabel: {
     fontFamily: FONTS.pixel,
     fontSize: 7,
   },
   guidePadCount: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 15,
     marginTop: 2,
   },
   guideHint: {
-    color: '#6b7a99',
+    color: C.textMuted,
     fontFamily: FONTS.body,
     fontSize: 14,
     textAlign: 'center',
@@ -2507,9 +2508,9 @@ const styles = StyleSheet.create({
   },
   segmented: {
     flexDirection: 'row',
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     borderRadius: 0,
     padding: 2,
     gap: 2,
@@ -2523,13 +2524,13 @@ const styles = StyleSheet.create({
     borderRadius: 0,
   },
   segmentActive: {
-    backgroundColor: 'rgba(77, 141, 255, 0.2)',
+    backgroundColor: alpha(C.blue, 0.2),
   },
   segmentIcon: {
     width: 10,
     height: 6,
     borderRadius: 0,
-    backgroundColor: '#3a4a70',
+    backgroundColor: C.textFaint,
   },
   segmentIconSlide: {
     height: 12,
@@ -2542,16 +2543,16 @@ const styles = StyleSheet.create({
   },
   slidePoint: {
     position: 'absolute',
-    backgroundColor: '#ffffff',
+    backgroundColor: C.white,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   slideHead: {
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
   },
   slidePointChosen: {
-    backgroundColor: '#FF6B4A',
-    borderColor: '#ffffff',
+    backgroundColor: C.accent,
+    borderColor: C.white,
     borderWidth: 3,
   },
   slidePanel: {
@@ -2562,9 +2563,9 @@ const styles = StyleSheet.create({
     elevation: 9,
     flexDirection: 'row',
     gap: 10,
-    backgroundColor: 'rgba(11, 18, 32, 0.97)',
+    backgroundColor: alpha(C.panel, 0.97),
     borderTopWidth: 2,
-    borderTopColor: '#4d8dff',
+    borderTopColor: C.blue,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
@@ -2573,12 +2574,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   slidePanelMode: {
-    color: '#FF6B4A',
+    color: C.accent,
     fontFamily: FONTS.pixel,
     fontSize: 9,
   },
   slidePanelHint: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 14,
   },
@@ -2593,12 +2594,12 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 5,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   slideSmallText: {
-    color: '#e6ecf7',
+    color: C.text,
     fontFamily: FONTS.body,
     fontSize: 15,
   },
@@ -2614,31 +2615,31 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2f6bff',
+    backgroundColor: C.blueStrong,
     borderWidth: 2,
-    borderTopColor: '#7aa4ff',
-    borderLeftColor: '#7aa4ff',
-    borderBottomColor: '#0a1f5c',
-    borderRightColor: '#0a1f5c',
+    borderTopColor: C.bluePale,
+    borderLeftColor: C.bluePale,
+    borderBottomColor: C.blueAbyss,
+    borderRightColor: C.blueAbyss,
   },
   padBtnDown: {
-    backgroundColor: '#15203a',
-    borderTopColor: '#3a4a70',
-    borderLeftColor: '#3a4a70',
-    borderBottomColor: '#000000',
-    borderRightColor: '#000000',
+    backgroundColor: C.panelLight,
+    borderTopColor: C.textFaint,
+    borderLeftColor: C.textFaint,
+    borderBottomColor: C.outline,
+    borderRightColor: C.outline,
   },
   slideLabel: {
     position: 'absolute',
     bottom: 12,
     width: '25%',
     textAlign: 'center',
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 7,
   },
   inspectorBtnText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 14,
   },
@@ -2646,12 +2647,12 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     paddingHorizontal: 8,
     paddingVertical: 5,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   doneText: {
-    color: '#000000',
+    color: C.onAccent,
     fontFamily: FONTS.pixel,
     fontSize: 8,
   },
@@ -2659,26 +2660,26 @@ const styles = StyleSheet.create({
     height: 12,
   },
   segmentIconActive: {
-    backgroundColor: '#4d8dff',
+    backgroundColor: C.blue,
   },
   segmentText: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
   segmentTextActive: {
-    color: '#4d8dff',
+    color: C.blue,
     fontWeight: 'bold',
   },
   noteTypeHint: {
     flex: 1,
     textAlign: 'right',
-    color: '#6b7a99',
+    color: C.textMuted,
     fontFamily: FONTS.body,
     fontSize: 15,
   },
   notesCounterText: {
-    color: '#cdd6ea',
+    color: C.textSoft,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
@@ -2695,7 +2696,7 @@ const styles = StyleSheet.create({
     elevation: 8,
     backgroundColor: 'rgba(58, 26, 18, 0.94)',
     borderBottomWidth: 2,
-    borderBottomColor: 'rgba(217, 80, 47, 0.5)',
+    borderBottomColor: alpha(C.accentDark, 0.5),
     paddingHorizontal: 16,
     paddingVertical: 6,
     flexDirection: 'row',
@@ -2709,12 +2710,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   inspectorTitle: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 17,
   },
   inspectorSub: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
@@ -2724,12 +2725,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   stepBtn: {
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     padding: 6,
     borderRadius: 0,
   },
   stepValueText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 16,
     width: 28,
@@ -2744,9 +2745,9 @@ const styles = StyleSheet.create({
     top: 52,
     alignSelf: 'center',
     zIndex: 50,
-    backgroundColor: '#0b1a33',
+    backgroundColor: C.blueNight,
     borderWidth: 2,
-    borderColor: '#4d8dff',
+    borderColor: C.blue,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 0,
@@ -2755,13 +2756,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   toastText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
   gridScroll: {
     flex: 1,
-    backgroundColor: '#05070d',
+    backgroundColor: C.bg,
   },
   gridRow: {
     flexDirection: 'row',
@@ -2769,7 +2770,7 @@ const styles = StyleSheet.create({
   rulerColumn: {
     width: 44,
     borderRightWidth: 2,
-    borderRightColor: '#15203a',
+    borderRightColor: C.panelLight,
   },
   rulerMark: {
     position: 'absolute',
@@ -2778,12 +2779,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   barlineText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 15,
   },
   beatNumText: {
-    color: '#3a4a70',
+    color: C.textFaint,
     fontFamily: FONTS.body,
     fontSize: 13,
   },
@@ -2799,11 +2800,11 @@ const styles = StyleSheet.create({
   },
   barlineGridLine: {
     borderTopWidth: 2,
-    borderTopColor: 'rgba(77, 141, 255, 0.4)',
+    borderTopColor: alpha(C.blue, 0.4),
   },
   beatGridLine: {
     borderTopWidth: 2,
-    borderTopColor: '#15203a',
+    borderTopColor: C.panelLight,
   },
   laneColumnsRow: {
     ...StyleSheet.absoluteFill,
@@ -2812,7 +2813,7 @@ const styles = StyleSheet.create({
   editorLaneColumn: {
     flex: 1,
     borderRightWidth: 2,
-    borderRightColor: '#15203a',
+    borderRightColor: C.panelLight,
   },
   tileBevel: {
     position: 'absolute',
@@ -2834,7 +2835,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   gridTileLabel: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 13,
   },
@@ -2851,20 +2852,20 @@ const styles = StyleSheet.create({
   },
   gridTileAnchor: {
     height: 3,
-    backgroundColor: '#ffffff',
+    backgroundColor: C.white,
     borderRadius: 0,
     opacity: 0.6,
   },
   cellGridLine: {
     borderTopWidth: 2,
-    borderTopColor: 'rgba(21, 32, 58, 0.45)',
+    borderTopColor: alpha(C.panelLight, 0.45),
   },
   startLine: {
     position: 'absolute',
     left: 0,
     right: 0,
     height: 2,
-    backgroundColor: '#4d8dff',
+    backgroundColor: C.blue,
     opacity: 0.85,
   },
   startFlag: {
@@ -2873,7 +2874,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 0,
-    backgroundColor: '#4d8dff',
+    backgroundColor: C.blue,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2884,15 +2885,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(77, 141, 255, 0.12)',
+    backgroundColor: alpha(C.blue, 0.12),
     borderWidth: 2,
-    borderColor: 'rgba(77, 141, 255, 0.4)',
+    borderColor: alpha(C.blue, 0.4),
     borderRadius: 0,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   startChipText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 15,
   },
@@ -2905,7 +2906,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 0,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2914,26 +2915,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     marginLeft: 2,
     borderWidth: 1,
-    borderColor: '#FF6B4A',
-    backgroundColor: 'rgba(255, 107, 74, 0.12)',
+    borderColor: C.accent,
+    backgroundColor: alpha(C.accent, 0.12),
     alignItems: 'center',
     justifyContent: 'center',
   },
   bpmLookupText: {
-    color: '#FF6B4A',
+    color: C.accent,
     fontFamily: FONTS.body,
     fontSize: 14,
     lineHeight: 16,
   },
   bpmText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 16,
     minWidth: 34,
     paddingVertical: 2,
     paddingHorizontal: 2,
     borderRadius: 0,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     textAlign: 'center',
   },
   playheadLine: {
@@ -2942,18 +2943,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 2,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
   },
   footer: {
     padding: 12,
     borderTopWidth: 2,
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   footerTipText: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 16,
     flex: 1,
@@ -2963,13 +2964,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 0,
   },
   playBeatmapBtnText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 17,
   },

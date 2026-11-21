@@ -8,12 +8,13 @@ import { ACTIVE_THEME } from '../../src/constants/theme';
 import { FONTS } from '../../src/theme/pixel';
 import { useUnreadCount } from '../../src/services/notifications';
 
+import { C } from '../../src/theme/palette';
 export default function TabLayout() {
   const { ui } = ACTIVE_THEME;
   const unread = useUnreadCount();
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#05070d' }}>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
       {/* One animated theme background behind every tab (hidden in the editor) */}
       <TabsBackground />
     <Tabs
@@ -32,10 +33,9 @@ export default function TabLayout() {
           // No fixed height/padding: React Navigation adds the bottom safe-area
           // inset itself (e.g. the iPhone home indicator).
         },
-        tabBarActiveTintColor: '#FF6B4A',
-        // Seven tabs: a smaller label so they all fit on narrow phones
-        tabBarLabelStyle: { fontFamily: FONTS.body, fontSize: 12 },
-        tabBarInactiveTintColor: '#9aa7c2',
+        tabBarActiveTintColor: C.accent,
+        tabBarLabelStyle: { fontFamily: FONTS.body, fontSize: 14 },
+        tabBarInactiveTintColor: C.textDim,
       }}
     >
       <Tabs.Screen
@@ -68,38 +68,20 @@ export default function TabLayout() {
       <Tabs.Screen
         name="social"
         options={{
+          // Friends, leaderboard and inbox in one tab (badge: unread notifications)
           title: 'Social',
+          tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
+          tabBarBadgeStyle: { backgroundColor: C.accent, color: C.onAccent, fontFamily: FONTS.body, fontSize: 12 },
           tabBarIcon: ({ color, size }) => (
             <PixelIcon name="friends" size={size || 22} color={String(color)} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="inbox"
-        options={{
-          title: 'Inbox',
-          tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
-          tabBarBadgeStyle: { backgroundColor: '#FF6B4A', color: '#000000', fontFamily: FONTS.body, fontSize: 12 },
-          tabBarIcon: ({ color, size }) => <PixelIcon name="bell" size={size || 22} color={String(color)} />,
-        }}
-      />
-      <Tabs.Screen
-        name="leaderboard"
-        options={{
-          title: 'Ranks',
-          tabBarIcon: ({ color, size }) => (
-            <PixelIcon name="trophy" size={size || 22} color={String(color)} />
-          ),
-        }}
-      />
+      {/* Profile: opened from the picture button at the top right of the Songs tab (no tab button) */}
+      {/* (Not href: null: in this expo-router version that also makes the route redirect away) */}
       <Tabs.Screen
         name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <PixelIcon name="person" size={size || 22} color={String(color)} />
-          ),
-        }}
+        options={{ title: 'Profile', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
     </Tabs>
     </View>

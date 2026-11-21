@@ -11,6 +11,7 @@ import { ACTIVE_THEME, ThemeConfig } from '../../constants/theme';
 import { PIXEL } from '../../theme/pixel';
 import { TILE_INSET } from './HoldTileView';
 
+import { C } from '../../theme/palette';
 interface TapTileViewProps {
   y: number;
   height: number;
@@ -22,13 +23,13 @@ interface TapTileViewProps {
 
 /** Colours for each tile state: base fill + bevel highlight/shadow. */
 export const TILE_STATES = {
-  normal: { base: '#2f6bff', light: '#7aa4ff', dark: '#163fa8' },
+  normal: { base: C.blueStrong, light: C.bluePale, dark: '#163fa8' },
   // Pressed like a button: darker, with the bevel flipped (pushed in) — used by hold / slide heads
   pressed: { base: '#163a8f', light: '#0c2260', dark: '#3f6fd6' },
   // A tapped tile turns green
-  hit: { base: '#22c46e', light: '#8af5b8', dark: '#0f7a43' },
+  hit: { base: C.success, light: '#8af5b8', dark: C.successDark },
   // Missed: turns red as it scrolls off the screen
-  missed: { base: '#d8342f', light: '#ff7a73', dark: '#7d1411' },
+  missed: { base: C.danger, light: C.dangerSoft, dark: C.dangerDeep },
 } as const;
 
 const BEVEL = PIXEL.unit;
@@ -108,7 +109,7 @@ const styles = StyleSheet.create({
     right: TILE_INSET,
     borderWidth: BEVEL,
   },
-  flash: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#ffffff' },
+  flash: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: C.white },
   ring: {
     position: 'absolute',
     left: TILE_INSET,

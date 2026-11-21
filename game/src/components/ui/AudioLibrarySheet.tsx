@@ -16,6 +16,7 @@ import {
 import { formatAudioTime } from '../../game/engine';
 import { FONTS } from '../../theme/pixel';
 
+import { C, alpha } from '../../theme/palette';
 interface AudioLibrarySheetProps {
   /** Source URIs of songs already in the library (shown as "Added"). */
   importedUris: Set<string>;
@@ -153,7 +154,7 @@ export function AudioLibrarySheet({
       case 'checking':
         return (
           <View style={styles.centerBox}>
-            <ActivityIndicator color="#4d8dff" />
+            <ActivityIndicator color={C.blue} />
           </View>
         );
 
@@ -161,7 +162,7 @@ export function AudioLibrarySheet({
         return (
           <Animated.View entering={FadeIn.duration(200)} style={styles.centerBox}>
             <View style={styles.bigIcon}>
-              <PixelIcon name="shield" size={28} color="#4d8dff" />
+              <PixelIcon name="shield" size={28} color={C.blue} />
             </View>
             <Text style={styles.infoTitle}>Find the music on your phone?</Text>
             <Text style={styles.infoText}>
@@ -173,7 +174,7 @@ export function AudioLibrarySheet({
               style={styles.primaryBtn}
               onPress={phase.blocked ? () => Linking.openSettings() : handleAllow}
             >
-              {phase.blocked ? <PixelIcon name="gear" size={14} color="#fff" /> : <PixelIcon name="shield" size={14} color="#fff" />}
+              {phase.blocked ? <PixelIcon name="gear" size={14} color={C.textStrong} /> : <PixelIcon name="shield" size={14} color={C.textStrong} />}
               <Text style={styles.primaryText}>{phase.blocked ? 'Open Settings' : 'Allow access'}</Text>
             </PressableScale>
           </Animated.View>
@@ -183,7 +184,7 @@ export function AudioLibrarySheet({
         return (
           <Animated.View entering={FadeIn.duration(200)} style={styles.centerBox}>
             <View style={styles.bigIcon}>
-              <PixelIcon name="folder" size={28} color="#4d8dff" />
+              <PixelIcon name="folder" size={28} color={C.blue} />
             </View>
             <Text style={styles.infoTitle}>Music library not available here</Text>
             <Text style={styles.infoText}>
@@ -193,7 +194,7 @@ export function AudioLibrarySheet({
             </Text>
             {phase.note ? <Text style={styles.noteText}>{phase.note}</Text> : null}
             <PressableScale style={styles.primaryBtn} onPress={handleScanFolder}>
-              <PixelIcon name="folder" size={14} color="#fff" />
+              <PixelIcon name="folder" size={14} color={C.textStrong} />
               <Text style={styles.primaryText}>Choose a folder to scan</Text>
             </PressableScale>
           </Animated.View>
@@ -202,7 +203,7 @@ export function AudioLibrarySheet({
       case 'scanning':
         return (
           <View style={styles.centerBox}>
-            <ActivityIndicator color="#4d8dff" />
+            <ActivityIndicator color={C.blue} />
             <Text style={styles.infoText}>Scanning for songs…</Text>
           </View>
         );
@@ -210,7 +211,7 @@ export function AudioLibrarySheet({
       case 'importing':
         return (
           <View style={styles.centerBox}>
-            <ActivityIndicator color="#4d8dff" />
+            <ActivityIndicator color={C.blue} />
             <Text style={styles.infoTitle}>
               Adding {phase.done + 1} of {phase.total}…
             </Text>
@@ -249,9 +250,9 @@ export function AudioLibrarySheet({
                   onPress={() => toggle(item.uri)}
                 >
                   <View style={[styles.checkbox, checked && styles.checkboxOn]}>
-                    {checked && <PixelIcon name="check" size={14} color="#ffffff" />}
+                    {checked && <PixelIcon name="check" size={14} color={C.textStrong} />}
                   </View>
-                  <PixelIcon name="note" size={14} color={added ? '#3a4a70' : '#4d8dff'} />
+                  <PixelIcon name="note" size={14} color={added ? C.textFaint : C.blue} />
                   <Text style={[styles.fileName, added && styles.fileNameAdded]} numberOfLines={1}>
                     {item.name.replace(/\.[^/.]+$/, '')}
                   </Text>
@@ -275,12 +276,12 @@ export function AudioLibrarySheet({
       <Animated.View entering={cardIn} exiting={cardOut} style={styles.sheet}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            <PixelIcon name="note" size={14} color="#4d8dff" />
+            <PixelIcon name="note" size={14} color={C.blue} />
             <Text style={styles.title}>Songs on your phone</Text>
           </View>
           {phase.kind !== 'importing' && (
             <PressableScale scaleTo={0.85} onPress={onClose} accessibilityLabel="Close">
-              <PixelIcon name="close" size={21} color="#9aa7c2" />
+              <PixelIcon name="close" size={21} color={C.textDim} />
             </PressableScale>
           )}
         </View>
@@ -294,18 +295,18 @@ export function AudioLibrarySheet({
               </Text>
               {!single && selectableFiles.length > 0 && (
                 <PressableScale scaleTo={0.92} style={styles.selectAllBtn} onPress={toggleAll}>
-                  <PixelIcon name="check" size={14} color="#4d8dff" />
+                  <PixelIcon name="check" size={14} color={C.blue} />
                   <Text style={styles.selectAllText}>{allSelected ? 'Clear' : 'Select all'}</Text>
                 </PressableScale>
               )}
             </View>
             <View style={styles.searchBox}>
-              <PixelIcon name="discover" size={18} color="#6b7a99" />
+              <PixelIcon name="discover" size={18} color={C.textMuted} />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search songs"
-                placeholderTextColor="#6b7a99"
+                placeholderTextColor={C.textMuted}
                 style={styles.searchInput}
               />
             </View>
@@ -320,7 +321,7 @@ export function AudioLibrarySheet({
             disabled={selectedCount === 0}
             onPress={handleAddSelected}
           >
-            <PixelIcon name="check" size={14} color="#ffffff" />
+            <PixelIcon name="check" size={14} color={C.textStrong} />
             <Text style={styles.addText}>
               {single
                 ? selectedCount === 0
@@ -333,7 +334,7 @@ export function AudioLibrarySheet({
           </PressableScale>
         ) : phase.kind !== 'importing' ? (
           <PressableScale style={styles.secondaryBtn} onPress={onBrowseFiles}>
-            <PixelIcon name="folder" size={14} color="#cdd6ea" />
+            <PixelIcon name="folder" size={14} color={C.textSoft} />
             <Text style={styles.secondaryText}>Pick a single file instead</Text>
           </PressableScale>
         ) : null}
@@ -347,16 +348,16 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     zIndex: 300,
     elevation: 300,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: alpha(C.black, 0.75),
   },
   sheet: {
     flex: 1,
     marginTop: 24,
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
@@ -373,7 +374,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 11,
   },
@@ -385,7 +386,7 @@ const styles = StyleSheet.create({
   },
   sourceText: {
     flex: 1,
-    color: '#6b7a99',
+    color: C.textMuted,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
@@ -396,10 +397,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 0,
-    backgroundColor: 'rgba(77, 141, 255, 0.12)',
+    backgroundColor: alpha(C.blue, 0.12),
   },
   selectAllText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
@@ -407,16 +408,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     borderRadius: 0,
     paddingHorizontal: 12,
     marginBottom: 8,
   },
   searchInput: {
     flex: 1,
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 19,
     paddingVertical: 10,
@@ -432,16 +433,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
   fileRowChecked: {
-    borderColor: '#FF6B4A',
-    backgroundColor: 'rgba(255, 107, 74, 0.12)',
+    borderColor: C.accent,
+    backgroundColor: alpha(C.accent, 0.12),
   },
   fileRowAdded: {
     opacity: 0.55,
@@ -451,31 +452,31 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 0,
     borderWidth: 2,
-    borderColor: '#3a4a70',
+    borderColor: C.textFaint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxOn: {
-    backgroundColor: '#FF6B4A',
-    borderColor: '#FF6B4A',
+    backgroundColor: C.accent,
+    borderColor: C.accent,
   },
   fileName: {
     flex: 1,
-    color: '#e6ecf7',
+    color: C.text,
     fontFamily: FONTS.body,
     fontSize: 19,
   },
   fileNameAdded: {
-    color: '#6b7a99',
+    color: C.textMuted,
   },
   addedTag: {
-    color: '#6b7a99',
+    color: C.textMuted,
     fontFamily: FONTS.body,
     fontSize: 13,
     letterSpacing: 1,
   },
   fileDuration: {
-    color: '#6b7a99',
+    color: C.textMuted,
     fontFamily: FONTS.body,
     fontSize: 16,
   },
@@ -490,26 +491,26 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 0,
-    backgroundColor: 'rgba(77, 141, 255, 0.12)',
+    backgroundColor: alpha(C.blue, 0.12),
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   infoTitle: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 11,
     textAlign: 'center',
   },
   infoText: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 17,
     textAlign: 'center',
     lineHeight: 18,
   },
   noteText: {
-    color: '#FF6B4A',
+    color: C.accent,
     fontFamily: FONTS.body,
     fontSize: 16,
     textAlign: 'center',
@@ -519,14 +520,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     borderRadius: 0,
     paddingHorizontal: 22,
     paddingVertical: 12,
     marginTop: 8,
   },
   primaryText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 19,
   },
@@ -534,28 +535,28 @@ const styles = StyleSheet.create({
     width: 180,
     height: 4,
     borderRadius: 0,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#4d8dff',
+    backgroundColor: C.blue,
   },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     borderRadius: 0,
     paddingVertical: 14,
     marginTop: 8,
   },
   addBtnDisabled: {
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
   },
   addText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 20,
   },
@@ -564,13 +565,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     borderRadius: 0,
     paddingVertical: 12,
     marginTop: 8,
   },
   secondaryText: {
-    color: '#cdd6ea',
+    color: C.textSoft,
     fontFamily: FONTS.body,
     fontSize: 17,
   },

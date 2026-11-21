@@ -9,12 +9,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { PixelIcon, type PixelIconName } from './PixelIcon';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
+import { C, alpha } from '../../theme/palette';
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
 export const DIFFICULTY_COLOR: Record<Difficulty, string> = {
-  easy: '#9cc0ff',
-  normal: '#4d8dff',
-  hard: '#2f6bff',
+  easy: C.blueSky,
+  normal: C.blue,
+  hard: C.blueStrong,
   expert: PIXEL.accent,
 };
 
@@ -33,7 +34,7 @@ export function CoverBanner({ uri, tall = false }: { uri: string; tall?: boolean
         />
       </Animated.View>
       <LinearGradient
-        colors={['rgba(11,18,32,0)', 'rgba(11,18,32,0.6)', PIXEL.panel]}
+        colors={[alpha(C.panel, 0), alpha(C.panel, 0.6), PIXEL.panel]}
         locations={[0.3, 0.72, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -76,9 +77,9 @@ export const cardPartStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   coverBanner: { position: 'absolute', top: 0, left: 0, right: 0, height: 96 },
   coverBannerTall: { height: 150 },
-  badge: { width: 46, height: 46, borderWidth: 2, backgroundColor: '#070b14', alignItems: 'center' },
+  badge: { width: 46, height: 46, borderWidth: 2, backgroundColor: C.bgDeep, alignItems: 'center' },
   badgeTop: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 2 },
-  badgeTopText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 6 },
+  badgeTopText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 6 },
   badgeLevel: { fontFamily: FONTS.pixel, fontSize: 13, marginTop: 5 },
   badgeIcon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

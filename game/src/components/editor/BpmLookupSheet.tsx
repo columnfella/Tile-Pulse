@@ -27,6 +27,7 @@ import {
 } from '../../services/songInfo';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
+import { C, alpha } from '../../theme/palette';
 const SEARCH_DEBOUNCE_MS = 500;
 
 type Mode = 'song' | 'artist' | 'songByArtist';
@@ -195,7 +196,7 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
         {source ? <Text style={styles.sourceText}>BPM source: {source}</Text> : null}
         {bpm !== null && (
           <PressableScale scaleTo={0.96} style={styles.applyBtn} onPress={() => onApply(bpm)}>
-            <PixelIcon name="check" size={14} color="#000000" />
+            <PixelIcon name="check" size={14} color={C.onAccent} />
             <Text style={styles.applyText}>
               {bpm === currentBpm ? `Already ${bpm} BPM` : `Use ${bpm} BPM (now ${currentBpm})`}
             </Text>
@@ -256,7 +257,7 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
           </Text>
           <Text style={styles.cardMeta}>{formatFans(item.fans)}</Text>
         </View>
-        <PixelIcon name="chevronRight" size={14} color="#3a4a70" />
+        <PixelIcon name="chevronRight" size={14} color={C.textFaint} />
       </View>
     </PressableScale>
   );
@@ -360,7 +361,7 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
           {openArtist ? (
             <View style={styles.artistHeader}>
               <PressableScale scaleTo={0.9} style={styles.backBtn} onPress={() => setOpenArtist(null)}>
-                <PixelIcon name="chevronLeft" size={14} color="#cdd6ea" />
+                <PixelIcon name="chevronLeft" size={14} color={C.textSoft} />
                 <Text style={styles.backText}>Artists</Text>
               </PressableScale>
               <Text style={styles.artistName} numberOfLines={1}>
@@ -370,12 +371,12 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
           ) : (
             <>
               <View style={styles.searchBox}>
-                <PixelIcon name="discover" size={14} color="#6b7a99" />
+                <PixelIcon name="discover" size={14} color={C.textMuted} />
                 <TextInput
                   value={query}
                   onChangeText={setQuery}
                   placeholder={mode === 'song' ? 'Song title…' : 'Artist name…'}
-                  placeholderTextColor="#6b7a99"
+                  placeholderTextColor={C.textMuted}
                   style={styles.searchInput}
                   returnKeyType="search"
                   autoCorrect={false}
@@ -384,12 +385,12 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
               </View>
               {mode === 'songByArtist' && (
                 <View style={styles.searchBox}>
-                  <PixelIcon name="note" size={14} color="#6b7a99" />
+                  <PixelIcon name="note" size={14} color={C.textMuted} />
                   <TextInput
                     value={songQuery}
                     onChangeText={setSongQuery}
                     placeholder="Song title…"
-                    placeholderTextColor="#6b7a99"
+                    placeholderTextColor={C.textMuted}
                     style={styles.searchInput}
                     returnKeyType="search"
                     autoCorrect={false}
@@ -411,7 +412,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: PIXEL.bg },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, gap: 8 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 13 },
+  title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 13 },
   closeBtn: {
     width: 34,
     height: 34,
@@ -419,11 +420,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: PIXEL.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   modeRow: { flexDirection: 'row', gap: 4, padding: 3, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight },
   modeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 7 },
-  modeBtnActive: { backgroundColor: 'rgba(77, 141, 255, 0.16)' },
+  modeBtnActive: { backgroundColor: alpha(C.blue, 0.16) },
   modeText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
   modeTextActive: { color: PIXEL.accent2 },
   searchBox: {
@@ -432,14 +433,14 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: PIXEL.panel,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     paddingHorizontal: 12,
   },
-  searchInput: { flex: 1, color: '#ffffff', fontFamily: FONTS.body, fontSize: 20, paddingVertical: 9 },
+  searchInput: { flex: 1, color: C.textStrong, fontFamily: FONTS.body, fontSize: 20, paddingVertical: 9 },
   artistHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingRight: 6 },
-  backText: { color: '#cdd6ea', fontFamily: FONTS.body, fontSize: 19 },
-  artistName: { flex: 1, color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10, textAlign: 'right' },
+  backText: { color: C.textSoft, fontFamily: FONTS.body, fontSize: 19 },
+  artistName: { flex: 1, color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 10, textAlign: 'right' },
   body: { flex: 1 },
   list: { padding: 16, paddingTop: 6, gap: 8 },
   card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 10 },
@@ -447,23 +448,23 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cover: { width: 38, height: 38, backgroundColor: PIXEL.panelLight, alignItems: 'center', justifyContent: 'center' },
   cardInfo: { flex: 1 },
-  cardTitle: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 20 },
+  cardTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 20 },
   cardMeta: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
   panel: { marginTop: 10, paddingTop: 10, borderTopWidth: 2, borderTopColor: PIXEL.panelLight },
   panelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statRow: { flexDirection: 'row', gap: 8 },
   statBox: {
     flex: 1,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
     borderColor: PIXEL.panelLight,
     paddingVertical: 8,
     alignItems: 'center',
   },
-  statLabel: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
+  statLabel: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
   statValue: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 13, marginTop: 4 },
-  statMissing: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 18 },
-  sourceText: { color: '#3a4a70', fontFamily: FONTS.body, fontSize: 15, marginTop: 6, textAlign: 'center' },
+  statMissing: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 18 },
+  sourceText: { color: C.textFaint, fontFamily: FONTS.body, fontSize: 15, marginTop: 6, textAlign: 'center' },
   applyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -473,11 +474,11 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     backgroundColor: PIXEL.accent2,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
-  applyText: { color: '#000000', fontFamily: FONTS.body, fontSize: 19 },
+  applyText: { color: C.onAccent, fontFamily: FONTS.body, fontSize: 19 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
   errorText: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
-  attribution: { color: '#3a4a70', fontFamily: FONTS.body, fontSize: 13, textAlign: 'center', paddingVertical: 6 },
+  attribution: { color: C.textFaint, fontFamily: FONTS.body, fontSize: 13, textAlign: 'center', paddingVertical: 6 },
 });

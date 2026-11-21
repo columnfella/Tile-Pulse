@@ -44,6 +44,7 @@ import {
   MAX_STARS,
 } from '../../services/social';
 
+import { C, alpha } from '../../theme/palette';
 const COMMENT_MAX = 300;
 
 const errorText = (err: unknown) =>
@@ -90,7 +91,7 @@ export function VoteButtons({
         style={[styles.voteBtn, small && styles.voteBtnSmall, myVote === 1 && styles.voteUpOn, disabled && styles.disabled]}
         accessibilityLabel="Like"
       >
-        <PixelIcon name="thumbUp" size={size} color={myVote === 1 ? '#000000' : '#22c46e'} />
+        <PixelIcon name="thumbUp" size={size} color={myVote === 1 ? C.onAccent : C.success} />
       </PressableScale>
       <Text style={[styles.voteScore, small && styles.voteScoreSmall, score < 0 && styles.voteNegative, score > 0 && styles.votePositive]}>
         {score > 0 ? `+${score}` : score}
@@ -102,7 +103,7 @@ export function VoteButtons({
         style={[styles.voteBtn, small && styles.voteBtnSmall, myVote === -1 && styles.voteDownOn, disabled && styles.disabled]}
         accessibilityLabel="Dislike"
       >
-        <PixelIcon name="thumbDown" size={size} color={myVote === -1 ? '#ffffff' : '#ff7a73'} />
+        <PixelIcon name="thumbDown" size={size} color={myVote === -1 ? C.textStrong : C.dangerSoft} />
       </PressableScale>
     </View>
   );
@@ -122,7 +123,7 @@ export function StarBar({
     <View style={styles.stars}>
       {Array.from({ length: MAX_STARS }, (_, i) => {
         const on = i < Math.round(value);
-        const star = <PixelIcon name="star" size={size} color={on ? '#f5b83d' : '#2a3654'} />;
+        const star = <PixelIcon name="star" size={size} color={on ? C.gold : C.lineStrong} />;
         return onPick ? (
           <PressableScale key={i} scaleTo={0.8} onPress={() => onPick(i + 1)} style={styles.starHit} accessibilityLabel={`${i + 1} stars`}>
             {star}
@@ -298,13 +299,13 @@ export function LevelSocialSheet({
             </Text>
             {isVerified ? (
               <View style={styles.verifiedChip}>
-                <PixelIcon name="check" size={10} color="#000000" />
+                <PixelIcon name="check" size={10} color={C.onAccent} />
                 <Text style={styles.verifiedText}>VERIFIED</Text>
               </View>
             ) : null}
           </View>
           <PressableScale scaleTo={0.88} style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
-            <PixelIcon name="close" size={14} color="#cdd6ea" />
+            <PixelIcon name="close" size={14} color={C.textSoft} />
           </PressableScale>
         </View>
 
@@ -318,7 +319,7 @@ export function LevelSocialSheet({
           {staff ? (
             <View style={[styles.section, styles.modSection]}>
               <View style={styles.modHead}>
-                <PixelIcon name="shield" size={12} color="#7dff8a" />
+                <PixelIcon name="shield" size={12} color={C.successBright} />
                 <Text style={styles.modTitle}>MODERATOR</Text>
               </View>
               <View style={styles.modRow}>
@@ -328,11 +329,11 @@ export function LevelSocialSheet({
                   disabled={busyKey === 'verify'}
                   style={[styles.modBtn, isVerified ? styles.modBtnOff : styles.modBtnOn]}
                 >
-                  {busyKey === 'verify' ? <ActivityIndicator size="small" color="#000000" /> : <PixelIcon name="check" size={11} color={isVerified ? '#7dff8a' : '#000000'} />}
+                  {busyKey === 'verify' ? <ActivityIndicator size="small" color={C.onAccent} /> : <PixelIcon name="check" size={11} color={isVerified ? C.successBright : C.onAccent} />}
                   <Text style={[styles.modBtnText, isVerified && styles.modBtnTextOff]}>{isVerified ? 'UNVERIFY' : 'VERIFY'}</Text>
                 </PressableScale>
                 <PressableScale scaleTo={0.95} onPress={() => setAsking({ kind: 'level' })} style={[styles.modBtn, styles.modBtnDanger]}>
-                  <PixelIcon name="trash" size={11} color="#ffffff" />
+                  <PixelIcon name="trash" size={11} color={C.textStrong} />
                   <Text style={[styles.modBtnText, styles.modBtnTextDanger]}>REMOVE LEVEL</Text>
                 </PressableScale>
               </View>
@@ -445,7 +446,7 @@ export function LevelSocialSheet({
                   value={draft}
                   onChangeText={setDraft}
                   placeholder="Say something nice…"
-                  placeholderTextColor="#6b7a99"
+                  placeholderTextColor={C.textMuted}
                   maxLength={COMMENT_MAX}
                   multiline
                   style={styles.input}
@@ -460,7 +461,7 @@ export function LevelSocialSheet({
                     onPress={send}
                     style={[styles.sendBtn, (!draft.trim() || posting) && styles.disabled]}
                   >
-                    {posting ? <ActivityIndicator size="small" color="#000000" /> : null}
+                    {posting ? <ActivityIndicator size="small" color={C.onAccent} /> : null}
                     <Text style={styles.sendText}>POST</Text>
                   </PressableScale>
                 </View>
@@ -495,7 +496,7 @@ export function LevelSocialSheet({
                   {c.canModerate ? (
                     // Moderator: remove with a reason (the writer is told why)
                     <PressableScale scaleTo={0.85} onPress={() => setAsking({ kind: 'comment', comment: c })} style={styles.deleteBtn} accessibilityLabel="Remove comment (moderator)">
-                      <PixelIcon name="shield" size={12} color="#ff7a73" />
+                      <PixelIcon name="shield" size={12} color={C.dangerSoft} />
                     </PressableScale>
                   ) : c.canDelete ? (
                     <PressableScale scaleTo={0.85} onPress={() => remove(c)} style={styles.deleteBtn} accessibilityLabel="Delete comment">
@@ -548,84 +549,84 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, gap: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11, flex: 1 },
-  closeBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: '#000000' },
+  title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11, flex: 1 },
+  closeBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: C.outline },
   scroll: { paddingHorizontal: 16, paddingBottom: 30, gap: 12 },
   description: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 19, lineHeight: 22 },
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 8 },
-  sectionTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 9 },
-  label: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7, marginTop: 6 },
+  sectionTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9 },
+  label: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 6 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
   disabled: { opacity: 0.45 },
 
   likeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   voteRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 2 },
-  voteBtn: { width: 38, height: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: '#070b14' },
+  voteBtn: { width: 38, height: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep },
   voteBtnSmall: { width: 30, height: 24 },
-  voteUpOn: { backgroundColor: '#22c46e', borderColor: '#000000' },
-  voteDownOn: { backgroundColor: '#d8342f', borderColor: '#000000' },
+  voteUpOn: { backgroundColor: C.success, borderColor: C.outline },
+  voteDownOn: { backgroundColor: C.danger, borderColor: C.outline },
   voteScore: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 11, minWidth: 34, textAlign: 'center' },
   voteScoreSmall: { fontSize: 8, minWidth: 26 },
-  votePositive: { color: '#22c46e' },
-  voteNegative: { color: '#ff7a73' },
+  votePositive: { color: C.success },
+  voteNegative: { color: C.dangerSoft },
   likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: '#ff7a9a', backgroundColor: 'rgba(255, 122, 154, 0.08)' },
-  likeBtnOn: { backgroundColor: '#e64980', borderColor: '#000000' },
+  likeBtnOn: { backgroundColor: '#e64980', borderColor: C.outline },
   likeText: { color: '#ff7a9a', fontFamily: FONTS.pixel, fontSize: 8 },
-  likeTextOn: { color: '#ffffff' },
+  likeTextOn: { color: C.textStrong },
   diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  diffStars: { color: '#f5b83d', fontFamily: FONTS.pixel, fontSize: 20 },
-  diffOf: { color: '#6b7a99', fontSize: 10 },
+  diffStars: { color: C.gold, fontFamily: FONTS.pixel, fontSize: 20 },
+  diffOf: { color: C.textMuted, fontSize: 10 },
   diffCount: { alignItems: 'flex-end' },
   diffVotes: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 12 },
-  progressTrack: { height: 6, backgroundColor: '#070b14', borderWidth: 1, borderColor: PIXEL.panelLight },
-  progressFill: { height: '100%', backgroundColor: '#f5b83d' },
+  progressTrack: { height: 6, backgroundColor: C.bgDeep, borderWidth: 1, borderColor: PIXEL.panelLight },
+  progressFill: { height: '100%', backgroundColor: C.gold },
   dist: { flexDirection: 'row', gap: 4, marginTop: 4 },
   distCol: { flex: 1, alignItems: 'center', gap: 2 },
-  distN: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 13 },
-  distTrack: { width: '100%', height: 46, justifyContent: 'flex-end', backgroundColor: '#070b14' },
-  distBar: { width: '100%', backgroundColor: '#2a3654' },
-  distBarTop: { backgroundColor: '#f5b83d' },
-  distLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 6 },
-  distLabelTop: { color: '#f5b83d' },
+  distN: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 13 },
+  distTrack: { width: '100%', height: 46, justifyContent: 'flex-end', backgroundColor: C.bgDeep },
+  distBar: { width: '100%', backgroundColor: C.lineStrong },
+  distBarTop: { backgroundColor: C.gold },
+  distLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 6 },
+  distLabelTop: { color: C.gold },
   stars: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
   starHit: { padding: 2 },
 
   composer: { gap: 6 },
   composerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   input: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 19,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     paddingHorizontal: 10,
     paddingVertical: 7,
     minHeight: 60,
     textAlignVertical: 'top',
   },
-  sendBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: '#000000' },
-  sendText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 8 },
+  sendBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: C.outline },
+  sendText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 8 },
 
-  comment: { flexDirection: 'row', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#111a2e' },
-  avatar: { width: 32, height: 32, backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: '#000000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  avatarText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10 },
+  comment: { flexDirection: 'row', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.lineSoft },
+  avatar: { width: 32, height: 32, backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: C.outline, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarText: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 10 },
   commentHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' },
-  commentName: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 18, flexShrink: 1 },
-  verifiedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#4d8dff', borderWidth: 2, borderColor: '#000000', paddingHorizontal: 5, paddingVertical: 3 },
-  verifiedText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 6 },
-  modSection: { borderColor: '#2f6b3a', backgroundColor: 'rgba(125,255,138,0.05)' },
+  commentName: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 18, flexShrink: 1 },
+  verifiedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.blue, borderWidth: 2, borderColor: C.outline, paddingHorizontal: 5, paddingVertical: 3 },
+  verifiedText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 6 },
+  modSection: { borderColor: C.successDeep, backgroundColor: alpha(C.successBright, 0.05) },
   modHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modTitle: { color: '#7dff8a', fontFamily: FONTS.pixel, fontSize: 8 },
+  modTitle: { color: C.successBright, fontFamily: FONTS.pixel, fontSize: 8 },
   modRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  modBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 2, borderColor: '#000000' },
-  modBtnOn: { backgroundColor: '#7dff8a' },
-  modBtnOff: { backgroundColor: 'transparent', borderColor: '#2f6b3a' },
-  modBtnDanger: { backgroundColor: '#d8342f' },
-  modBtnText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 7 },
-  modBtnTextOff: { color: '#7dff8a' },
-  modBtnTextDanger: { color: '#ffffff' },
+  modBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 2, borderColor: C.outline },
+  modBtnOn: { backgroundColor: C.successBright },
+  modBtnOff: { backgroundColor: 'transparent', borderColor: C.successDeep },
+  modBtnDanger: { backgroundColor: C.danger },
+  modBtnText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 7 },
+  modBtnTextOff: { color: C.successBright },
+  modBtnTextDanger: { color: C.textStrong },
   commentBody: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18, marginTop: 2 },
   deleteBtn: { padding: 6 },
   moreBtn: { alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 8, borderWidth: 2, borderColor: PIXEL.panelLight },

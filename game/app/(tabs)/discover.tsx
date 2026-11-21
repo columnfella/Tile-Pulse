@@ -38,6 +38,7 @@ import {
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 import { CoverBanner, LevelBadge } from '../../src/components/ui/LevelCardParts';
 
+import { C, alpha } from '../../src/theme/palette';
 const SEARCH_DEBOUNCE_MS = 400;
 const PAGE_SIZE = 20;
 
@@ -64,9 +65,9 @@ const SORTS: { key: LevelSort; label: string; icon?: PixelIconName }[] = [
 ];
 
 const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = [
-  { key: 'easy', label: 'Easy', color: '#9cc0ff' },
-  { key: 'normal', label: 'Normal', color: '#4d8dff' },
-  { key: 'hard', label: 'Hard', color: '#2f6bff' },
+  { key: 'easy', label: 'Easy', color: C.blueSky },
+  { key: 'normal', label: 'Normal', color: C.blue },
+  { key: 'hard', label: 'Hard', color: C.blueStrong },
   { key: 'expert', label: 'Expert', color: PIXEL.accent },
 ];
 
@@ -157,11 +158,11 @@ function Stepper({ value, onChange, min, max }: { value: number; onChange: (v: n
   return (
     <View style={styles.stepper}>
       <PressableScale scaleTo={0.85} style={styles.stepBtn} disabled={value <= min} onPress={() => onChange(value - 1)}>
-        <PixelIcon name="minus" size={7} color={value <= min ? '#3a4a70' : PIXEL.text} />
+        <PixelIcon name="minus" size={7} color={value <= min ? C.textFaint : PIXEL.text} />
       </PressableScale>
       <Text style={styles.stepValue}>{value}</Text>
       <PressableScale scaleTo={0.85} style={styles.stepBtn} disabled={value >= max} onPress={() => onChange(value + 1)}>
-        <PixelIcon name="plus" size={7} color={value >= max ? '#3a4a70' : PIXEL.text} />
+        <PixelIcon name="plus" size={7} color={value >= max ? C.textFaint : PIXEL.text} />
       </PressableScale>
     </View>
   );
@@ -383,8 +384,8 @@ export default function DiscoverScreen() {
           disabled={filterCount === 0}
           onPress={() => setFilters(DEFAULT_FILTERS)}
         >
-          <PixelIcon name="reset" size={7} color={filterCount === 0 ? '#3a4a70' : PIXEL.accent} />
-          <Text style={[styles.resetText, filterCount === 0 && { color: '#3a4a70' }]}>Reset</Text>
+          <PixelIcon name="reset" size={7} color={filterCount === 0 ? C.textFaint : PIXEL.accent} />
+          <Text style={[styles.resetText, filterCount === 0 && { color: C.textFaint }]}>Reset</Text>
         </PressableScale>
       </View>
     </Animated.View>
@@ -418,7 +419,7 @@ export default function DiscoverScreen() {
                 </Text>
                 {item.verified ? (
                   <View style={styles.verifiedTag} accessibilityLabel="Verified level">
-                    <PixelIcon name="check" size={8} color="#000000" />
+                    <PixelIcon name="check" size={8} color={C.onAccent} />
                   </View>
                 ) : null}
               </View>
@@ -449,18 +450,18 @@ export default function DiscoverScreen() {
             <Text style={styles.statDot}>■</Text>
             <Text style={styles.stat}>{item.noteCount} notes</Text>
             <View style={styles.flex} />
-            <PixelIcon name="play" size={7} color="#6b7a99" />
+            <PixelIcon name="play" size={7} color={C.textMuted} />
             <Text style={styles.stat}>{formatPlays(item.plays)}</Text>
-            <PixelIcon name={(item.score ?? 0) < 0 ? 'thumbDown' : 'thumbUp'} size={7} color={(item.score ?? 0) < 0 ? '#ff7a73' : '#22c46e'} />
+            <PixelIcon name={(item.score ?? 0) < 0 ? 'thumbDown' : 'thumbUp'} size={7} color={(item.score ?? 0) < 0 ? C.dangerSoft : C.success} />
             <Text style={[styles.stat, (item.score ?? 0) < 0 && styles.negative]}>{item.score ?? 0}</Text>
             {item.difficultyVotes?.stars ? (
               <>
-                <PixelIcon name="star" size={7} color="#f5b83d" />
+                <PixelIcon name="star" size={7} color={C.gold} />
                 <Text style={[styles.stat, styles.starsOfficial]}>{item.difficultyVotes.stars}</Text>
               </>
             ) : item.difficultyVotes?.leading ? (
               <>
-                <PixelIcon name="star" size={7} color="#6b7a99" />
+                <PixelIcon name="star" size={7} color={C.textMuted} />
                 <Text style={styles.stat}>~{item.difficultyVotes.leading}</Text>
               </>
             ) : null}
@@ -496,7 +497,7 @@ export default function DiscoverScreen() {
                   <Text style={styles.socialText}>COMMENTS ({item.comments ?? 0})</Text>
                 </PressableScale>
                 <PressableScale scaleTo={0.96} style={[styles.socialBtn, styles.rateBtn]} onPress={() => setSocialLevel(item)}>
-                  <PixelIcon name="star" size={14} color="#f5b83d" />
+                  <PixelIcon name="star" size={14} color={C.gold} />
                   <Text style={[styles.socialText, styles.rateText]}>
                     RATE{item.difficultyVotes?.stars ? ` · ${item.difficultyVotes.stars}★` : ''}
                   </Text>
@@ -518,9 +519,9 @@ export default function DiscoverScreen() {
                   onPress={() => handleGet(item)}
                 >
                   {isDownloading ? (
-                    <ActivityIndicator size="small" color="#000000" />
+                    <ActivityIndicator size="small" color={C.onAccent} />
                   ) : (
-                    <PixelIcon name="download" size={14} color="#000000" />
+                    <PixelIcon name="download" size={14} color={C.onAccent} />
                   )}
                   <Text style={styles.primaryText}>
                     {!item.song.audio ? 'NO AUDIO YET' : isDownloading ? 'GETTING…' : 'GET LEVEL'}
@@ -597,22 +598,22 @@ export default function DiscoverScreen() {
             }}
             accessibilityLabel="Filters"
           >
-            <PixelIcon name="filter" size={14} color={filtersOpen || filterCount > 0 ? '#000000' : PIXEL.text} />
-            <Text style={[styles.filterBtnText, (filtersOpen || filterCount > 0) && { color: '#000000' }]}>
+            <PixelIcon name="filter" size={14} color={filtersOpen || filterCount > 0 ? C.onAccent : PIXEL.text} />
+            <Text style={[styles.filterBtnText, (filtersOpen || filterCount > 0) && { color: C.onAccent }]}>
               FILTERS{filterCount > 0 ? ` ${filterCount}` : ''}
             </Text>
           </PressableScale>
         </View>
 
         <View style={styles.searchBox}>
-          <PixelIcon name="discover" size={14} color="#6b7a99" />
+          <PixelIcon name="discover" size={14} color={C.textMuted} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder={
               field === 'all' ? 'Search levels, songs, mappers…' : `Search by ${SEARCH_FIELDS.find((f) => f.key === field)!.label.toLowerCase()}…`
             }
-            placeholderTextColor="#6b7a99"
+            placeholderTextColor={C.textMuted}
             style={styles.searchInput}
             returnKeyType="search"
             autoCorrect={false}
@@ -620,7 +621,7 @@ export default function DiscoverScreen() {
           />
           {query.length > 0 ? (
             <PressableScale scaleTo={0.85} onPress={() => setQuery('')} accessibilityLabel="Clear search">
-              <PixelIcon name="close" size={14} color="#6b7a99" />
+              <PixelIcon name="close" size={14} color={C.textMuted} />
             </PressableScale>
           ) : null}
         </View>
@@ -715,13 +716,13 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   titleShrink: { flexShrink: 1 },
-  verifiedTag: { backgroundColor: '#4d8dff', borderWidth: 2, borderColor: '#000000', padding: 2 },
+  verifiedTag: { backgroundColor: C.blue, borderWidth: 2, borderColor: C.outline, padding: 2 },
   description: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18, lineHeight: 21 },
-  negative: { color: '#ff7a73' },
-  starsOfficial: { color: '#f5b83d' },
+  negative: { color: C.dangerSoft },
+  starsOfficial: { color: C.gold },
   socialRow: { flexDirection: 'row', gap: 8 },
-  rateBtn: { borderColor: '#f5b83d', backgroundColor: 'rgba(245, 184, 61, 0.08)' },
-  rateText: { color: '#f5b83d' },
+  rateBtn: { borderColor: C.gold, backgroundColor: alpha(C.gold, 0.08) },
+  rateText: { color: C.gold },
   socialBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -732,7 +733,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 2,
     borderColor: PIXEL.accent2,
-    backgroundColor: 'rgba(77, 141, 255, 0.08)',
+    backgroundColor: alpha(C.blue, 0.08),
   },
   socialText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 18 },
   lockTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -741,7 +742,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4, gap: 8 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 14 },
+  title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 14 },
   subtitle: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17, marginTop: 4 },
   filterBtn: {
     flexDirection: 'row',
@@ -751,7 +752,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     backgroundColor: PIXEL.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   filterBtnActive: { backgroundColor: PIXEL.accent },
   filterBtnText: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 8 },
@@ -762,19 +763,19 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: PIXEL.panel,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     paddingHorizontal: 12,
   },
-  searchInput: { flex: 1, color: '#ffffff', fontFamily: FONTS.body, fontSize: 20, paddingVertical: 9 },
+  searchInput: { flex: 1, color: C.textStrong, fontFamily: FONTS.body, fontSize: 20, paddingVertical: 9 },
 
   fieldRow: { flexDirection: 'row', gap: 3, padding: 3, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight },
   fieldBtn: { flex: 1, alignItems: 'center', paddingVertical: 5 },
-  fieldBtnActive: { backgroundColor: 'rgba(77, 141, 255, 0.18)' },
+  fieldBtnActive: { backgroundColor: alpha(C.blue, 0.18) },
   fieldText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
   fieldTextActive: { color: PIXEL.accent2 },
 
   sortRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
-  sortLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7, marginRight: 2 },
+  sortLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginRight: 2 },
 
   chip: {
     flexDirection: 'row',
@@ -796,7 +797,7 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 6,
   },
-  filterLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
+  filterLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   levelTo: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -807,7 +808,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: PIXEL.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   stepValue: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 10, minWidth: 24, textAlign: 'center' },
   filterFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
@@ -826,14 +827,14 @@ const styles = StyleSheet.create({
   shaderTag: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 15 },
   cardExpanded: { borderColor: PIXEL.accent },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  badge: { width: 46, height: 46, borderWidth: 2, backgroundColor: '#070b14', alignItems: 'center' },
+  badge: { width: 46, height: 46, borderWidth: 2, backgroundColor: C.bgDeep, alignItems: 'center' },
   badgeTop: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 2 },
-  badgeTopText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 6 },
+  badgeTopText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 6 },
   badgeLevel: { fontFamily: FONTS.pixel, fontSize: 13, marginTop: 5 },
   cardInfo: { flex: 1 },
-  cardTitle: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 21 },
+  cardTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 21 },
   cardSong: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 17 },
-  cardAuthor: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 15 },
+  cardAuthor: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15 },
   ownedTag: {
     width: 22,
     height: 22,
@@ -853,7 +854,7 @@ const styles = StyleSheet.create({
     borderTopColor: PIXEL.panelLight,
   },
   stat: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
-  statDot: { color: '#3a4a70', fontSize: 6 },
+  statDot: { color: C.textFaint, fontSize: 6 },
 
   panel: { marginTop: 8, gap: 8 },
   detailRow: { flexDirection: 'row', gap: 6 },
@@ -861,11 +862,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 6,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
     borderColor: PIXEL.panelLight,
   },
-  detailLabel: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
+  detailLabel: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 14, letterSpacing: 1 },
   detailValue: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 10, marginTop: 3 },
   primaryBtn: {
     flexDirection: 'row',
@@ -875,10 +876,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: PIXEL.accent2,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   primaryBtnDisabled: { backgroundColor: PIXEL.panelLight },
-  primaryText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 10 },
+  primaryText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 10 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 32 },
   bigIcon: {
@@ -890,7 +891,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: PIXEL.panelLight,
   },
-  infoTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11 },
+  infoTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
   code: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 17 },
   errorText: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
@@ -914,7 +915,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    backgroundColor: '#0b1a33',
+    backgroundColor: C.blueNight,
     borderWidth: 2,
     borderColor: PIXEL.accent2,
   },

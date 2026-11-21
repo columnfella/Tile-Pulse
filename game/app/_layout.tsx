@@ -16,6 +16,7 @@ import { startMenuMusic } from '../src/services/menuMusic';
 import { NowPlayingToast } from '../src/components/ui/NowPlayingToast';
 import * as Updates from 'expo-updates';
 
+import { C } from '../src/theme/palette';
 /**
  * Immersive full-screen mode: hides the status bar (all platforms) and the
  * Android navigation bar (back/home/recents). Users can still swipe from the
@@ -39,7 +40,7 @@ function useImmersiveMode() {
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const MIN_SPLASH_MS = 1400;
-const APP_BACKGROUND = '#05070d';
+const APP_BACKGROUND = C.bg;
 
 /**
  * Navigation colours: the library's default theme is white, which flashed for
@@ -50,10 +51,10 @@ const NAV_THEME = {
   colors: {
     ...DarkTheme.colors,
     background: APP_BACKGROUND,
-    card: '#0b1220',
-    border: '#15203a',
-    primary: '#FF6B4A',
-    text: '#e6ecf7',
+    card: C.panel,
+    border: C.panelLight,
+    primary: C.accent,
+    text: C.text,
   },
 };
 
@@ -130,7 +131,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#05070d' },
+          contentStyle: { backgroundColor: C.bg },
           animation: 'fade_from_bottom',
         }}
       >

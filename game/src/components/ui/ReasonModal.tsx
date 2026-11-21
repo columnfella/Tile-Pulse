@@ -7,6 +7,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, StyleSheet, T
 import { PressableScale } from './PressableScale';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
+import { C, alpha } from '../../theme/palette';
 const MAX = 300;
 
 interface Props {
@@ -69,7 +70,7 @@ export function ReasonModal({ visible, title, message, confirmLabel, presets = [
             value={reason}
             onChangeText={setReason}
             placeholder="Reason (the player will see it)"
-            placeholderTextColor="#6b7a99"
+            placeholderTextColor={C.textMuted}
             maxLength={MAX}
             multiline
             style={styles.input}
@@ -85,7 +86,7 @@ export function ReasonModal({ visible, title, message, confirmLabel, presets = [
               onPress={confirm}
               style={[styles.confirm, destructive && styles.confirmDanger, (!ok || busy) && styles.disabled]}
             >
-              {busy ? <ActivityIndicator size="small" color={destructive ? '#ffffff' : '#000000'} /> : null}
+              {busy ? <ActivityIndicator size="small" color={destructive ? C.textStrong : C.onAccent} /> : null}
               <Text style={[styles.confirmText, destructive && styles.confirmTextDanger]}>{confirmLabel}</Text>
             </PressableScale>
           </View>
@@ -96,22 +97,22 @@ export function ReasonModal({ visible, title, message, confirmLabel, presets = [
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 },
-  card: { backgroundColor: PIXEL.panel, borderWidth: 3, borderColor: '#000000', padding: 16, gap: 10 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11 },
+  backdrop: { flex: 1, backgroundColor: alpha(C.black, 0.7), justifyContent: 'center', padding: 20 },
+  card: { backgroundColor: PIXEL.panel, borderWidth: 3, borderColor: C.outline, padding: 16, gap: 10 },
+  title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11 },
   message: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18 },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   preset: { borderWidth: 2, borderColor: PIXEL.panelLight, paddingHorizontal: 8, paddingVertical: 5 },
-  presetOn: { borderColor: PIXEL.accent2, backgroundColor: 'rgba(77,141,255,0.15)' },
+  presetOn: { borderColor: PIXEL.accent2, backgroundColor: alpha(C.blue, 0.15) },
   presetText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
-  presetTextOn: { color: '#ffffff' },
+  presetTextOn: { color: C.textStrong },
   input: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 19,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     paddingHorizontal: 10,
     paddingVertical: 7,
     minHeight: 70,
@@ -121,9 +122,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
   cancel: { paddingHorizontal: 14, paddingVertical: 10, borderWidth: 2, borderColor: PIXEL.panelLight },
   cancelText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 8 },
-  confirm: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: PIXEL.accent2, borderWidth: 2, borderColor: '#000000' },
-  confirmDanger: { backgroundColor: '#d8342f' },
-  confirmText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 8 },
-  confirmTextDanger: { color: '#ffffff' },
+  confirm: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: PIXEL.accent2, borderWidth: 2, borderColor: C.outline },
+  confirmDanger: { backgroundColor: C.danger },
+  confirmText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 8 },
+  confirmTextDanger: { color: C.textStrong },
   disabled: { opacity: 0.45 },
 });

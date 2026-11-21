@@ -27,6 +27,7 @@ import {
 } from '../../services/profile';
 import { acceptFriend, addFriend, presenceText, removeFriend } from '../../services/friends';
 
+import { C, alpha } from '../../theme/palette';
 const errorText = (err: unknown) =>
   err instanceof ApiUnavailableError
     ? `Can’t reach the community server (${API_BASE}).`
@@ -156,7 +157,7 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
         <View style={styles.header}>
           <Text style={styles.headerTitle}>PLAYER</Text>
           <PressableScale scaleTo={0.88} style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
-            <PixelIcon name="close" size={14} color="#cdd6ea" />
+            <PixelIcon name="close" size={14} color={C.textSoft} />
           </PressableScale>
         </View>
         <ScrollView contentContainerStyle={styles.scroll}>
@@ -212,9 +213,9 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
                       style={[styles.friendBtn, friendBtn.kind === 'primary' && styles.friendPrimary, friendBtn.kind === 'danger' && styles.friendDanger]}
                     >
                       {busy ? (
-                        <ActivityIndicator size="small" color={friendBtn.kind === 'primary' ? '#000000' : PIXEL.accent2} />
+                        <ActivityIndicator size="small" color={friendBtn.kind === 'primary' ? C.onAccent : PIXEL.accent2} />
                       ) : (
-                        <PixelIcon name={friendBtn.icon} size={14} color={friendBtn.kind === 'primary' ? '#000000' : friendBtn.kind === 'danger' ? '#ff7a73' : PIXEL.accent2} />
+                        <PixelIcon name={friendBtn.icon} size={14} color={friendBtn.kind === 'primary' ? C.onAccent : friendBtn.kind === 'danger' ? C.dangerSoft : PIXEL.accent2} />
                       )}
                       <Text style={[styles.friendText, friendBtn.kind === 'primary' && styles.friendTextPrimary, friendBtn.kind === 'danger' && styles.friendTextDanger]}>
                         {friendBtn.label}
@@ -229,7 +230,7 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
               {staff && mod ? (
                 <View style={[styles.section, styles.modSection]}>
                   <View style={styles.modHead}>
-                    <PixelIcon name="shield" size={12} color="#7dff8a" />
+                    <PixelIcon name="shield" size={12} color={C.successBright} />
                     <Text style={styles.modTitle}>MODERATOR</Text>
                   </View>
                   {mod.bannedAt ? (
@@ -248,17 +249,17 @@ export function ProfileSheet({ username, onClose }: { username: string | null; o
                   ) : (
                     <View style={styles.modRow}>
                       <PressableScale scaleTo={0.95} onPress={() => setAsking('warn')} style={[styles.modBtn, styles.modWarn]}>
-                        <PixelIcon name="warning" size={11} color="#000000" />
+                        <PixelIcon name="warning" size={11} color={C.onAccent} />
                         <Text style={styles.modBtnText}>WARN</Text>
                       </PressableScale>
                       {mod.bannedAt ? (
                         <PressableScale scaleTo={0.95} disabled={busy} onPress={unban} style={[styles.modBtn, styles.modUnban]}>
-                          <PixelIcon name="check" size={11} color="#000000" />
+                          <PixelIcon name="check" size={11} color={C.onAccent} />
                           <Text style={styles.modBtnText}>UNBAN</Text>
                         </PressableScale>
                       ) : (
                         <PressableScale scaleTo={0.95} onPress={() => setAsking('ban')} style={[styles.modBtn, styles.modBan]}>
-                          <PixelIcon name="close" size={11} color="#ffffff" />
+                          <PixelIcon name="close" size={11} color={C.textStrong} />
                           <Text style={[styles.modBtnText, styles.modBtnTextLight]}>BAN</Text>
                         </PressableScale>
                       )}
@@ -338,59 +339,59 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: PIXEL.bg },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
-  headerTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11 },
-  closeBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: '#000000' },
+  headerTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11 },
+  closeBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: C.outline },
   scroll: { paddingHorizontal: 16, paddingBottom: 30, gap: 12 },
   loader: { marginTop: 40 },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
 
-  card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: '#000000' },
+  card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: C.outline },
   banner: { height: 100, overflow: 'hidden' },
   cardBody: { paddingHorizontal: 14, paddingBottom: 14 },
   avatar: { width: 76, height: 76, marginTop: -40, marginBottom: 8, borderWidth: 4, borderColor: PIXEL.panel, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  avatarText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 26 },
-  name: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 13, flexShrink: 1 },
+  avatarText: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 26 },
+  name: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 13, flexShrink: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center' },
   badges: { marginTop: 8 },
-  modSection: { borderColor: '#2f6b3a', backgroundColor: 'rgba(125,255,138,0.05)' },
+  modSection: { borderColor: C.successDeep, backgroundColor: alpha(C.successBright, 0.05) },
   modHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modTitle: { color: '#7dff8a', fontFamily: FONTS.pixel, fontSize: 8 },
-  banned: { color: '#ff7a73', fontFamily: FONTS.pixel, fontSize: 7 },
+  modTitle: { color: C.successBright, fontFamily: FONTS.pixel, fontSize: 8 },
+  banned: { color: C.dangerSoft, fontFamily: FONTS.pixel, fontSize: 7 },
   warnLine: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 16 },
-  warnMeta: { color: '#6b7a99' },
+  warnMeta: { color: C.textMuted },
   modRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  modBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: '#000000' },
-  modWarn: { backgroundColor: '#ffb84d' },
-  modBan: { backgroundColor: '#d8342f' },
-  modUnban: { backgroundColor: '#7dff8a' },
-  modBtnText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 7 },
-  modBtnTextLight: { color: '#ffffff' },
+  modBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: C.outline },
+  modWarn: { backgroundColor: C.warning },
+  modBan: { backgroundColor: C.danger },
+  modUnban: { backgroundColor: C.successBright },
+  modBtnText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 7 },
+  modBtnTextLight: { color: C.textStrong },
   username: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 19, marginTop: 4 },
   presenceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  dot: { width: 8, height: 8, backgroundColor: '#3a4a70' },
-  dotOn: { backgroundColor: '#22c46e' },
+  dot: { width: 8, height: 8, backgroundColor: C.textFaint },
+  dotOn: { backgroundColor: C.success },
   dotPlaying: { backgroundColor: PIXEL.accent },
   stats: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  stat: { flex: 1, backgroundColor: '#070b14', borderWidth: 2, borderColor: PIXEL.panelLight, paddingVertical: 8, alignItems: 'center', gap: 4 },
-  statValue: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 12 },
-  statLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 6 },
+  stat: { flex: 1, backgroundColor: C.bgDeep, borderWidth: 2, borderColor: PIXEL.panelLight, paddingVertical: 8, alignItems: 'center', gap: 4 },
+  statValue: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
+  statLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 6 },
   friendBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 10, borderWidth: 2, borderColor: PIXEL.accent2 },
-  friendPrimary: { backgroundColor: PIXEL.accent, borderColor: '#000000' },
-  friendDanger: { borderColor: '#d8342f', backgroundColor: 'rgba(216, 52, 47, 0.08)' },
+  friendPrimary: { backgroundColor: PIXEL.accent, borderColor: C.outline },
+  friendDanger: { borderColor: C.danger, backgroundColor: alpha(C.danger, 0.08) },
   friendText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 8 },
-  friendTextPrimary: { color: '#000000' },
-  friendTextDanger: { color: '#ff7a73' },
+  friendTextPrimary: { color: C.onAccent },
+  friendTextDanger: { color: C.dangerSoft },
 
   tabs: { flexDirection: 'row', gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: '#070b14' },
-  chipActive: { borderColor: PIXEL.accent, backgroundColor: 'rgba(255, 107, 74, 0.12)' },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep },
+  chipActive: { borderColor: PIXEL.accent, backgroundColor: alpha(C.accent, 0.12) },
   chipText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18 },
   chipTextActive: { color: PIXEL.accent },
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
-  thumb: { width: 42, height: 42, backgroundColor: '#070b14', borderWidth: 2, borderColor: PIXEL.panelLight, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  rowTitle: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 18 },
+  thumb: { width: 42, height: 42, backgroundColor: C.bgDeep, borderWidth: 2, borderColor: PIXEL.panelLight, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  rowTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 18 },
   rowRight: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 8 },
-  hc: { color: '#ff7a73', fontFamily: FONTS.pixel, fontSize: 6, marginTop: 2 },
+  hc: { color: C.dangerSoft, fontFamily: FONTS.pixel, fontSize: 6, marginTop: 2 },
 });

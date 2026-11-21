@@ -28,6 +28,7 @@ import { formatAudioTime } from '../../game/engine';
 import type { Song } from '../../types/song';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
+import { C, alpha } from '../../theme/palette';
 const MIN_BPM = 40;
 const MAX_BPM = 300;
 const TIME_SIGNATURES = ['4/4', '3/4', '6/8'] as const;
@@ -177,12 +178,12 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
               <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : (
               <View style={styles.coverEmpty}>
-                <PixelIcon name="image" size={28} color="#3a4a70" />
+                <PixelIcon name="image" size={28} color={C.textFaint} />
                 <Text style={styles.muted}>Tap to add a cover picture (optional)</Text>
               </View>
             )}
             <LinearGradient
-              colors={['rgba(11,18,32,0)', 'rgba(11,18,32,0.55)', PIXEL.panel]}
+              colors={[alpha(C.panel, 0), alpha(C.panel, 0.55), PIXEL.panel]}
               locations={[0.35, 0.7, 1]}
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
@@ -225,7 +226,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
               value={title}
               onChangeText={setTitle}
               placeholder="Song name"
-              placeholderTextColor="#6b7a99"
+              placeholderTextColor={C.textMuted}
               maxLength={60}
               style={styles.input}
             />
@@ -233,7 +234,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
               value={artist}
               onChangeText={setArtist}
               placeholder="Artist (optional)"
-              placeholderTextColor="#6b7a99"
+              placeholderTextColor={C.textMuted}
               maxLength={60}
               style={styles.input}
             />
@@ -281,7 +282,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
             disabled={saving}
             onPress={handleCreate}
           >
-            {saving ? <ActivityIndicator size="small" color="#000000" /> : <PixelIcon name="check" size={14} color="#000000" />}
+            {saving ? <ActivityIndicator size="small" color={C.onAccent} /> : <PixelIcon name="check" size={14} color={C.onAccent} />}
             <Text style={styles.primaryText}>{saving ? 'CREATING…' : 'CREATE & EDIT NOTES'}</Text>
           </PressableScale>
         </View>
@@ -308,7 +309,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 12 },
+  title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
   closeBtn: {
     width: 34,
     height: 34,
@@ -316,28 +317,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: PIXEL.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   scroll: { paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
 
   cover: { height: 160, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, overflow: 'hidden' },
   coverEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingBottom: 40 },
   coverText: { position: 'absolute', left: 12, right: 12, bottom: 10 },
-  coverTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 12 },
+  coverTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
   coverSub: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17, marginTop: 4 },
 
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 9 },
-  label: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
+  sectionTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9 },
+  label: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   input: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 20,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
@@ -345,15 +346,15 @@ const styles = StyleSheet.create({
   audioName: { flex: 1, color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18 },
   bpmRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bpmInput: { width: 76, textAlign: 'center', color: PIXEL.accent2 },
-  tapBtn: { paddingHorizontal: 10, paddingVertical: 8, borderWidth: 2, borderColor: PIXEL.accent, backgroundColor: 'rgba(255, 107, 74, 0.12)' },
+  tapBtn: { paddingHorizontal: 10, paddingVertical: 8, borderWidth: 2, borderColor: PIXEL.accent, backgroundColor: alpha(C.accent, 0.12) },
   tapText: { color: PIXEL.accent, fontFamily: FONTS.pixel, fontSize: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 5, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: '#070b14' },
-  chipActive: { borderColor: PIXEL.accent2, backgroundColor: 'rgba(77, 141, 255, 0.15)' },
+  chip: { paddingHorizontal: 12, paddingVertical: 5, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep },
+  chipActive: { borderColor: PIXEL.accent2, backgroundColor: alpha(C.blue, 0.15) },
   chipText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18 },
   chipTextActive: { color: PIXEL.accent2 },
 
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
-  note: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 15 },
+  note: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15 },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
   linkBtn: { alignSelf: 'flex-start', paddingVertical: 2, paddingHorizontal: 4, marginTop: -6 },
   linkText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 17 },
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderWidth: 2,
     borderColor: PIXEL.accent2,
-    backgroundColor: 'rgba(77, 141, 255, 0.1)',
+    backgroundColor: alpha(C.blue, 0.1),
   },
   secondaryText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 9 },
 
@@ -378,8 +379,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: PIXEL.accent,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   btnDisabled: { opacity: 0.5 },
-  primaryText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 10 },
+  primaryText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 10 },
 });

@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { SlideEdge, SlideStrip } from '../../game/engine';
 
+import { C } from '../../theme/palette';
 const LANE = 25; // % of the board per lane
 
 export interface SlideColors {
@@ -15,10 +16,10 @@ export interface SlideColors {
 }
 
 export const SLIDE_COLORS = {
-  normal: { body: '#123a9e', light: '#7aa4ff', dark: '#0a1f5c', rail: '#4d8dff' },
-  filled: { body: '#2f6bff', light: '#b3caff', dark: '#163fa8', rail: '#FF6B4A' },
-  missed: { body: '#7d1411', light: '#ff7a73', dark: '#4a0b09', rail: '#d8342f' },
-  selected: { body: '#1d4fd1', light: '#ffffff', dark: '#ffffff', rail: '#FF6B4A' },
+  normal: { body: C.blueDark, light: C.bluePale, dark: C.blueAbyss, rail: C.blue },
+  filled: { body: C.blueStrong, light: '#b3caff', dark: '#163fa8', rail: C.accent },
+  missed: { body: C.dangerDeep, light: C.dangerSoft, dark: '#4a0b09', rail: C.danger },
+  selected: { body: '#1d4fd1', light: C.white, dark: C.white, rail: C.accent },
 } satisfies Record<string, SlideColors>;
 
 interface SlideBodyProps {

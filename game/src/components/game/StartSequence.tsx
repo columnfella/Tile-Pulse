@@ -14,6 +14,7 @@ import { countdownOut, popIn } from '../ui/motion';
 import { PixelIcon } from '../ui/PixelIcon';
 import { FONTS } from '../../theme/pixel';
 
+import { C } from '../../theme/palette';
 interface LoadingOverlayProps {
   title?: string;
   subtitle?: string;
@@ -57,7 +58,7 @@ export function LoadingOverlay({ title, subtitle }: LoadingOverlayProps) {
       <View style={styles.iconWrap}>
         <Animated.View style={[styles.ring, ringStyle]} />
         <Animated.View style={[styles.icon, iconStyle]}>
-          <PixelIcon name="note" size={28} color="#ffffff" />
+          <PixelIcon name="note" size={28} color={C.textStrong} />
         </Animated.View>
       </View>
 
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     zIndex: 200,
     elevation: 200,
-    backgroundColor: '#05070d',
+    backgroundColor: C.bg,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
@@ -141,29 +142,29 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: 0,
     borderWidth: 2,
-    borderColor: '#4d8dff',
+    borderColor: C.blue,
   },
   icon: {
     width: 72,
     height: 72,
     borderRadius: 0,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4d8dff',
+    shadowColor: C.blue,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 0 },
     elevation: 12,
   },
   title: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 14,
     letterSpacing: 0,
     maxWidth: '90%',
   },
   subtitle: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 17,
     marginTop: 4,
@@ -172,7 +173,7 @@ const styles = StyleSheet.create({
     width: 160,
     height: 4,
     borderRadius: 0,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     overflow: 'hidden',
     marginTop: 28,
   },
@@ -182,10 +183,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '40%',
     borderRadius: 0,
-    backgroundColor: '#4d8dff',
+    backgroundColor: C.blue,
   },
   loadingText: {
-    color: '#6b7a99',
+    color: C.textMuted,
     fontFamily: FONTS.body,
     fontSize: 16,
     letterSpacing: 1,
@@ -199,15 +200,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(3, 7, 18, 0.35)',
   },
   countdownText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 67,
-    textShadowColor: '#4d8dff',
+    textShadowColor: C.blue,
     textShadowRadius: 30,
     textShadowOffset: { width: 0, height: 0 },
   },
   goText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.pixel,
     fontSize: 50,
   },

@@ -4,6 +4,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { comboBump } from '../ui/motion';
 import { FONTS } from '../../theme/pixel';
 
+import { C } from '../../theme/palette';
 interface ComboDisplayProps {
   combo: number;
 }
@@ -43,8 +44,8 @@ const styles = StyleSheet.create({
   comboNumber: {
     fontFamily: FONTS.pixel,
     fontSize: 29,
-    color: '#ffffff',
-    textShadowColor: '#FF6B4A',
+    color: C.textStrong,
+    textShadowColor: C.accent,
     textShadowOffset: { width: 3, height: 3 },
     textShadowRadius: 0.1,
   },
@@ -52,6 +53,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.body,
     fontSize: 15,
     letterSpacing: 3,
-    color: '#4d8dff',
+    color: C.blue,
   },
 });

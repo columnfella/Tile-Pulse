@@ -23,6 +23,7 @@ import {
 import type { Song } from '../../types/song';
 import { FONTS } from '../../theme/pixel';
 
+import { C, alpha } from '../../theme/palette';
 const MAX_TITLE_LENGTH = 60;
 
 /* --------------------------- Background picker -------------------------- */
@@ -76,7 +77,7 @@ export function BackgroundPicker({ value, onChange, defaultBackground, bpm }: Ba
               </View>
               {selected && (
                 <View style={styles.checkBadge}>
-                  <PixelIcon name="check" size={14} color="#ffffff" />
+                  <PixelIcon name="check" size={14} color={C.textStrong} />
                 </View>
               )}
             </View>
@@ -115,7 +116,7 @@ function Sheet({
               <Text style={styles.title}>{title}</Text>
             </View>
             <PressableScale scaleTo={0.85} onPress={onClose} accessibilityLabel="Close">
-              <PixelIcon name="close" size={21} color="#9aa7c2" />
+              <PixelIcon name="close" size={21} color={C.textDim} />
             </PressableScale>
           </View>
           <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -176,11 +177,11 @@ export function SongSettingsSheet({ song, defaultBackground, onSave, onClose, co
   return (
     <Sheet
       title="Song settings"
-      icon={<PixelIcon name="pencil" size={14} color="#4d8dff" />}
+      icon={<PixelIcon name="pencil" size={14} color={C.blue} />}
       onClose={onClose}
       footer={
         <PressableScale style={[styles.saveBtn, saving && styles.saveBtnBusy]} disabled={saving} onPress={handleSave}>
-          <PixelIcon name="check" size={14} color="#ffffff" />
+          <PixelIcon name="check" size={14} color={C.textStrong} />
           <Text style={styles.saveText}>{saving ? 'Saving…' : 'Save'}</Text>
         </PressableScale>
       }
@@ -194,7 +195,7 @@ export function SongSettingsSheet({ song, defaultBackground, onSave, onClose, co
         }}
         maxLength={MAX_TITLE_LENGTH}
         placeholder="Song name"
-        placeholderTextColor="#6b7a99"
+        placeholderTextColor={C.textMuted}
         style={styles.input}
         returnKeyType="done"
       />
@@ -212,7 +213,7 @@ export function SongSettingsSheet({ song, defaultBackground, onSave, onClose, co
             {cover.uri ? (
               <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : (
-              <PixelIcon name="image" size={21} color="#3a4a70" />
+              <PixelIcon name="image" size={21} color={C.textFaint} />
             )}
           </View>
           <View style={styles.coverRow}>
@@ -222,7 +223,7 @@ export function SongSettingsSheet({ song, defaultBackground, onSave, onClose, co
               disabled={coverBusy}
               onPress={() => void coverAction(cover.onPick)}
             >
-              <PixelIcon name="image" size={14} color="#4d8dff" />
+              <PixelIcon name="image" size={14} color={C.blue} />
               <Text style={styles.coverBtnText}>{cover.uri ? 'Change cover' : 'Add cover'}</Text>
             </PressableScale>
             {cover.uri ? (
@@ -232,7 +233,7 @@ export function SongSettingsSheet({ song, defaultBackground, onSave, onClose, co
                 disabled={coverBusy}
                 onPress={() => void coverAction(cover.onRemove)}
               >
-                <PixelIcon name="close" size={14} color="#9aa7c2" />
+                <PixelIcon name="close" size={14} color={C.textDim} />
                 <Text style={styles.coverBtnText}>Remove</Text>
               </PressableScale>
             ) : null}
@@ -263,7 +264,7 @@ interface ThemeSettingsSheetProps {
 /** App-wide theme: the default background for menus and songs set to "Theme default". */
 export function ThemeSettingsSheet({ value, onChange, onClose }: ThemeSettingsSheetProps) {
   return (
-    <Sheet title="App theme" icon={<PixelIcon name="palette" size={18} color="#4d8dff" />} onClose={onClose}>
+    <Sheet title="App theme" icon={<PixelIcon name="palette" size={18} color={C.blue} />} onClose={onClose}>
       <Text style={styles.sectionLabel}>THEME BACKGROUND</Text>
       <Text style={styles.sectionHint}>
         Shown behind the song list, and during any song whose background is set to “Theme default”.
@@ -277,9 +278,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   coverBox: {
     height: 120,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -292,65 +293,65 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 2,
-    borderColor: '#1f2e52',
-    backgroundColor: '#070b14',
+    borderColor: C.line,
+    backgroundColor: C.bgDeep,
   },
-  coverBtnText: { color: '#e6ecf7', fontFamily: FONTS.body, fontSize: 17 },
+  coverBtnText: { color: C.text, fontFamily: FONTS.body, fontSize: 17 },
   backdrop: {
     ...StyleSheet.absoluteFill,
     zIndex: 300,
     elevation: 300,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: alpha(C.black, 0.75),
   },
   sheet: {
     flex: 1,
     marginTop: 24,
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11, },
+  title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11, },
   scrollContent: { paddingBottom: 16 },
-  sectionLabel: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 15, letterSpacing: 1.5, marginTop: 8, marginBottom: 6 },
-  sectionHint: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 16, marginBottom: 10, lineHeight: 16 },
+  sectionLabel: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15, letterSpacing: 1.5, marginTop: 8, marginBottom: 6 },
+  sectionHint: { color: C.textDim, fontFamily: FONTS.body, fontSize: 16, marginBottom: 10, lineHeight: 16 },
   input: {
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 11,
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 20,
   },
   inputMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 8 },
-  errorText: { color: '#FF6B4A', fontFamily: FONTS.body, fontSize: 16 },
-  counter: { color: '#3a4a70', fontFamily: FONTS.body, fontSize: 15, },
+  errorText: { color: C.accent, fontFamily: FONTS.body, fontSize: 16 },
+  counter: { color: C.textFaint, fontFamily: FONTS.body, fontSize: 15, },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   option: {
     padding: 4,
     borderRadius: 0,
     borderWidth: 2,
-    borderColor: '#15203a',
-    backgroundColor: '#070b14',
+    borderColor: C.panelLight,
+    backgroundColor: C.bgDeep,
     alignItems: 'center',
   },
-  optionSelected: { borderColor: '#4d8dff' },
-  preview: { borderRadius: 0, overflow: 'hidden', backgroundColor: '#05070d' },
+  optionSelected: { borderColor: C.blue },
+  preview: { borderRadius: 0, overflow: 'hidden', backgroundColor: C.bg },
   previewLanes: {
     ...StyleSheet.absoluteFill,
     flexDirection: 'row',
     justifyContent: 'space-evenly',
   },
-  previewLaneLine: { width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.08)' },
+  previewLaneLine: { width: StyleSheet.hairlineWidth, backgroundColor: alpha(C.white, 0.08) },
   checkBadge: {
     position: 'absolute',
     top: 6,
@@ -358,22 +359,22 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 0,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  optionLabel: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 16, marginTop: 5, marginBottom: 2 },
-  optionLabelSelected: { color: '#4d8dff', fontWeight: 'bold' },
+  optionLabel: { color: C.textDim, fontFamily: FONTS.body, fontSize: 16, marginTop: 5, marginBottom: 2 },
+  optionLabelSelected: { color: C.blue, fontWeight: 'bold' },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     borderRadius: 0,
     paddingVertical: 14,
     marginTop: 8,
   },
   saveBtnBusy: { opacity: 0.6 },
-  saveText: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 20, },
+  saveText: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 20, },
 });

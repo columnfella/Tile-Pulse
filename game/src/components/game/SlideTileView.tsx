@@ -11,6 +11,7 @@ import { slideXAt } from '../../game/engine';
 import { FONTS } from '../../theme/pixel';
 import { SLIDE_HEAD_HEIGHT } from './SlideLayer';
 
+import { C } from '../../theme/palette';
 export interface LiveSlideProgress {
   songTime: SharedValue<number>;
   start: number;
@@ -65,7 +66,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.pixel,
     fontSize: 7,
     lineHeight: 10,
-    color: '#000000',
+    color: C.onAccent,
   },
-  headTextHolding: { color: '#ffffff' },
+  headTextHolding: { color: C.textStrong },
 });

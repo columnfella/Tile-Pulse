@@ -1,26 +1,26 @@
 /**
- * Leaderboard tab: players ranked by their accumulated score — the sum of
- * their best run on every community level (replays of a level don't stack).
+ * Social tab → Ranks: players ranked by their accumulated score — the sum of
+ * their best run on every verified community level (replays don't stack).
  */
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useFocusEffect } from 'expo-router';
-import { ScreenView } from '../../src/components/ui/ScreenView';
-import { PixelIcon } from '../../src/components/ui/PixelIcon';
-import { PressableScale } from '../../src/components/ui/PressableScale';
-import { ProfileSheet } from '../../src/components/ui/ProfileSheet';
-import { BadgeIcon } from '../../src/components/ui/Badges';
-import { listItemIn } from '../../src/components/ui/motion';
-import { FONTS, PIXEL } from '../../src/theme/pixel';
-import { API_BASE, ApiUnavailableError } from '../../src/services/communityApi';
-import { getSession } from '../../src/services/account';
-import { avatarUrl } from '../../src/services/profile';
-import { getLeaderboard, type Leaderboard, type LeaderboardEntry } from '../../src/services/friends';
+import { PixelIcon } from '../../components/ui/PixelIcon';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { ProfileSheet } from '../../components/ui/ProfileSheet';
+import { BadgeIcon } from '../../components/ui/Badges';
+import { listItemIn } from '../../components/ui/motion';
+import { FONTS, PIXEL } from '../../theme/pixel';
+import { API_BASE, ApiUnavailableError } from '../../services/communityApi';
+import { getSession } from '../../services/account';
+import { avatarUrl } from '../../services/profile';
+import { getLeaderboard, type Leaderboard, type LeaderboardEntry } from '../../services/friends';
 
-const MEDAL = ['#f5b83d', '#cdd6ea', '#d08a4f'] as const; // gold, silver, bronze
+import { C } from '../../theme/palette';
+const MEDAL = [C.gold, C.textSoft, '#d08a4f'] as const; // gold, silver, bronze
 
-export default function LeaderboardScreen() {
+export function RanksPanel() {
   const [data, setData] = useState<Leaderboard | null>(null);
   const [me, setMe] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,7 +90,7 @@ export default function LeaderboardScreen() {
   };
 
   return (
-    <ScreenView style={styles.root}>
+    <View style={styles.root}>
       <FlatList
         data={data?.players ?? []}
         keyExtractor={(e) => e.player.id}
@@ -99,10 +99,6 @@ export default function LeaderboardScreen() {
         refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={load} tintColor={PIXEL.accent2} />}
         ListHeaderComponent={
           <View style={styles.headerWrap}>
-            <View style={styles.header}>
-              <PixelIcon name="trophy" size={21} color="#f5b83d" />
-              <Text style={styles.title}>LEADERBOARD</Text>
-            </View>
             <Text style={styles.muted}>
               Total score = your best run on every VERIFIED community level (made by someone else). Replaying a level only counts if you beat your best.
             </Text>
@@ -117,7 +113,7 @@ export default function LeaderboardScreen() {
                 {!data.me.rank ? <Text style={styles.muted}>Finish a verified level from Discover to get ranked.</Text> : null}
               </View>
             ) : data ? (
-              <Text style={styles.muted}>Sign in (Profile tab) to see your own rank.</Text>
+              <Text style={styles.muted}>Sign in (profile button on the Songs tab) to see your own rank.</Text>
             ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
@@ -131,35 +127,33 @@ export default function LeaderboardScreen() {
         }
       />
       <ProfileSheet username={viewing} onClose={() => setViewing(null)} />
-    </ScreenView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   nameShrink: { flexShrink: 1 },
-  root: { backgroundColor: 'transparent' },
+  root: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
   list: { padding: 16, paddingBottom: 40, gap: 6 },
   headerWrap: { gap: 10, marginBottom: 8 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 14 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
   loader: { marginTop: 30 },
   empty: { textAlign: 'center', marginTop: 30 },
 
   meCard: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.accent, padding: 12, gap: 4 },
-  meLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7 },
+  meLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7 },
   meRank: { color: PIXEL.accent, fontFamily: FONTS.pixel, fontSize: 20 },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight },
   rowMe: { borderColor: PIXEL.accent },
-  rankBox: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: '#070b14', gap: 2 },
+  rankBox: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep, gap: 2 },
   rank: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 9 },
-  avatar: { width: 38, height: 38, backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: '#000000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  avatarText: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 12 },
-  name: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 19 },
+  avatar: { width: 38, height: 38, backgroundColor: PIXEL.panelLight, borderWidth: 2, borderColor: C.outline, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarText: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
+  name: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 19 },
   you: { color: PIXEL.accent, fontFamily: FONTS.pixel, fontSize: 7 },
-  total: { color: '#f5b83d', fontFamily: FONTS.pixel, fontSize: 10 },
+  total: { color: C.gold, fontFamily: FONTS.pixel, fontSize: 10 },
 });

@@ -1,7 +1,7 @@
 {
   "name": "tile-pulse",
   "main": "expo-router/entry",
-  "version": "0.19.5",
+  "version": "0.20.0",
   "private": true,
   "scripts": {
     "start": "expo start",

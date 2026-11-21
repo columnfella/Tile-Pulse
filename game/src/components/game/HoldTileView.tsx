@@ -19,6 +19,7 @@ import { TILE_STATES } from './TapTileView';
 import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 import { FX_CELL, pixelCirclePath, pixelExtent } from './pixelShapes';
 
+import { C } from '../../theme/palette';
 const HEAD_HEIGHT = 40;
 /** Height of the HOLD head (the part you must press to start the hold). */
 export const HOLD_HEAD_HEIGHT = HEAD_HEIGHT;
@@ -28,14 +29,14 @@ const BEVEL = PIXEL.unit;
 export const TILE_INSET = 2;
 
 /** Coral "being pressed" colours for the head. */
-const CORAL = { base: '#FF6B4A', light: '#ffb39f', dark: '#a83a22' } as const;
+const CORAL = { base: C.accent, light: C.accentSoft, dark: C.accentDeep } as const;
 /** Fill colours, top (leading edge) → bottom: coral → blue → navy. */
-const FILL_GRADIENT = ['#FF6B4A', '#2f6bff', '#123a9e'] as const;
+const FILL_GRADIENT = [C.accent, C.blueStrong, C.blueDark] as const;
 /** Completed: the whole tile charges up to green. */
-const DONE_GRADIENT = ['#b6ffd6', '#22c46e', '#0f7a43'] as const;
+const DONE_GRADIENT = ['#b6ffd6', C.success, C.successDark] as const;
 const DONE_MS = 650;
 /** Resting body: deep navy → black. */
-const BODY_GRADIENT = ['#0b1a40', '#05070d'] as const;
+const BODY_GRADIENT = ['#0b1a40', C.bg] as const;
 
 /** Live hold progress, computed on the UI thread from the song clock. */
 export interface LiveHoldProgress {
@@ -55,9 +56,9 @@ function PixelArc({ radius, light = false }: { radius: number; light?: boolean }
     <Svg width={e * 2} height={e} viewBox={`${-e} ${-e} ${e * 2} ${e}`}>
       <Defs>
         <SvgGradient id="arc" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={light ? '#ffd2c5' : '#ffffff'} />
-          <Stop offset="0.45" stopColor={light ? '#ffb39f' : '#FF6B4A'} />
-          <Stop offset="1" stopColor={light ? '#7aa4ff' : '#4d8dff'} />
+          <Stop offset="0" stopColor={light ? '#ffd2c5' : C.white} />
+          <Stop offset="0.45" stopColor={light ? C.accentSoft : C.accent} />
+          <Stop offset="1" stopColor={light ? C.bluePale : C.blue} />
         </SvgGradient>
       </Defs>
       <Path d={d} fill="url(#arc)" />
@@ -122,10 +123,10 @@ function ArcFill({
 
 /** Pixel ring frames for the press burst: small → big, coral → blue. */
 const RING_FRAMES = [
-  { scale: 0.35, color: '#ffffff' },
-  { scale: 0.6, color: '#FF6B4A' },
+  { scale: 0.35, color: C.textStrong },
+  { scale: 0.6, color: C.accent },
   { scale: 0.85, color: '#ff9a7f' },
-  { scale: 1.1, color: '#4d8dff' },
+  { scale: 1.1, color: C.blue },
 ] as const;
 
 /**
@@ -270,7 +271,7 @@ export const HoldTileView = memo(function HoldTileView({
         {
           top: y,
           height,
-          backgroundColor: isMissed ? `${edge.base}55` : '#05070d',
+          backgroundColor: isMissed ? `${edge.base}55` : C.bg,
           // Pushed in while pressed: dark top/left, light bottom/right
           borderTopColor: pressed ? edge.dark : edge.light,
           borderLeftColor: pressed ? edge.dark : edge.light,
@@ -348,8 +349,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  headGlow: { backgroundColor: '#ffffff' },
-  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: 28, backgroundColor: '#ffffff' },
-  headText: { fontFamily: FONTS.pixel, fontSize: 8, color: '#000000', letterSpacing: 1 },
-  headTextHolding: { color: '#ffffff' },
+  headGlow: { backgroundColor: C.white },
+  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: 28, backgroundColor: C.white },
+  headText: { fontFamily: FONTS.pixel, fontSize: 8, color: C.onAccent, letterSpacing: 1 },
+  headTextHolding: { color: C.textStrong },
 });

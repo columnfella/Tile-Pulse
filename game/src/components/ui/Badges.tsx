@@ -4,21 +4,22 @@ import { PixelIcon, type PixelIconName } from './PixelIcon';
 import { FONTS, PIXEL } from '../../theme/pixel';
 import type { Badge } from '../../services/profile';
 
+import { C, alpha } from '../../theme/palette';
 /**
  * Badge looks (icon + colour). The server decides who has which badge; ids it
  * doesn't know yet (from a newer server) fall back to a plain star.
  */
 const LOOKS: Record<string, { icon: PixelIconName; color: string; label: string }> = {
-  owner: { icon: 'crown', color: '#ffd23f', label: 'OWNER' },
+  owner: { icon: 'crown', color: C.yellow, label: 'OWNER' },
   developer: { icon: 'terminal', color: '#4dd6ff', label: 'DEV' },
-  moderator: { icon: 'modShield', color: '#7dff8a', label: 'MOD' },
+  moderator: { icon: 'modShield', color: C.successBright, label: 'MOD' },
   bug_hunter: { icon: 'bug', color: '#c38bff', label: 'BUG HUNTER' },
   artist: { icon: 'note', color: '#ff8fd0', label: 'ARTIST' },
   supporter: { icon: 'heart', color: '#ff6b8a', label: 'SUPPORTER' },
-  verified_creator: { icon: 'check', color: '#4d8dff', label: 'VERIFIED CREATOR' },
-  hardcore_hero: { icon: 'skull', color: '#FF6B4A', label: 'HARDCORE' },
-  early_tester: { icon: 'star', color: '#ffb84d', label: 'EARLY TESTER' },
-  creator: { icon: 'pencil', color: '#9aa7c2', label: 'CREATOR' },
+  verified_creator: { icon: 'check', color: C.blue, label: 'VERIFIED CREATOR' },
+  hardcore_hero: { icon: 'skull', color: C.accent, label: 'HARDCORE' },
+  early_tester: { icon: 'star', color: C.warning, label: 'EARLY TESTER' },
+  creator: { icon: 'pencil', color: C.textDim, label: 'CREATOR' },
 };
 const FALLBACK = { icon: 'star' as PixelIconName, color: PIXEL.textDim, label: 'BADGE' };
 
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 5,
     minHeight: 24,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: alpha(C.black, 0.35),
   },
   // The pixel font carries extra top padding on Android: trim it so the label
   // sits on the icon's centre line

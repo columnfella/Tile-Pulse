@@ -12,6 +12,7 @@ import { PixelIcon } from './PixelIcon';
 import { FONTS, PIXEL } from '../../theme/pixel';
 import { useMenuMusicSettings, useTrackStart, type TrackStart } from '../../services/menuMusic';
 
+import { C, alpha } from '../../theme/palette';
 const SHOW_MS = 7000;
 /** A track that started this recently still gets its pop-up once the app is visible (after the splash). */
 const LATE_MS = 15000;
@@ -61,7 +62,7 @@ export function NowPlayingToast({ ready = true }: { ready?: boolean }) {
         accessibilityLabel={`Now playing ${c?.song ?? track.title}${c?.composer ? ` by ${c.composer}` : ''}`}
       >
         <View style={styles.iconBox}>
-          <PixelIcon name="note" size={16} color="#000000" />
+          <PixelIcon name="note" size={16} color={C.onAccent} />
         </View>
         <View style={styles.flex}>
           <Text style={styles.kicker}>NOW PLAYING</Text>
@@ -101,22 +102,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(11, 18, 32, 0.96)',
+    backgroundColor: alpha(C.panel, 0.96),
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
     borderLeftWidth: 5,
     borderLeftColor: PIXEL.accent,
     paddingVertical: 9,
     paddingHorizontal: 10,
-    shadowColor: '#000000',
+    shadowColor: C.outline,
     shadowOpacity: 0.5,
     shadowRadius: 0,
     shadowOffset: { width: 4, height: 4 },
   },
-  iconBox: { width: 30, height: 30, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: '#000000', alignItems: 'center', justifyContent: 'center' },
+  iconBox: { width: 30, height: 30, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: C.outline, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1, gap: 1 },
   kicker: { color: PIXEL.accent, fontFamily: FONTS.pixel, fontSize: 6 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 9, marginTop: 3 },
+  title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9, marginTop: 3 },
   by: { color: PIXEL.accent2 },
   line: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 15 },
   close: { padding: 4, alignSelf: 'flex-start' },

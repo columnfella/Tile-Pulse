@@ -19,9 +19,10 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { ScreenView } from '../../src/components/ui/ScreenView';
+import { publishMyProfile } from '../../src/services/myAvatar';
 import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
 import { PressableScale } from '../../src/components/ui/PressableScale';
 import { DIFFICULTY_COLOR } from '../../src/components/ui/LevelCardParts';
@@ -50,7 +51,8 @@ import {
   type PublicProfile,
 } from '../../src/services/profile';
 
-const BANNER_COLORS = ['#2f6bff', '#FF6B4A', '#22c46e', '#8b5cf6', '#f5b83d', '#e64980', '#14b8a6', '#15203a'];
+import { C, alpha } from '../../src/theme/palette';
+const BANNER_COLORS = [C.blueStrong, C.accent, C.success, '#8b5cf6', C.gold, '#e64980', '#14b8a6', C.panelLight];
 const PASSWORD_MIN = 10;
 
 type Tab = 'history' | 'uploads' | 'settings';
@@ -114,7 +116,7 @@ function Button({
       onPress={onPress}
       style={[styles.btn, kind === 'primary' && styles.btnPrimary, kind === 'danger' && styles.btnDanger, off && styles.btnDisabled]}
     >
-      {busy ? <ActivityIndicator size="small" color={kind === 'primary' ? '#000000' : PIXEL.accent2} /> : null}
+      {busy ? <ActivityIndicator size="small" color={kind === 'primary' ? C.onAccent : PIXEL.accent2} /> : null}
       <Text style={[styles.btnText, kind === 'primary' && styles.btnTextPrimary, kind === 'danger' && styles.btnTextDanger]}>
         {label}
       </Text>
@@ -123,7 +125,7 @@ function Button({
 }
 
 function Field(props: React.ComponentProps<typeof TextInput>) {
-  return <TextInput placeholderTextColor="#6b7a99" autoCapitalize="none" autoCorrect={false} {...props} style={styles.input} />;
+  return <TextInput placeholderTextColor={C.textMuted} autoCapitalize="none" autoCorrect={false} {...props} style={styles.input} />;
 }
 
 function Toggle({ label, hint, value, onChange }: { label: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
@@ -569,6 +571,7 @@ function Settings({ me, onChange }: { me: MyProfile; onChange: (p: MyProfile) =>
 /* --------------------------------- screen --------------------------------- */
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [me, setMe] = useState<MyProfile | null>(null);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
@@ -598,6 +601,7 @@ export default function ProfileScreen() {
     try {
       const mine = await getMyProfile();
       setMe(mine);
+      publishMyProfile(mine);
       setProfile(await getProfile(mine.username));
     } catch (err) {
       setError(errorText(err));
@@ -618,6 +622,7 @@ export default function ProfileScreen() {
 
   const handleChange = (p: MyProfile) => {
     setMe(p);
+    publishMyProfile(p);
     setProfile((prev) =>
       prev ? { ...prev, username: p.username, displayName: p.displayName, avatar: p.avatar, banner: p.banner, bannerColor: p.bannerColor } : prev
     );
@@ -629,6 +634,19 @@ export default function ProfileScreen() {
 
   return (
     <ScreenView style={styles.root}>
+      {/* Opened from the profile button on the Songs tab: a way back there */}
+      <View style={styles.topBar}>
+        <PressableScale
+          scaleTo={0.9}
+          style={styles.backBtn}
+          onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(tabs)'))}
+          accessibilityLabel="Back"
+        >
+          <PixelIcon name="chevronLeft" size={14} color={PIXEL.text} />
+          <Text style={styles.backText}>BACK</Text>
+        </PressableScale>
+        <Text style={styles.topTitle}>PROFILE</Text>
+      </View>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={styles.scroll}
@@ -774,6 +792,10 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight },
+  backText: { color: PIXEL.text, fontFamily: FONTS.pixel, fontSize: 8 },
+  topTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
   nameRow: { flexDirection: 'row', alignItems: 'center' },
   nameShrink: { flexShrink: 1 },
   badgeWrap: { marginTop: 8, marginBottom: 4 },
@@ -786,9 +808,9 @@ const styles = StyleSheet.create({
   loader: { marginTop: 60 },
 
   authHero: { alignItems: 'center', gap: 10, paddingVertical: 20 },
-  authTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 14 },
+  authTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 14 },
 
-  card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: '#000000' },
+  card: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: C.outline },
   banner: { height: 110, overflow: 'hidden' },
   cardBody: { paddingHorizontal: 14, paddingBottom: 14 },
   avatarWrap: { marginTop: -46, marginBottom: 8 },
@@ -799,37 +821,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  avatarInitial: { color: '#ffffff', fontFamily: FONTS.pixel },
-  displayName: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 14 },
+  avatarInitial: { color: C.textStrong, fontFamily: FONTS.pixel },
+  displayName: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 14 },
   username: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 20, marginTop: 4 },
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  statBox: { flex: 1, backgroundColor: '#070b14', borderWidth: 2, borderColor: PIXEL.panelLight, paddingVertical: 8, alignItems: 'center', gap: 4 },
-  statValue: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 12 },
-  statLabel: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 6 },
+  statBox: { flex: 1, backgroundColor: C.bgDeep, borderWidth: 2, borderColor: PIXEL.panelLight, paddingVertical: 8, alignItems: 'center', gap: 4 },
+  statValue: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
+  statLabel: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 6 },
 
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 9 },
-  label: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7, marginTop: 6 },
+  sectionTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9 },
+  label: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 6 },
   body: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 19 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
   mutedCenter: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
   warn: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 16 },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
-  success: { color: '#22c46e', fontFamily: FONTS.body, fontSize: 17 },
+  success: { color: C.success, fontFamily: FONTS.body, fontSize: 17 },
 
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: '#070b14' },
-  chipActive: { borderColor: PIXEL.accent, backgroundColor: 'rgba(255, 107, 74, 0.12)' },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep },
+  chipActive: { borderColor: PIXEL.accent, backgroundColor: alpha(C.accent, 0.12) },
   chipText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18 },
   chipTextActive: { color: PIXEL.accent },
 
   input: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 20,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
@@ -843,51 +865,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 2,
     borderColor: PIXEL.accent2,
-    backgroundColor: 'rgba(77, 141, 255, 0.1)',
+    backgroundColor: alpha(C.blue, 0.1),
   },
-  btnPrimary: { backgroundColor: PIXEL.accent, borderColor: '#000000', paddingVertical: 12 },
-  btnDanger: { borderColor: '#d8342f', backgroundColor: 'rgba(216, 52, 47, 0.1)' },
+  btnPrimary: { backgroundColor: PIXEL.accent, borderColor: C.outline, paddingVertical: 12 },
+  btnDanger: { borderColor: C.danger, backgroundColor: alpha(C.danger, 0.1) },
   btnDisabled: { opacity: 0.45 },
   btnText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 8 },
-  btnTextPrimary: { color: '#000000', fontSize: 10 },
-  btnTextDanger: { color: '#ff7a73' },
+  btnTextPrimary: { color: C.onAccent, fontSize: 10 },
+  btnTextDanger: { color: C.dangerSoft },
 
-  unsaved: { backgroundColor: 'rgba(245, 184, 61, 0.12)', borderWidth: 2, borderColor: '#f5b83d', padding: 8 },
-  unsavedText: { color: '#f5b83d', fontFamily: FONTS.body, fontSize: 17 },
-  previewBanner: { height: 80, overflow: 'hidden', justifyContent: 'flex-end', padding: 8, borderWidth: 2, borderColor: '#000000' },
+  unsaved: { backgroundColor: alpha(C.gold, 0.12), borderWidth: 2, borderColor: C.gold, padding: 8 },
+  unsavedText: { color: C.gold, fontFamily: FONTS.body, fontSize: 17 },
+  previewBanner: { height: 80, overflow: 'hidden', justifyContent: 'flex-end', padding: 8, borderWidth: 2, borderColor: C.outline },
   previewAvatarWrap: { alignSelf: 'flex-start' },
   saveBar: { gap: 8, padding: 12, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.accent },
-  rowDelete: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255, 107, 74, 0.5)' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modalCard: { width: '100%', maxWidth: 360, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: '#000000', padding: 16, gap: 10 },
+  rowDelete: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: alpha(C.accent, 0.5) },
+  modalBackdrop: { flex: 1, backgroundColor: alpha(C.black, 0.7), alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 360, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: C.outline, padding: 16, gap: 10 },
   modalRow: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
-  swatch: { width: 30, height: 30, borderWidth: 2, borderColor: '#000000' },
-  swatchActive: { borderColor: '#ffffff', borderWidth: 3 },
+  swatch: { width: 30, height: 30, borderWidth: 2, borderColor: C.outline },
+  swatchActive: { borderColor: C.white, borderWidth: 3 },
 
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  switch: { width: 40, height: 22, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: '#070b14', padding: 2 },
-  switchOn: { borderColor: PIXEL.accent2, backgroundColor: 'rgba(77, 141, 255, 0.2)' },
+  switch: { width: 40, height: 22, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep, padding: 2 },
+  switchOn: { borderColor: PIXEL.accent2, backgroundColor: alpha(C.blue, 0.2) },
   switchKnob: { width: 14, height: 14, backgroundColor: PIXEL.textDim },
   switchKnobOn: { backgroundColor: PIXEL.accent2, transform: [{ translateX: 18 }] },
   switchLabel: { width: 54, color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 6 },
   switchLabelOn: { color: PIXEL.accent2 },
 
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: '#111a2e' },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: C.lineSoft },
   thumb: {
     width: 46,
     height: 46,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
     borderColor: PIXEL.panelLight,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  rowTitle: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 19 },
+  rowTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 19 },
   rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   rowRight: { alignItems: 'flex-end' },
   rowScore: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 9 },
   diffTag: { fontFamily: FONTS.pixel, fontSize: 6 },
-  hcTag: { fontFamily: FONTS.pixel, fontSize: 6, color: '#000000', backgroundColor: '#d8342f', paddingHorizontal: 3, paddingVertical: 1 },
+  hcTag: { fontFamily: FONTS.pixel, fontSize: 6, color: C.onAccent, backgroundColor: C.danger, paddingHorizontal: 3, paddingVertical: 1 },
   visTag: { fontFamily: FONTS.pixel, fontSize: 6, color: PIXEL.textDim },
 });

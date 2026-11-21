@@ -55,6 +55,7 @@ import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { backdropIn, backdropOut, cardIn, cardOut } from '../../src/components/ui/motion';
 import { FONTS } from '../../src/theme/pixel';
 
+import { C, alpha } from '../../src/theme/palette';
 interface JudgmentState {
   judgment: HitJudgment | null;
   timeDiffMs?: number;
@@ -796,7 +797,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
       <Animated.View entering={FadeIn} style={styles.loadingContainer}>
         <Text style={styles.loadingText}>{loadError}</Text>
         <PressableScale style={[styles.modalSecondaryBtn, styles.errorBackBtn]} onPress={handleExitToHome}>
-          <PixelIcon name="home" size={18} color="#e6ecf7" />
+          <PixelIcon name="home" size={18} color={C.text} />
           <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
         </PressableScale>
       </Animated.View>
@@ -836,7 +837,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
               scaleTo={0.88}
               accessibilityLabel="Pause game"
             >
-              <PixelIcon name="pause" size={14} color="#ffffff" />
+              <PixelIcon name="pause" size={14} color={C.textStrong} />
             </PressableScale>
             <View>
               <Text style={styles.hudSongTitle} numberOfLines={1}>
@@ -922,11 +923,11 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
             </View>
             <View style={styles.statusModalButtons}>
               <PressableScale style={styles.modalPrimaryBtn} onPress={handleRestart} accessibilityLabel="Retry">
-                <PixelIcon name="reset" size={14} color="#ffffff" />
+                <PixelIcon name="reset" size={14} color={C.textStrong} />
                 <Text style={styles.modalPrimaryBtnText}>Retry</Text>
               </PressableScale>
               <PressableScale style={styles.modalSecondaryBtn} onPress={handleExitToHome} accessibilityLabel="Back to Home">
-                <PixelIcon name="home" size={18} color="#e6ecf7" />
+                <PixelIcon name="home" size={18} color={C.text} />
                 <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
               </PressableScale>
             </View>
@@ -947,7 +948,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 onPress={handleTogglePause}
                 accessibilityLabel="Resume playing"
               >
-                <PixelIcon name="play" size={14} color="#ffffff" />
+                <PixelIcon name="play" size={14} color={C.textStrong} />
                 <Text style={styles.modalPrimaryBtnText}>Resume</Text>
               </PressableScale>
 
@@ -956,7 +957,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 onPress={handleRestart}
                 accessibilityLabel="Restart song"
               >
-                <PixelIcon name="reset" size={14} color="#e6ecf7" />
+                <PixelIcon name="reset" size={14} color={C.text} />
                 <Text style={styles.modalSecondaryBtnText}>Restart</Text>
               </PressableScale>
 
@@ -965,7 +966,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 onPress={handleExitToHome}
                 accessibilityLabel="Exit to Song List"
               >
-                <PixelIcon name="home" size={18} color="#9aa7c2" />
+                <PixelIcon name="home" size={18} color={C.textDim} />
                 <Text style={styles.modalTertiaryBtnText}>Exit to Song List</Text>
               </PressableScale>
             </View>
@@ -1027,7 +1028,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 onPress={handleRestart}
                 accessibilityLabel="Play Again"
               >
-                <PixelIcon name="reset" size={14} color="#ffffff" />
+                <PixelIcon name="reset" size={14} color={C.textStrong} />
                 <Text style={styles.modalPrimaryBtnText}>Play Again</Text>
               </PressableScale>
 
@@ -1037,7 +1038,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                   onPress={() => setRateOpen(true)}
                   accessibilityLabel="Rate this level"
                 >
-                  <PixelIcon name="star" size={14} color="#f5b83d" />
+                  <PixelIcon name="star" size={14} color={C.gold} />
                   <Text style={[styles.modalSecondaryBtnText, styles.rateResultText]}>Rate level</Text>
                 </PressableScale>
               ) : null}
@@ -1047,7 +1048,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 onPress={handleExitToHome}
                 accessibilityLabel="Back to Home"
               >
-                <PixelIcon name="home" size={18} color="#e6ecf7" />
+                <PixelIcon name="home" size={18} color={C.text} />
                 <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
               </PressableScale>
             </View>
@@ -1076,18 +1077,18 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 }
 
 const styles = StyleSheet.create({
-  unrankedNote: { color: '#9aa7c2', fontFamily: FONTS.body, fontSize: 16, textAlign: 'center', marginTop: 4, paddingHorizontal: 8 },
+  unrankedNote: { color: C.textDim, fontFamily: FONTS.body, fontSize: 16, textAlign: 'center', marginTop: 4, paddingHorizontal: 8 },
   root: {
     flex: 1,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#05070d',
+    backgroundColor: C.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 20,
   },
@@ -1117,20 +1118,20 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 0,
-    backgroundColor: 'rgba(11, 18, 32, 0.85)',
+    backgroundColor: alpha(C.panel, 0.85),
     borderWidth: 2,
-    borderColor: 'rgba(31, 46, 82, 0.8)',
+    borderColor: alpha(C.line, 0.8),
     alignItems: 'center',
     justifyContent: 'center',
   },
   hudSongTitle: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 17,
     maxWidth: 130,
   },
   hudTimeText: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 15,
   },
@@ -1138,13 +1139,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   scoreLabel: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 15,
     letterSpacing: 1.5,
   },
   scoreValue: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.pixel,
     fontSize: 13,
   },
@@ -1155,21 +1156,21 @@ const styles = StyleSheet.create({
   hardcoreTag: {
     fontFamily: FONTS.pixel,
     fontSize: 6,
-    color: '#000000',
-    backgroundColor: '#FF6B4A',
+    color: C.onAccent,
+    backgroundColor: C.accent,
     paddingHorizontal: 4,
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  hudProgressTrack: { width: 110, height: 3, marginTop: 3, backgroundColor: 'rgba(255, 255, 255, 0.12)' },
-  rateResultBtn: { borderColor: '#f5b83d' },
-  rateResultText: { color: '#f5b83d' },
+  hudProgressTrack: { width: 110, height: 3, marginTop: 3, backgroundColor: alpha(C.white, 0.12) },
+  rateResultBtn: { borderColor: C.gold },
+  rateResultText: { color: C.gold },
   failBackdrop: { backgroundColor: 'rgba(60, 6, 4, 0.78)' },
-  failCard: { borderColor: '#d8342f' },
-  failTitle: { fontFamily: FONTS.pixel, fontSize: 13, color: '#ff7a73' },
+  failCard: { borderColor: C.danger },
+  failTitle: { fontFamily: FONTS.pixel, fontSize: 13, color: C.dangerSoft },
   bottomProgressFill: {
     height: '100%',
-    backgroundColor: '#4d8dff',
+    backgroundColor: C.blue,
   },
   errorBackBtn: {
     marginTop: 16,
@@ -1179,7 +1180,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     zIndex: 100,
     elevation: 100,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: alpha(C.black, 0.85),
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -1187,23 +1188,23 @@ const styles = StyleSheet.create({
   statusModalCard: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: '#0b1220',
+    backgroundColor: C.panel,
     borderRadius: 0,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: alpha(C.white, 0.1),
     padding: 24,
     alignItems: 'center',
   },
   statusModalTitle: {
     fontFamily: FONTS.pixel,
     fontSize: 14,
-    color: '#ffffff',
+    color: C.textStrong,
     letterSpacing: 0,
   },
   statusModalSub: {
     fontFamily: FONTS.body,
     fontSize: 17,
-    color: '#9aa7c2',
+    color: C.textDim,
     marginTop: 4,
   },
   statusModalButtons: {
@@ -1216,12 +1217,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     paddingVertical: 12,
     borderRadius: 0,
   },
   modalPrimaryBtnText: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 19,
   },
@@ -1230,12 +1231,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#15203a',
+    backgroundColor: C.panelLight,
     paddingVertical: 10,
     borderRadius: 0,
   },
   modalSecondaryBtnText: {
-    color: '#cdd6ea',
+    color: C.textSoft,
     fontFamily: FONTS.body,
     fontSize: 17,
   },
@@ -1247,7 +1248,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   modalTertiaryBtnText: {
-    color: '#9aa7c2',
+    color: C.textDim,
     fontFamily: FONTS.body,
     fontSize: 17,
   },
@@ -1255,7 +1256,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 0,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: C.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -1263,16 +1264,16 @@ const styles = StyleSheet.create({
   rankText: {
     fontFamily: FONTS.pixel,
     fontSize: 18,
-    color: '#000000',
+    color: C.onAccent,
   },
   statsHeroGrid: {
     flexDirection: 'row',
     width: '100%',
     gap: 8,
-    backgroundColor: 'rgba(7, 11, 20, 0.7)',
+    backgroundColor: alpha(C.bgDeep, 0.7),
     borderRadius: 0,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     padding: 12,
     marginVertical: 14,
   },
@@ -1283,17 +1284,17 @@ const styles = StyleSheet.create({
   statHeroLabel: {
     fontFamily: FONTS.body,
     fontSize: 13,
-    color: '#9aa7c2',
+    color: C.textDim,
     letterSpacing: 1,
   },
   statHeroScore: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.pixel,
     fontSize: 13,
     marginTop: 2,
   },
   statHeroAccuracy: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.pixel,
     fontSize: 13,
     marginTop: 2,
@@ -1306,35 +1307,35 @@ const styles = StyleSheet.create({
   },
   breakdownItem: {
     flex: 1,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#15203a',
+    borderColor: C.panelLight,
     borderRadius: 0,
     padding: 6,
     alignItems: 'center',
   },
   perfectLabel: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 12,
   },
   greatLabel: {
-    color: '#4d8dff',
+    color: C.blue,
     fontFamily: FONTS.body,
     fontSize: 12,
   },
   goodLabel: {
-    color: '#FF6B4A',
+    color: C.accent,
     fontFamily: FONTS.body,
     fontSize: 12,
   },
   missLabel: {
-    color: '#FF6B4A',
+    color: C.accent,
     fontFamily: FONTS.body,
     fontSize: 12,
   },
   breakdownCount: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 17,
     marginTop: 2,

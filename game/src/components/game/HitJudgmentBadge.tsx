@@ -6,6 +6,7 @@ import { HitJudgment } from '../../types/game';
 import { ACTIVE_THEME } from '../../constants/theme';
 import { FONTS } from '../../theme/pixel';
 
+import { C } from '../../theme/palette';
 interface HitJudgmentBadgeProps {
   judgment: HitJudgment | null;
   timeDiffMs?: number;
@@ -46,7 +47,7 @@ export const HitJudgmentBadge: React.FC<HitJudgmentBadgeProps> = ({ judgment, ti
           styles.judgmentText,
           {
             color: config.color,
-            textShadowColor: '#000000',
+            textShadowColor: C.outline,
             textShadowOffset: { width: 2, height: 2 },
             textShadowRadius: 0.1, // hard pixel shadow
           },
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
   timeDiffText: {
     fontFamily: FONTS.body,
     fontSize: 16,
-    color: '#cdd6ea',
+    color: C.textSoft,
     marginTop: 2,
     opacity: 0.85,
   },

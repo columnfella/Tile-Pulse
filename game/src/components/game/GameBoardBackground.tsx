@@ -6,6 +6,7 @@ import { FONTS } from '../../theme/pixel';
 // Platform files: LaneTouchSurface.tsx (app, raw multi-touch) / LaneTouchSurface.web.tsx (browser pointer events)
 import { LaneTouchSurface, type Lane } from './LaneTouchSurface';
 
+import { C, alpha } from '../../theme/palette';
 interface GameBoardBackgroundProps {
   hitLineY: number;
   /** `glide`: the finger slid into this lane instead of touching down. */
@@ -101,8 +102,8 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                     style={[
                       styles.keyLabelBadge,
                       {
-                        borderColor: isPressed ? '#4d8dff' : 'rgba(255, 255, 255, 0.2)',
-                        backgroundColor: isPressed ? 'rgba(77, 141, 255, 0.35)' : 'rgba(0, 0, 0, 0.5)',
+                        borderColor: isPressed ? C.blue : alpha(C.white, 0.2),
+                        backgroundColor: isPressed ? alpha(C.blue, 0.35) : alpha(C.black, 0.5),
                       },
                     ]}
                   >
@@ -110,7 +111,7 @@ export const GameBoardBackground: React.FC<GameBoardBackgroundProps> = ({
                       style={[
                         styles.keyLabelText,
                         {
-                          color: isPressed ? '#4d8dff' : board.laneKeyLabelsColor,
+                          color: isPressed ? C.blue : board.laneKeyLabelsColor,
                         },
                       ]}
                     >
@@ -168,7 +169,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     opacity: 0.3,
   },
-  laneTint: { backgroundColor: 'rgba(154, 167, 194, 0.035)' },
+  laneTint: { backgroundColor: alpha(C.textDim, 0.035) },
   emptyFlash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255, 77, 77, 0.28)' },
   dividers: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   divider: { position: 'absolute', top: 0, bottom: 0 },
@@ -227,14 +228,14 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 0,
-    backgroundColor: '#8fb8ff',
+    backgroundColor: C.blueMist,
     marginLeft: -4,
   },
   hitPipRight: {
     width: 8,
     height: 8,
     borderRadius: 0,
-    backgroundColor: '#8fb8ff',
+    backgroundColor: C.blueMist,
     marginRight: -4,
   },
   hitZoneBand: {
@@ -244,7 +245,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderTopWidth: 2,
     borderBottomWidth: 2,
-    borderTopColor: 'rgba(77, 141, 255, 0.3)',
-    borderBottomColor: 'rgba(77, 141, 255, 0.3)',
+    borderTopColor: alpha(C.blue, 0.3),
+    borderBottomColor: alpha(C.blue, 0.3),
   },
 });

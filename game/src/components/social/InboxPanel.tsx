@@ -1,28 +1,28 @@
 /**
- * Inbox tab: friend requests (accept / decline right here), warnings from
- * moderators with the reason, levels verified or removed, comments removed,
- * new badges. Opening the tab marks everything as read.
+ * Social tab → Inbox: friend requests (accept / decline right here), warnings
+ * from moderators with the reason, levels verified or removed, comments
+ * removed, new badges. Opening it marks everything as read.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ScreenView } from '../../src/components/ui/ScreenView';
-import { PixelIcon, type PixelIconName } from '../../src/components/ui/PixelIcon';
-import { PressableScale } from '../../src/components/ui/PressableScale';
-import { ProfileSheet } from '../../src/components/ui/ProfileSheet';
-import { FONTS, PIXEL } from '../../src/theme/pixel';
-import { API_BASE, ApiUnavailableError } from '../../src/services/communityApi';
-import { ApiError, getSession, onSessionChange, type Session } from '../../src/services/account';
-import { acceptFriend, removeFriend } from '../../src/services/friends';
+import { PixelIcon, type PixelIconName } from '../../components/ui/PixelIcon';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { ProfileSheet } from '../../components/ui/ProfileSheet';
+import { FONTS, PIXEL } from '../../theme/pixel';
+import { API_BASE, ApiUnavailableError } from '../../services/communityApi';
+import { ApiError, getSession, onSessionChange, type Session } from '../../services/account';
+import { acceptFriend, removeFriend } from '../../services/friends';
 import {
   deleteNotification,
   getNotifications,
   markAllRead,
   type AppNotification,
   type NotificationKind,
-} from '../../src/services/notifications';
+} from '../../services/notifications';
 
+import { C, alpha } from '../../theme/palette';
 const errorText = (err: unknown) =>
   err instanceof ApiUnavailableError
     ? `Can’t reach the community server (${API_BASE}).`
@@ -32,14 +32,14 @@ const errorText = (err: unknown) =>
 
 const LOOK: Record<NotificationKind, { icon: PixelIconName; color: string }> = {
   friend_request: { icon: 'userPlus', color: PIXEL.accent2 },
-  friend_accepted: { icon: 'friends', color: '#22c46e' },
-  warning: { icon: 'warning', color: '#ffb84d' },
-  level_verified: { icon: 'check', color: '#4d8dff' },
+  friend_accepted: { icon: 'friends', color: C.success },
+  warning: { icon: 'warning', color: C.warning },
+  level_verified: { icon: 'check', color: C.blue },
   level_unverified: { icon: 'close', color: PIXEL.textDim },
-  level_removed: { icon: 'trash', color: '#ff7a73' },
-  comment_removed: { icon: 'comment', color: '#ff7a73' },
-  badge_granted: { icon: 'crown', color: '#ffd23f' },
-  unbanned: { icon: 'check', color: '#22c46e' },
+  level_removed: { icon: 'trash', color: C.dangerSoft },
+  comment_removed: { icon: 'comment', color: C.dangerSoft },
+  badge_granted: { icon: 'crown', color: C.yellow },
+  unbanned: { icon: 'check', color: C.success },
 };
 
 function timeAgo(ms: number): string {
@@ -51,7 +51,7 @@ function timeAgo(ms: number): string {
   return new Date(ms).toLocaleDateString();
 }
 
-export default function InboxScreen() {
+export function InboxPanel() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [items, setItems] = useState<AppNotification[]>([]);
@@ -133,23 +133,18 @@ export default function InboxScreen() {
   };
 
   return (
-    <ScreenView style={styles.root}>
+    <View style={styles.root}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={session ? <RefreshControl refreshing={loading} onRefresh={load} tintColor={PIXEL.accent2} /> : undefined}
       >
-        <View style={styles.header}>
-          <PixelIcon name="bell" size={21} color={PIXEL.accent} />
-          <Text style={styles.title}>INBOX</Text>
-        </View>
-
         {session === undefined ? (
           <ActivityIndicator color={PIXEL.accent2} style={styles.loader} />
         ) : !session ? (
           <View style={styles.center}>
             <Text style={styles.mutedCenter}>Sign in to get friend requests and messages from the TilePulse team.</Text>
             <PressableScale scaleTo={0.95} style={styles.primaryBtn} onPress={() => router.push('/(tabs)/profile')}>
-              <PixelIcon name="person" size={14} color="#000000" />
+              <PixelIcon name="person" size={14} color={C.onAccent} />
               <Text style={styles.primaryText}>SIGN IN</Text>
             </PressableScale>
           </View>
@@ -158,7 +153,7 @@ export default function InboxScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {items.length === 0 && !loading ? (
               <View style={styles.empty}>
-                <PixelIcon name="bell" size={28} color="#2a3654" />
+                <PixelIcon name="bell" size={28} color={C.lineStrong} />
                 <Text style={styles.mutedCenter}>Nothing here yet. Friend requests and news show up here.</Text>
               </View>
             ) : null}
@@ -173,7 +168,7 @@ export default function InboxScreen() {
                   </View>
                   <View style={styles.flex}>
                     <View style={styles.itemHead}>
-                      <Text style={[styles.itemTitle, isWarning && { color: '#ffb84d' }]} numberOfLines={2}>
+                      <Text style={[styles.itemTitle, isWarning && { color: C.warning }]} numberOfLines={2}>
                         {n.title}
                       </Text>
                       {!n.read ? <View style={styles.newDot} /> : null}
@@ -197,7 +192,7 @@ export default function InboxScreen() {
                         ) : (
                           <>
                             <PressableScale scaleTo={0.94} style={styles.acceptBtn} onPress={() => answer(n, true)}>
-                              <PixelIcon name="check" size={12} color="#000000" />
+                              <PixelIcon name="check" size={12} color={C.onAccent} />
                               <Text style={styles.acceptText}>ACCEPT</Text>
                             </PressableScale>
                             <PressableScale scaleTo={0.94} style={styles.declineBtn} onPress={() => answer(n, false)}>
@@ -222,7 +217,7 @@ export default function InboxScreen() {
                   </View>
                   {n.kind !== 'friend_request' ? (
                     <PressableScale scaleTo={0.85} onPress={() => drop(n)} style={styles.dismiss} accessibilityLabel="Dismiss">
-                      <PixelIcon name="close" size={10} color="#3a4a70" />
+                      <PixelIcon name="close" size={10} color={C.textFaint} />
                     </PressableScale>
                   ) : null}
                 </View>
@@ -238,39 +233,37 @@ export default function InboxScreen() {
         )}
       </ScrollView>
       <ProfileSheet username={viewing} onClose={() => setViewing(null)} />
-    </ScreenView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: 'transparent' },
+  root: { flex: 1, backgroundColor: 'transparent' },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 30, gap: 14 },
   flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 16 },
   loader: { marginTop: 40 },
   center: { alignItems: 'center', gap: 14, marginTop: 40 },
   mutedCenter: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: '#000000' },
-  primaryText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 9 },
+  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: C.outline },
+  primaryText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 9 },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
   list: { gap: 8 },
   empty: { alignItems: 'center', gap: 10, marginTop: 40 },
   item: { flexDirection: 'row', gap: 10, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 10 },
   itemNew: { borderColor: '#2f4a8a' },
-  itemWarning: { borderColor: '#7a5a1e', backgroundColor: 'rgba(255,184,77,0.06)' },
-  iconBox: { width: 32, height: 32, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: '#070b14' },
+  itemWarning: { borderColor: '#7a5a1e', backgroundColor: alpha(C.warning, 0.06) },
+  iconBox: { width: 32, height: 32, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bgDeep },
   itemHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  itemTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 8, lineHeight: 13, flexShrink: 1 },
+  itemTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 8, lineHeight: 13, flexShrink: 1 },
   newDot: { width: 7, height: 7, backgroundColor: PIXEL.accent },
   itemBody: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18, marginTop: 4 },
-  reasonLabel: { color: '#ffb84d' },
-  time: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 15, marginTop: 3 },
+  reasonLabel: { color: C.warning },
+  time: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15, marginTop: 3 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  acceptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#22c46e', borderWidth: 2, borderColor: '#000000' },
-  acceptText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 7 },
-  declineBtn: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 2, borderColor: '#d8342f' },
-  declineText: { color: '#ff7a73', fontFamily: FONTS.pixel, fontSize: 7 },
+  acceptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: C.success, borderWidth: 2, borderColor: C.outline },
+  acceptText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 7 },
+  declineBtn: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 2, borderColor: C.danger },
+  declineText: { color: C.dangerSoft, fontFamily: FONTS.pixel, fontSize: 7 },
   linkBtn: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 2, borderColor: PIXEL.panelLight },
   linkText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 7 },
   dismiss: { padding: 4, alignSelf: 'flex-start' },

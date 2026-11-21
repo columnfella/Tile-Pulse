@@ -13,6 +13,7 @@ import { PlayRow } from '../../src/components/ui/PlayRow';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { ThemeSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
 import { SettingsSheet } from '../../src/components/ui/SettingsSheet';
+import { ProfileButton } from '../../src/components/ui/ProfileButton';
 import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
 import { checkCopy } from '../../src/services/social';
 import { ApiUnavailableError } from '../../src/services/communityApi';
@@ -20,6 +21,7 @@ import { CoverBanner, IconBadge, LevelBadge, cardPartStyles } from '../../src/co
 import { setDefaultBackground, useDefaultBackground } from '../../src/services/settings';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 
+import { C, alpha } from '../../src/theme/palette';
 /**
  * Songs tab: your library, shown as level cards like Discover — downloaded
  * community levels, songs you created in the Editor, and the built-in samples.
@@ -229,8 +231,8 @@ export default function HomeScreen() {
                     <Text style={[styles.actionText, { color: PIXEL.accent2 }]}>Comments</Text>
                   </PressableScale>
                   <PressableScale scaleTo={0.94} style={[styles.actionBtn, styles.halfBtn, styles.rateBtn]} onPress={() => setSocialSong(song)}>
-                    <PixelIcon name="star" size={14} color="#f5b83d" />
-                    <Text style={[styles.actionText, { color: '#f5b83d' }]}>Rate</Text>
+                    <PixelIcon name="star" size={14} color={C.gold} />
+                    <Text style={[styles.actionText, { color: C.gold }]}>Rate</Text>
                   </PressableScale>
                 </View>
               ) : null}
@@ -248,10 +250,10 @@ export default function HomeScreen() {
       <Animated.View entering={FadeInDown.duration(350)} style={styles.header}>
         <View style={styles.titleRow}>
           <View style={styles.logoMark}>
-            <View style={[styles.logoPixel, { backgroundColor: '#2f6bff' }]} />
-            <View style={[styles.logoPixel, { backgroundColor: '#FF6B4A' }]} />
-            <View style={[styles.logoPixel, { backgroundColor: '#1a3d99' }]} />
-            <View style={[styles.logoPixel, { backgroundColor: '#2f6bff' }]} />
+            <View style={[styles.logoPixel, { backgroundColor: C.blueStrong }]} />
+            <View style={[styles.logoPixel, { backgroundColor: C.accent }]} />
+            <View style={[styles.logoPixel, { backgroundColor: C.blueDeeper }]} />
+            <View style={[styles.logoPixel, { backgroundColor: C.blueStrong }]} />
           </View>
           <View>
             <Text style={styles.appName}>
@@ -267,7 +269,7 @@ export default function HomeScreen() {
             onPress={() => setIsThemeOpen(true)}
             accessibilityLabel="Choose app theme"
           >
-            <PixelIcon name="palette" size={18} color="#cdd6ea" />
+            <PixelIcon name="palette" size={18} color={C.textSoft} />
           </PressableScale>
           <PressableScale
             scaleTo={0.88}
@@ -275,14 +277,16 @@ export default function HomeScreen() {
             onPress={() => setIsSettingsOpen(true)}
             accessibilityLabel="Settings"
           >
-            <PixelIcon name="gear" size={18} color="#cdd6ea" />
+            <PixelIcon name="gear" size={18} color={C.textSoft} />
           </PressableScale>
+          {/* Your profile picture (or the account icon when signed out) */}
+          <ProfileButton />
         </View>
       </Animated.View>
 
       {banner && (
         <Animated.View entering={FadeInDown.duration(250)} exiting={FadeOut.duration(250)} style={styles.banner}>
-          <PixelIcon name="check" size={14} color="#4d8dff" />
+          <PixelIcon name="check" size={14} color={C.blue} />
           <Text style={styles.bannerText}>{banner}</Text>
         </Animated.View>
       )}
@@ -345,7 +349,7 @@ export default function HomeScreen() {
               value={copyPrompt?.password ?? ''}
               onChangeText={(t) => setCopyPrompt((p) => (p ? { ...p, password: t, error: null } : p))}
               placeholder="Password"
-              placeholderTextColor="#6b7a99"
+              placeholderTextColor={C.textMuted}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -364,7 +368,7 @@ export default function HomeScreen() {
                 disabled={!copyPrompt?.password || copyPrompt?.busy}
                 onPress={submitCopyPassword}
               >
-                {copyPrompt?.busy ? <ActivityIndicator size="small" color="#000000" /> : null}
+                {copyPrompt?.busy ? <ActivityIndicator size="small" color={C.onAccent} /> : null}
                 <Text style={styles.promptOkText}>UNLOCK & COPY</Text>
               </PressableScale>
             </View>
@@ -386,22 +390,22 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   headerButtons: { flexDirection: 'row', gap: 8 },
-  customizeBtn: { flex: 1, paddingVertical: 9, borderColor: PIXEL.accent2, backgroundColor: 'rgba(77, 141, 255, 0.08)' },
+  customizeBtn: { flex: 1, paddingVertical: 9, borderColor: PIXEL.accent2, backgroundColor: alpha(C.blue, 0.08) },
   customizeText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 19, letterSpacing: 1 },
   halfBtn: { flex: 1, paddingVertical: 8 },
-  rateBtn: { borderColor: '#f5b83d', backgroundColor: 'rgba(245, 184, 61, 0.08)' },
-  promptBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  promptCard: { width: '100%', maxWidth: 340, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: '#000000', padding: 16, gap: 10 },
+  rateBtn: { borderColor: C.gold, backgroundColor: alpha(C.gold, 0.08) },
+  promptBackdrop: { flex: 1, backgroundColor: alpha(C.black, 0.7), alignItems: 'center', justifyContent: 'center', padding: 24 },
+  promptCard: { width: '100%', maxWidth: 340, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: C.outline, padding: 16, gap: 10 },
   promptHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  promptTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 10 },
+  promptTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 10 },
   promptBody: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18 },
   promptInput: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 20,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
@@ -409,8 +413,8 @@ const styles = StyleSheet.create({
   promptRow: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
   promptCancel: { paddingHorizontal: 12, paddingVertical: 9, borderWidth: 2, borderColor: PIXEL.panelLight },
   promptCancelText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 8 },
-  promptOk: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: '#000000' },
-  promptOkText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 8 },
+  promptOk: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: PIXEL.accent, borderWidth: 2, borderColor: C.outline },
+  promptOkText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 8 },
   promptDisabled: { opacity: 0.45 },
   safeArea: { flex: 1, backgroundColor: 'transparent' },
   header: {
@@ -419,8 +423,9 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderBottomWidth: 2,
     borderBottomColor: PIXEL.panelLight,
-    // Slightly see-through so the theme background shows behind the header
-    backgroundColor: 'rgba(5, 7, 13, 0.78)',
+    // Solid, and the same colour as the strip behind the camera above it
+    // (ScreenView), so header and camera area read as one bar
+    backgroundColor: PIXEL.bg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -428,10 +433,10 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logoMark: { width: 24, height: 24, flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
   logoPixel: { width: 11, height: 11 },
-  appName: { fontFamily: FONTS.pixel, fontSize: 13, lineHeight: 18, color: '#ffffff', includeFontPadding: false },
-  appNameAccent: { color: '#FF6B4A' },
-  appSub: { fontFamily: FONTS.body, fontSize: 15, lineHeight: 16, color: '#6b7a99', includeFontPadding: false },
-  themeButton: { width: 36, height: 36, backgroundColor: '#15203a', alignItems: 'center', justifyContent: 'center' },
+  appName: { fontFamily: FONTS.pixel, fontSize: 13, lineHeight: 18, color: C.textStrong, includeFontPadding: false },
+  appNameAccent: { color: C.accent },
+  appSub: { fontFamily: FONTS.body, fontSize: 15, lineHeight: 16, color: C.textMuted, includeFontPadding: false },
+  themeButton: { width: 36, height: 36, backgroundColor: C.panelLight, alignItems: 'center', justifyContent: 'center' },
 
   banner: {
     flexDirection: 'row',
@@ -441,26 +446,26 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#0b1a33',
+    backgroundColor: C.blueNight,
     borderWidth: 2,
-    borderColor: '#4d8dff',
+    borderColor: C.blue,
   },
-  bannerText: { flex: 1, color: '#4d8dff', fontFamily: FONTS.body, fontSize: 16 },
+  bannerText: { flex: 1, color: C.blue, fontFamily: FONTS.body, fontSize: 16 },
 
   list: { padding: 16, gap: 8 },
   listEmpty: { flexGrow: 1 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  sectionHeaderTitle: { fontFamily: FONTS.body, fontSize: 16, color: '#9aa7c2', letterSpacing: 1 },
-  sectionHeaderSub: { fontFamily: FONTS.body, fontSize: 16, color: '#4d8dff' },
+  sectionHeaderTitle: { fontFamily: FONTS.body, fontSize: 16, color: C.textDim, letterSpacing: 1 },
+  sectionHeaderSub: { fontFamily: FONTS.body, fontSize: 16, color: C.blue },
 
   // See-through cards: the animated theme background shows between and behind them
-  card: { backgroundColor: 'rgba(11, 18, 32, 0.6)', borderWidth: 2, borderColor: 'rgba(77, 141, 255, 0.22)', padding: 10, overflow: 'hidden' },
+  card: { backgroundColor: alpha(C.panel, 0.6), borderWidth: 2, borderColor: alpha(C.blue, 0.22), padding: 10, overflow: 'hidden' },
   cardExpanded: { borderColor: PIXEL.accent },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardInfo: { flex: 1 },
-  cardTitle: { color: '#ffffff', fontFamily: FONTS.body, fontSize: 21 },
+  cardTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 21 },
   cardSong: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 17 },
-  cardOrigin: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 15 },
+  cardOrigin: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15 },
   downloadedTag: {
     width: 22,
     height: 22,
@@ -481,7 +486,7 @@ const styles = StyleSheet.create({
     borderTopColor: PIXEL.panelLight,
   },
   stat: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
-  statDot: { color: '#3a4a70', fontSize: 6 },
+  statDot: { color: C.textFaint, fontSize: 6 },
 
   panel: { marginTop: 8, gap: 6 },
   playBtn: {
@@ -492,9 +497,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: PIXEL.accent2,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
-  playText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 10 },
+  playText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 10 },
   actionsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   actionBtn: {
     flexGrow: 1,
@@ -506,9 +511,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     backgroundColor: PIXEL.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
-  deleteBtn: { flexGrow: 0, width: 46, paddingHorizontal: 0, backgroundColor: 'rgba(255, 107, 74, 0.12)', borderColor: 'rgba(255, 107, 74, 0.5)' },
+  deleteBtn: { flexGrow: 0, width: 46, paddingHorizontal: 0, backgroundColor: alpha(C.accent, 0.12), borderColor: alpha(C.accent, 0.5) },
   actionText: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 17 },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 24 },
@@ -521,6 +526,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: PIXEL.panelLight,
   },
-  emptyTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 11 },
+  emptyTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 11 },
   emptyText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 18, textAlign: 'center' },
 });

@@ -33,12 +33,13 @@ import type { Song } from '../../types/song';
 import { storageService } from '../../services/storage';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
+import { C, alpha } from '../../theme/palette';
 const MAX_COVER_BYTES = 2 * 1024 * 1024;
 
 const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = [
-  { key: 'easy', label: 'Easy', color: '#9cc0ff' },
-  { key: 'normal', label: 'Normal', color: '#4d8dff' },
-  { key: 'hard', label: 'Hard', color: '#2f6bff' },
+  { key: 'easy', label: 'Easy', color: C.blueSky },
+  { key: 'normal', label: 'Normal', color: C.blue },
+  { key: 'hard', label: 'Hard', color: C.blueStrong },
   { key: 'expert', label: 'Expert', color: PIXEL.accent },
 ];
 
@@ -104,12 +105,12 @@ function CoverPreview({ uri, title, subtitle }: { uri: string | null; title: str
         </Animated.View>
       ) : (
         <View style={styles.coverEmpty}>
-          <PixelIcon name="image" size={28} color="#3a4a70" />
+          <PixelIcon name="image" size={28} color={C.textFaint} />
           <Text style={styles.muted}>No cover picture</Text>
         </View>
       )}
       <LinearGradient
-        colors={['rgba(11,18,32,0)', 'rgba(11,18,32,0.55)', PIXEL.panel]}
+        colors={[alpha(C.panel, 0), alpha(C.panel, 0.55), PIXEL.panel]}
         locations={[0.35, 0.7, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -336,7 +337,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
                   value={username}
                   onChangeText={setUsername}
                   placeholder="Username"
-                  placeholderTextColor="#6b7a99"
+                  placeholderTextColor={C.textMuted}
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="username"
@@ -348,7 +349,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
                     value={displayName}
                     onChangeText={setDisplayName}
                     placeholder="Display name (shown on your levels)"
-                    placeholderTextColor="#6b7a99"
+                    placeholderTextColor={C.textMuted}
                     maxLength={50}
                     style={styles.input}
                   />
@@ -357,7 +358,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
                   value={password}
                   onChangeText={setPassword}
                   placeholder={authMode === 'register' ? 'Password (10+ characters)' : 'Password'}
-                  placeholderTextColor="#6b7a99"
+                  placeholderTextColor={C.textMuted}
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
@@ -385,7 +386,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
               value={name}
               onChangeText={setName}
               placeholder="Level name"
-              placeholderTextColor="#6b7a99"
+              placeholderTextColor={C.textMuted}
               maxLength={60}
               style={styles.input}
             />
@@ -398,11 +399,11 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
             <Text style={styles.label}>LEVEL (1–20)</Text>
             <View style={styles.stepper}>
               <PressableScale scaleTo={0.85} style={styles.stepBtn} disabled={level <= 1} onPress={() => setLevel((l) => Math.max(1, l - 1))}>
-                <PixelIcon name="minus" size={7} color={level <= 1 ? '#3a4a70' : PIXEL.text} />
+                <PixelIcon name="minus" size={7} color={level <= 1 ? C.textFaint : PIXEL.text} />
               </PressableScale>
               <Text style={styles.stepValue}>{level}</Text>
               <PressableScale scaleTo={0.85} style={styles.stepBtn} disabled={level >= 20} onPress={() => setLevel((l) => Math.min(20, l + 1))}>
-                <PixelIcon name="plus" size={7} color={level >= 20 ? '#3a4a70' : PIXEL.text} />
+                <PixelIcon name="plus" size={7} color={level >= 20 ? C.textFaint : PIXEL.text} />
               </PressableScale>
             </View>
             <Text style={styles.label}>WHO CAN FIND IT</Text>
@@ -415,7 +416,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
               value={description}
               onChangeText={setDescription}
               placeholder="Tell players about your level (optional)"
-              placeholderTextColor="#6b7a99"
+              placeholderTextColor={C.textMuted}
               maxLength={500}
               multiline
               style={[styles.input, styles.multiline]}
@@ -437,7 +438,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
                   value={copyPassword}
                   onChangeText={setCopyPassword}
                   placeholder={record?.copyMode === 'password' ? 'New copy password (leave empty to keep it)' : 'Copy password (4+ characters)'}
-                  placeholderTextColor="#6b7a99"
+                  placeholderTextColor={C.textMuted}
                   autoCapitalize="none"
                   autoCorrect={false}
                   maxLength={64}
@@ -530,7 +531,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
             disabled={!session || busy || isPreset || copyPasswordMissing}
             onPress={handleUpload}
           >
-            {busy ? <ActivityIndicator size="small" color="#000000" /> : <PixelIcon name="upload" size={14} color="#000000" />}
+            {busy ? <ActivityIndicator size="small" color={C.onAccent} /> : <PixelIcon name="upload" size={14} color={C.onAccent} />}
             <Text style={styles.primaryText}>
               {busy ? STEP_TEXT[step!] : !session ? 'SIGN IN TO UPLOAD' : record ? 'UPDATE LEVEL' : 'UPLOAD LEVEL'}
             </Text>
@@ -547,7 +548,7 @@ const styles = StyleSheet.create({
   gap: { gap: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 12 },
+  title: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
   closeBtn: {
     width: 34,
     height: 34,
@@ -555,32 +556,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: PIXEL.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   scroll: { paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
 
   cover: { height: 170, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, overflow: 'hidden' },
   coverEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingBottom: 40 },
   coverText: { position: 'absolute', left: 12, right: 12, bottom: 10 },
-  coverTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 12 },
+  coverTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 12 },
   coverSub: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17, marginTop: 4 },
 
   section: { backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 12, gap: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { color: '#ffffff', fontFamily: FONTS.pixel, fontSize: 9 },
-  label: { color: '#6b7a99', fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
+  sectionTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 9 },
+  label: { color: C.textMuted, fontFamily: FONTS.pixel, fontSize: 7, marginTop: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
-  chip: { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: '#070b14' },
+  chip: { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep },
   chipText: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 17 },
   multiline: { minHeight: 70, textAlignVertical: 'top' },
-  counter: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 14, alignSelf: 'flex-end' },
+  counter: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 14, alignSelf: 'flex-end' },
   input: {
-    color: '#ffffff',
+    color: C.textStrong,
     fontFamily: FONTS.body,
     fontSize: 20,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
     borderWidth: 2,
-    borderColor: '#1f2e52',
+    borderColor: C.line,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
@@ -592,7 +593,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: PIXEL.panelLight,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   stepValue: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 12, minWidth: 30, textAlign: 'center' },
 
@@ -600,12 +601,12 @@ const styles = StyleSheet.create({
   body: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18 },
   strong: { color: PIXEL.accent2 },
   muted: { color: PIXEL.textDim, fontFamily: FONTS.body, fontSize: 16 },
-  note: { color: '#6b7a99', fontFamily: FONTS.body, fontSize: 15, marginTop: 4 },
+  note: { color: C.textMuted, fontFamily: FONTS.body, fontSize: 15, marginTop: 4 },
   warn: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17, textAlign: 'center' },
   error: { color: PIXEL.accent, fontFamily: FONTS.body, fontSize: 17 },
 
   bgRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  bgPreview: { width: 76, height: 100, borderWidth: 2, borderColor: PIXEL.panelLight, overflow: 'hidden', backgroundColor: '#000000' },
+  bgPreview: { width: 76, height: 100, borderWidth: 2, borderColor: PIXEL.panelLight, overflow: 'hidden', backgroundColor: C.black },
   alignStart: { alignSelf: 'flex-start' },
 
   linkBtn: { paddingVertical: 6, paddingHorizontal: 4 },
@@ -619,7 +620,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 2,
     borderColor: PIXEL.accent2,
-    backgroundColor: 'rgba(77, 141, 255, 0.1)',
+    backgroundColor: alpha(C.blue, 0.1),
   },
   secondaryText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 9 },
   btnDisabled: { opacity: 0.45 },
@@ -635,7 +636,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: PIXEL.accent,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
-  primaryText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 10 },
+  primaryText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 10 },
 });

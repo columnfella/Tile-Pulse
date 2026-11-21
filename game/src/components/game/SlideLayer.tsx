@@ -19,17 +19,18 @@ import type { TimedTile } from './TileField';
 import { TILE_STATES } from './TapTileView';
 
 
+import { C } from '../../theme/palette';
 /** Native: slides are drawn here, not by SlideTileView. */
 export const SLIDES_IN_LAYER = true;
 
 export const SLIDE_HEAD_HEIGHT = 36;
-const CORAL = { base: '#FF6B4A', light: '#ffb39f', dark: '#a83a22' } as const;
+const CORAL = { base: C.accent, light: C.accentSoft, dark: C.accentDeep } as const;
 
 type StrokeColors = { outline: string; rim: string; body: string; rail: string };
 const COLORS = {
-  normal: { outline: '#000000', rim: '#7aa4ff', body: '#123a9e', rail: '#4d8dff' },
-  filled: { outline: '#000000', rim: '#d6e2ff', body: '#2f6bff', rail: '#FF6B4A' },
-  missed: { outline: '#000000', rim: '#ff7a73', body: '#7d1411', rail: '#d8342f' },
+  normal: { outline: C.outline, rim: C.bluePale, body: C.blueDark, rail: C.blue },
+  filled: { outline: C.outline, rim: '#d6e2ff', body: C.blueStrong, rail: C.accent },
+  missed: { outline: C.outline, rim: C.dangerSoft, body: C.dangerDeep, rail: C.danger },
 } as const;
 
 /** x of the polyline where it crosses height y (ys run bottom to top). Later points win on flat parts. */
@@ -153,7 +154,7 @@ const SlideShape = memo(function SlideShape({
   const markerOpacity = useDerivedValue(() => (live ? 1 : 0));
 
   const head = isMissed ? TILE_STATES.missed : isHolding ? CORAL : isHit ? TILE_STATES.pressed : TILE_STATES.normal;
-  const headColors: StrokeColors = { outline: '#000000', rim: head.light, body: head.base, rail: head.base };
+  const headColors: StrokeColors = { outline: C.outline, rim: head.light, body: head.base, rail: head.base };
   const showFill = !isMissed && (live || staticProgress > 0);
 
   return (
@@ -171,7 +172,7 @@ const SlideShape = memo(function SlideShape({
         </Group>
       </Group>
       <Group transform={markerTransform} opacity={markerOpacity}>
-        <Rect x={-6} y={-6} width={12} height={12} color="#ffffff" />
+        <Rect x={-6} y={-6} width={12} height={12} color={C.textStrong} />
         <Rect x={-3} y={-3} width={6} height={6} color={CORAL.base} />
       </Group>
     </Group>

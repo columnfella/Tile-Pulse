@@ -10,7 +10,8 @@ import { PixelIcon } from './PixelIcon';
 import { useHardcore } from '../../services/hardcore';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
-const HARDCORE_RED = '#d8342f';
+import { C } from '../../theme/palette';
+const HARDCORE_RED = C.danger;
 
 export function PlayRow({ songId, style }: { songId: string; style?: StyleProp<ViewStyle> }) {
   const router = useRouter();
@@ -26,7 +27,7 @@ export function PlayRow({ songId, style }: { songId: string; style?: StyleProp<V
         onPress={play}
         accessibilityLabel={hardcore ? 'Play in hardcore mode' : 'Play'}
       >
-        <PixelIcon name="play" size={14} color={hardcore ? '#ffffff' : '#000000'} />
+        <PixelIcon name="play" size={14} color={hardcore ? C.textStrong : C.onAccent} />
         <Text style={[styles.playText, hardcore && styles.playTextHardcore]}>{hardcore ? 'PLAY HARDCORE' : 'PLAY'}</Text>
       </PressableScale>
       <PressableScale
@@ -37,7 +38,7 @@ export function PlayRow({ songId, style }: { songId: string; style?: StyleProp<V
         accessibilityState={{ checked: hardcore }}
         accessibilityLabel="Hardcore mode: one miss and you lose"
       >
-        <PixelIcon name="skull" size={14} color={hardcore ? '#ffffff' : PIXEL.textDim} />
+        <PixelIcon name="skull" size={14} color={hardcore ? C.textStrong : PIXEL.textDim} />
         <Text style={[styles.toggleText, hardcore && styles.toggleTextOn]}>HC</Text>
       </PressableScale>
     </View>
@@ -55,11 +56,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: PIXEL.accent,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: C.outline,
   },
   playHardcore: { backgroundColor: HARDCORE_RED },
-  playText: { color: '#000000', fontFamily: FONTS.pixel, fontSize: 10 },
-  playTextHardcore: { color: '#ffffff' },
+  playText: { color: C.onAccent, fontFamily: FONTS.pixel, fontSize: 10 },
+  playTextHardcore: { color: C.textStrong },
   toggle: {
     width: 58,
     alignItems: 'center',
@@ -67,9 +68,9 @@ const styles = StyleSheet.create({
     gap: 4,
     borderWidth: 2,
     borderColor: PIXEL.panelLight,
-    backgroundColor: '#070b14',
+    backgroundColor: C.bgDeep,
   },
   toggleOn: { backgroundColor: '#5c0f0d', borderColor: HARDCORE_RED },
   toggleText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 7 },
-  toggleTextOn: { color: '#ffffff' },
+  toggleTextOn: { color: C.textStrong },
 });
