@@ -42,6 +42,11 @@ export async function recordHardcoreClear(song: Song): Promise<void> {
   await AsyncStorage.setItem(KEY, JSON.stringify(all)).catch(() => {});
 }
 
+/** The chart fingerprint of the last Hardcore clear of a song (null if never cleared). */
+export async function getHardcoreClearKey(songId: string): Promise<string | null> {
+  return (await readClears())[songId] ?? null;
+}
+
 /** Has this exact chart been cleared in Hardcore? */
 export async function hasHardcoreClear(song: Song): Promise<boolean> {
   return (await readClears())[song.id] === chartKey(song);

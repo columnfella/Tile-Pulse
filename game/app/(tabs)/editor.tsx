@@ -51,7 +51,7 @@ import { BpmLookupSheet } from '../../src/components/editor/BpmLookupSheet';
 import { SlideBody, SLIDE_COLORS } from '../../src/components/game/SlideBody';
 import { UploadSheet } from '../../src/components/editor/UploadSheet';
 import { UploadedLevelsList } from '../../src/components/editor/UploadedLevelsList';
-import { hasHardcoreClear } from '../../src/services/uploadGate';
+import { chartKey, getHardcoreClearKey, hasHardcoreClear } from '../../src/services/uploadGate';
 import { CreateSongSheet } from '../../src/components/editor/CreateSongSheet';
 import { SongSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
 import { useDefaultBackground } from '../../src/services/settings';
@@ -1378,6 +1378,30 @@ function BeatmapEditor({ song, onBack, onSaved, openUploadOnMount = false }: Bea
     await saveNow(); // upload exactly what's saved
     setUploadSong(buildSong());
   };
+
+  // Verified = the current notes + BPM were beaten in Hardcore (needed to upload).
+  // Any edit to them turns it off until the level is verified again.
+  const [clearKey, setClearKey] = useState<string | null>(null);
+  useEffect(() => {
+    void getHardcoreClearKey(song.id).then(setClearKey);
+  }, [song.id]);
+  const isVerified = useMemo(() => clearKey !== null && clearKey === chartKey({ bpm, tiles }), [clearKey, bpm, tiles]);
+  const handleVerify = async () => {
+    if (isVerified) {
+      showToast('Verified: beaten in Hardcore. Edits to notes or BPM need a new verification.');
+      return;
+    }
+    if (tiles.length === 0) {
+      showToast('Add some notes before verifying');
+      return;
+    }
+    audioService.stop();
+    setIsPlayingPreview(false);
+    setPausedAtSec(null);
+    stopFollowRef.current();
+    await saveNow(); // the run plays exactly what's saved
+    router.push(`/play/${song.id}?hardcore=1&verify=1`);
+  };
   useEffect(() => {
     if (openUploadOnMount) setUploadSong(buildSong());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1475,6 +1499,14 @@ function BeatmapEditor({ song, onBack, onSaved, openUploadOnMount = false }: Bea
               accessibilityLabel="Customize song: name, background and cover"
             >
               <PixelIcon name="palette" size={14} color={C.text} />
+            </PressableScale>
+            <PressableScale
+              scaleTo={0.85}
+              style={[styles.iconBtn, isVerified ? styles.verifyBtnOn : styles.verifyBtnOff]}
+              onPress={handleVerify}
+              accessibilityLabel={isVerified ? 'Level verified' : 'Verify level: beat it in Hardcore'}
+            >
+              <PixelIcon name="check" size={14} color={isVerified ? C.onAccent : C.danger} />
             </PressableScale>
             <PressableScale
               scaleTo={0.85}
@@ -2244,6 +2276,9 @@ const styles = themedStyles(() => ({
   iconBtnDisabled: {
     opacity: 0.35,
   },
+  // Verify: green check when verified, red outline when the level needs verifying
+  verifyBtnOn: { backgroundColor: C.success, borderWidth: 2, borderColor: C.outline },
+  verifyBtnOff: { backgroundColor: alpha(C.danger, 0.12), borderWidth: 2, borderColor: C.danger },
   uploadBtn: {
     backgroundColor: C.accent,
     borderWidth: 2,

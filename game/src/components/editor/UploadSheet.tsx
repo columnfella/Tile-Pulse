@@ -537,7 +537,7 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
         <View style={styles.footer}>
           {/* Verification: the chart must be beaten in Hardcore before it can be posted.
               Any change to the notes or BPM needs a new verification. */}
-          {!isPreset && cleared !== null ? (
+          {cleared !== null ? (
             cleared ? (
               <View style={styles.verifiedRow} accessibilityLabel="Level verified">
                 <View style={styles.verifiedCheck}>
