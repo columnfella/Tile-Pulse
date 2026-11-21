@@ -187,10 +187,10 @@ export default function DiscoverScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [levels, setLevels] = useState<CommunityLevel[]>([]);
-  // TilePulse team levels without a cover get a piano photo (Wikimedia Commons)
+  // TilePulse team levels always show a piano photo (Wikimedia Commons), instead of their cover
   const [pianoCovers, setPianoCovers] = useState<Record<string, string>>({});
   useEffect(() => {
-    const missing = levels.filter((l) => l.author.team && !l.cover && !pianoCovers[l.id]);
+    const missing = levels.filter((l) => l.author.team && !pianoCovers[l.id]);
     if (!missing.length) return;
     let cancelled = false;
     void Promise.all(missing.map(async (l) => [l.id, (await getPianoCover(localIdForLevel(l.id)))?.url] as const)).then((found) => {
@@ -415,7 +415,7 @@ export default function DiscoverScreen() {
     const isDownloaded = downloaded.has(localId);
     const isDownloading = downloading === item.id;
     const seconds = item.song.durationMs ? Math.round(item.song.durationMs / 1000) : null;
-    const cover = coverUrl(item) ?? pianoCovers[item.id] ?? null;
+    const cover = (item.author.team ? pianoCovers[item.id] : null) ?? coverUrl(item);
 
     return (
       <Animated.View entering={listItemIn(index % PAGE_SIZE)}>

@@ -29,7 +29,10 @@ export function updateDownloadedLevels(force = false): Promise<string[]> {
         // Older downloads don't know their version: compare with when they were downloaded
         const isNewer =
           song.community.version !== undefined ? remote.version > song.community.version : remote.updatedAt > song.createdAt;
-        if (!isNewer) continue;
+        // Downloads from older app versions lack the newer details (team level,
+        // version): refresh them once, too
+        const outdatedCopy = song.community.team === undefined;
+        if (!isNewer && !outdatedCopy) continue;
         try {
           const fresh = await downloadLevel({ id: remote.id });
           updated.push(fresh.community?.name ?? fresh.title);

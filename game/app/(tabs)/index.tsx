@@ -53,9 +53,9 @@ export default function HomeScreen() {
     setLoaded(true);
     const entries = await Promise.all(list.map(async (s) => [s.id, await storageService.getCoverUri(s)] as const));
     setCovers(Object.fromEntries(entries));
-    // TilePulse team levels without a cover (the built-in samples and levels the
-    // team posted): a random piano photo (online, kept per device)
-    const samples = list.filter((s) => (PRESET_IDS.has(s.id) || s.community?.team) && !s.coverUri);
+    // TilePulse team levels (the built-in samples and levels the team posted)
+    // show a random piano photo (online, kept per device) instead of their cover
+    const samples = list.filter((s) => (PRESET_IDS.has(s.id) && !s.coverUri) || s.community?.team);
     const photos = await Promise.all(samples.map(async (s) => [s.id, await getPianoCover(s.id)] as const));
     const found = photos.filter((p): p is readonly [string, NonNullable<(typeof p)[1]>] => !!p[1]);
     if (found.length) {
