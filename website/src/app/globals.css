@@ -21,6 +21,8 @@
   --glass-strong: rgba(var(--background-secondary-rgb), 0.85);
   --edge: rgba(var(--primary-rgb), 0.24);
   --shadow: rgba(var(--ink-rgb), 0.55);
+  /* Text shadows: see-through, so titles get depth without a hard black outline */
+  --text-shadow: rgba(var(--ink-rgb), 0.35);
   --unit: 4px; /* one "pixel" of the art */
   --max: 1080px;
 }

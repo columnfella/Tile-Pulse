@@ -67,7 +67,7 @@
 .title {
   font-size: clamp(26px, 5vw, 46px);
   color: var(--text);
-  text-shadow: 3px 3px 0 var(--shadow);
+  text-shadow: 3px 3px 0 var(--text-shadow);
 }
 
 .coral {
