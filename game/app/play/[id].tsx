@@ -141,7 +141,9 @@ const WindowedTileField = React.memo(function WindowedTileField({
 
 export default function PlayScreen() {
   const router = useRouter();
-  const { id, hardcore: hardcoreParam } = useLocalSearchParams<{ id: string; hardcore?: string }>();
+  const { id, hardcore: hardcoreParam, verify: verifyParam } = useLocalSearchParams<{ id: string; hardcore?: string; verify?: string }>();
+  // Opened from VERIFY in the upload menu: a Hardcore run that unlocks uploading
+  const verifying = verifyParam === '1';
   // Hardcore: the first miss ends the run
   const hardcore = hardcoreParam === '1';
   const hardcoreRef = useRef(hardcore);
@@ -777,6 +779,12 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
     }
   };
 
+  /** Verification run: back to the editor with the upload menu open. */
+  const handleBackToUpload = () => {
+    audioService.stop();
+    router.navigate({ pathname: '/(tabs)/editor', params: { songId: String(id), t: String(Date.now()), upload: '1' } });
+  };
+
   const handleExitToHome = () => {
     audioService.stop();
     // Close the game screen to reveal the existing Songs tab (replace() rebuilt the
@@ -933,10 +941,17 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 <PixelIcon name="reset" size={14} color={C.textStrong} />
                 <Text style={styles.modalPrimaryBtnText}>Retry</Text>
               </PressableScale>
-              <PressableScale style={styles.modalSecondaryBtn} onPress={handleExitToHome} accessibilityLabel="Back to Home">
-                <PixelIcon name="home" size={18} color={C.text} />
-                <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
-              </PressableScale>
+              {verifying ? (
+                <PressableScale style={styles.modalSecondaryBtn} onPress={handleBackToUpload} accessibilityLabel="Back to the editor">
+                  <PixelIcon name="editor" size={14} color={C.text} />
+                  <Text style={styles.modalSecondaryBtnText}>Back to editor</Text>
+                </PressableScale>
+              ) : (
+                <PressableScale style={styles.modalSecondaryBtn} onPress={handleExitToHome} accessibilityLabel="Back to Home">
+                  <PixelIcon name="home" size={18} color={C.text} />
+                  <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
+                </PressableScale>
+              )}
             </View>
           </Animated.View>
         </Animated.View>
@@ -989,10 +1004,12 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
               <Text style={styles.rankText}>{getRank(stats.accuracy)}</Text>
             </Animated.View>
 
-            <Text style={styles.statusModalTitle}>{hardcore ? 'Hardcore Clear!' : 'Song Completed!'}</Text>
+            <Text style={styles.statusModalTitle}>
+              {verifying && hardcore ? 'Level Verified!' : hardcore ? 'Hardcore Clear!' : 'Song Completed!'}
+            </Text>
             <Text style={styles.statusModalSub}>{song.title}</Text>
             {hardcore && !song.community ? (
-              <Text style={styles.unrankedNote}>Beaten in Hardcore: you can upload this level now.</Text>
+              <Text style={styles.unrankedNote}>Beaten in Hardcore: verified, you can upload this level now.</Text>
             ) : null}
             {ranked && !ranked.ranked ? (
               <Text style={styles.unrankedNote}>
@@ -1053,14 +1070,21 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
                 </PressableScale>
               ) : null}
 
-              <PressableScale
-                style={styles.modalSecondaryBtn}
-                onPress={handleExitToHome}
-                accessibilityLabel="Back to Home"
-              >
-                <PixelIcon name="home" size={18} color={C.text} />
-                <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
-              </PressableScale>
+              {verifying && !song.community ? (
+                <PressableScale style={styles.modalSecondaryBtn} onPress={handleBackToUpload} accessibilityLabel="Back to upload">
+                  <PixelIcon name="check" size={14} color={C.success} />
+                  <Text style={styles.modalSecondaryBtnText}>Back to upload</Text>
+                </PressableScale>
+              ) : (
+                <PressableScale
+                  style={styles.modalSecondaryBtn}
+                  onPress={handleExitToHome}
+                  accessibilityLabel="Back to Home"
+                >
+                  <PixelIcon name="home" size={18} color={C.text} />
+                  <Text style={styles.modalSecondaryBtnText}>Back to Home</Text>
+                </PressableScale>
+              )}
             </View>
           </Animated.View>
         </Animated.View>

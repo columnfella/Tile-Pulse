@@ -535,28 +535,44 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
 
         {/* Footer: upload */}
         <View style={styles.footer}>
-          {cleared === false && !isPreset ? (
-            <View style={styles.gateBox}>
-              <View style={styles.gateHead}>
-                <PixelIcon name="skull" size={14} color={C.danger} />
-                <Text style={styles.gateTitle}>BEAT IT IN HARDCORE FIRST</Text>
+          {/* Verification: the chart must be beaten in Hardcore before it can be posted.
+              Any change to the notes or BPM needs a new verification. */}
+          {!isPreset && cleared !== null ? (
+            cleared ? (
+              <View style={styles.verifiedRow} accessibilityLabel="Level verified">
+                <View style={styles.verifiedCheck}>
+                  <PixelIcon name="check" size={12} color={C.onAccent} />
+                </View>
+                <View style={styles.flex}>
+                  <Text style={styles.verifiedTitle}>VERIFIED</Text>
+                  <Text style={styles.gateText}>Beaten in Hardcore. Changing notes or BPM needs a new verification.</Text>
+                </View>
               </View>
-              <Text style={styles.gateText}>
-                Every posted level must be beatable: finish this level in Hardcore mode (one miss ends the run). Changing notes later
-                means beating it again.
-              </Text>
-              <PressableScale
-                scaleTo={0.95}
-                style={styles.gateBtn}
-                onPress={() => {
-                  onClose();
-                  router.push(`/play/${song.id}?hardcore=1`);
-                }}
-              >
-                <PixelIcon name="play" size={12} color={C.onAccent} />
-                <Text style={styles.primaryText}>PLAY IN HARDCORE</Text>
-              </PressableScale>
-            </View>
+            ) : (
+              <View style={styles.gateBox}>
+                <View style={styles.gateHead}>
+                  <PixelIcon name="skull" size={14} color={C.danger} />
+                  <Text style={styles.gateTitle}>NOT VERIFIED</Text>
+                </View>
+                <Text style={styles.gateText}>
+                  {record
+                    ? 'The notes changed since your last verification. Beat it in Hardcore (one miss ends the run) to verify it again.'
+                    : 'Every posted level must be beatable: beat it in Hardcore mode (one miss ends the run) to verify it.'}
+                </Text>
+                <PressableScale
+                  scaleTo={0.95}
+                  style={styles.gateBtn}
+                  accessibilityLabel="Verify level"
+                  onPress={() => {
+                    onClose();
+                    router.push(`/play/${song.id}?hardcore=1&verify=1`);
+                  }}
+                >
+                  <PixelIcon name="check" size={12} color={C.onAccent} />
+                  <Text style={styles.primaryText}>VERIFY · PLAY IN HARDCORE</Text>
+                </PressableScale>
+              </View>
+            )
           ) : null}
           {confirmingUpdate ? (
             <View style={styles.gateBox}>
@@ -682,6 +698,9 @@ const styles = themedStyles(() => ({
   secondaryText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 9 },
   btnDisabled: { opacity: 0.45 },
 
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderWidth: 2, borderColor: C.success, backgroundColor: alpha(C.success, 0.1) },
+  verifiedCheck: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: C.success, borderWidth: 2, borderColor: C.outline },
+  verifiedTitle: { color: C.success, fontFamily: FONTS.pixel, fontSize: 8, marginBottom: 2 },
   gateBox: { gap: 6, padding: 10, borderWidth: 2, borderColor: C.danger, backgroundColor: alpha(C.danger, 0.08) },
   gateHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   gateTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 8, lineHeight: 12 },

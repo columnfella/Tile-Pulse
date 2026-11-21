@@ -51,6 +51,7 @@ import { BpmLookupSheet } from '../../src/components/editor/BpmLookupSheet';
 import { SlideBody, SLIDE_COLORS } from '../../src/components/game/SlideBody';
 import { UploadSheet } from '../../src/components/editor/UploadSheet';
 import { UploadedLevelsList } from '../../src/components/editor/UploadedLevelsList';
+import { hasHardcoreClear } from '../../src/services/uploadGate';
 import { CreateSongSheet } from '../../src/components/editor/CreateSongSheet';
 import { SongSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
 import { useDefaultBackground } from '../../src/services/settings';
@@ -369,6 +370,17 @@ interface SongPickerProps {
 function SongPicker({ songs, loaded, onPick, onCreate, onDelete, onOpenUploaded }: SongPickerProps) {
   // MY SONGS: songs on this device · UPLOADED: levels you posted (edit + update them)
   const [view, setView] = useState<'mine' | 'uploaded'>('mine');
+  // Songs whose current notes were beaten in Hardcore (verified for upload)
+  const [verified, setVerified] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(songs.map(async (x) => ((await hasHardcoreClear(x)) ? x.id : null))).then((ids) => {
+      if (!cancelled) setVerified(new Set(ids.filter((i): i is string => !!i)));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [songs]);
   // Delete mode: tap levels to select them, then delete them together
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -499,6 +511,12 @@ function SongPicker({ songs, loaded, onPick, onCreate, onDelete, onOpenUploaded 
                       {item.bpm} BPM · {item.tiles.length} notes
                       {holds > 0 ? ` (${holds} hold)` : ''}
                     </Text>
+                    {verified.has(item.id) ? (
+                      <View style={styles.verifiedTag}>
+                        <PixelIcon name="check" size={7} color={C.success} />
+                        <Text style={styles.verifiedTagText}>VERIFIED</Text>
+                      </View>
+                    ) : null}
                   </View>
                   {!selecting ? <PixelIcon name="chevronRight" size={21} color={C.textFaint} /> : null}
                 </PressableScale>
@@ -527,9 +545,11 @@ interface BeatmapEditorProps {
   song: Song;
   onBack: () => void;
   onSaved: (song: Song) => void;
+  /** Open the upload menu right away (back from a verification run). */
+  openUploadOnMount?: boolean;
 }
 
-function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
+function BeatmapEditor({ song, onBack, onSaved, openUploadOnMount = false }: BeatmapEditorProps) {
   const router = useRouter();
 
   const [tiles, setTiles] = useState<TileNote[]>(song.tiles || []);
@@ -1358,6 +1378,10 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     await saveNow(); // upload exactly what's saved
     setUploadSong(buildSong());
   };
+  useEffect(() => {
+    if (openUploadOnMount) setUploadSong(buildSong());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Online tempo lookup (small "BPM?" button next to the tempo control)
   const [bpmLookupOpen, setBpmLookupOpen] = useState(false);
@@ -1947,7 +1971,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
 
 export default function EditorScreen() {
   // `t` changes on every "Edit" tap from the Songs tab so the same song can be reopened
-  const params = useLocalSearchParams<{ songId?: string; t?: string }>();
+  const params = useLocalSearchParams<{ songId?: string; t?: string; upload?: string }>();
+  // Set when coming back from a verification run: reopen the upload menu
+  const [uploadOnOpen, setUploadOnOpen] = useState<string | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1977,13 +2003,14 @@ export default function EditorScreen() {
           if (request && request !== handledRequestRef.current && list.some((s) => s.id === params.songId && !s.community)) {
             handledRequestRef.current = request;
             setEditingId(params.songId!);
+            setUploadOnOpen(params.upload === '1' ? params.songId! : null);
           }
         })
         .catch((err) => console.warn('Failed to load songs:', err));
       return () => {
         cancelled = true;
       };
-    }, [params.songId, params.t])
+    }, [params.songId, params.t, params.upload])
   );
 
   const handleSaved = useCallback((updated: Song) => {
@@ -2000,8 +2027,12 @@ export default function EditorScreen() {
       <BeatmapEditor
         key={editingSong.id}
         song={editingSong}
-        onBack={() => setEditingId(null)}
+        onBack={() => {
+          setEditingId(null);
+          setUploadOnOpen(null);
+        }}
         onSaved={handleSaved}
+        openUploadOnMount={uploadOnOpen === editingSong.id}
       />
     );
   }
@@ -2257,6 +2288,8 @@ const styles = themedStyles(() => ({
     fontFamily: FONTS.pixel,
     fontSize: 10,
   },
+  verifiedTag: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  verifiedTagText: { color: C.success, fontFamily: FONTS.pixel, fontSize: 6 },
   viewTabs: { flexDirection: 'row', gap: 6, marginTop: 10 },
   viewTab: {
     flex: 1,
