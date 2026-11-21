@@ -4,7 +4,7 @@
  * removed, new badges. Opening it marks everything as read.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { PixelIcon, type PixelIconName } from '../../components/ui/PixelIcon';
@@ -14,6 +14,7 @@ import { FONTS, PIXEL } from '../../theme/pixel';
 import { API_BASE, ApiUnavailableError } from '../../services/communityApi';
 import { ApiError, getSession, onSessionChange, type Session } from '../../services/account';
 import { acceptFriend, removeFriend } from '../../services/friends';
+import { markAnnouncementsSeen, refreshAnnouncements, useAnnouncements, type Announcement } from '../../services/announcements';
 import {
   deleteNotification,
   getNotifications,
@@ -48,7 +49,53 @@ function timeAgo(ms: number): string {
   return new Date(ms).toLocaleDateString();
 }
 
+/** A message from the TilePulse team (admin console): shown to everyone, signed in or not. */
+function AnnouncementItem({ a, isNew }: { a: Announcement; isNew: boolean }) {
+  return (
+    <View style={[styles.item, styles.itemAnnouncement]}>
+      <View style={[styles.iconBox, styles.iconAnnouncement]}>
+        <PixelIcon name="bell" size={14} color={C.onAccent} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.kicker}>FROM THE TILEPULSE TEAM</Text>
+        <View style={styles.itemHead}>
+          <Text style={styles.itemTitle} numberOfLines={3}>
+            {a.title}
+          </Text>
+          {isNew ? <View style={styles.newDot} /> : null}
+        </View>
+        <Text style={styles.itemBody}>{a.body}</Text>
+        <Text style={styles.time}>{timeAgo(a.createdAt)}</Text>
+        {a.link ? (
+          <View style={styles.actions}>
+            <PressableScale scaleTo={0.94} style={styles.announceBtn} onPress={() => Linking.openURL(a.link!.url).catch(() => {})} accessibilityRole="link">
+              <Text style={styles.acceptText}>{a.link.label.toUpperCase()}</Text>
+            </PressableScale>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 export function InboxPanel() {
+  const announcements = useAnnouncements();
+  // Which announcements were new when the inbox opened (they keep the "new" dot until you leave)
+  const [newIds, setNewIds] = useState<Set<number>>(new Set());
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void refreshAnnouncements().then((list) => {
+        if (cancelled) return;
+        setNewIds(new Set(list.filter((x) => announcements.isNew(x.id)).map((x) => x.id)));
+        void markAnnouncementsSeen(list.map((x) => x.id)); // seen now: the badge clears
+      });
+      return () => {
+        cancelled = true;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
   const router = useRouter();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [items, setItems] = useState<AppNotification[]>([]);
@@ -117,7 +164,7 @@ export function InboxPanel() {
     setBusyId(n.id);
     setError(null);
     try {
-      if (accept) await acceptFriend(userId);
+      if (accept) await acceptFriend(userId); // (updates the FRIENDS badge from the reply)
       else await removeFriend(userId);
       setItems((prev) => prev.filter((x) => x.id !== n.id));
     } catch (err) {
@@ -135,11 +182,19 @@ export function InboxPanel() {
         contentContainerStyle={styles.scroll}
         refreshControl={session ? <RefreshControl refreshing={loading} onRefresh={load} tintColor={PIXEL.accent2} /> : undefined}
       >
+        {announcements.list.length > 0 ? (
+          <View style={styles.list}>
+            {announcements.list.map((a) => (
+              <AnnouncementItem key={`a${a.id}`} a={a} isNew={newIds.has(a.id)} />
+            ))}
+          </View>
+        ) : null}
+
         {session === undefined ? (
           <ActivityIndicator color={PIXEL.accent2} style={styles.loader} />
         ) : !session ? (
           <View style={styles.center}>
-            <Text style={styles.mutedCenter}>Sign in to get friend requests and messages from the TilePulse team.</Text>
+            <Text style={styles.mutedCenter}>Sign in to get friend requests and other messages.</Text>
             <PressableScale scaleTo={0.95} style={styles.primaryBtn} onPress={() => router.push('/(tabs)/profile')}>
               <PixelIcon name="person" size={14} color={C.onAccent} />
               <Text style={styles.primaryText}>SIGN IN</Text>
@@ -247,6 +302,10 @@ const styles = themedStyles(() => ({
   list: { gap: 8 },
   empty: { alignItems: 'center', gap: 10, marginTop: 40 },
   item: { flexDirection: 'row', gap: 10, backgroundColor: PIXEL.panel, borderWidth: 2, borderColor: PIXEL.panelLight, padding: 10 },
+  itemAnnouncement: { borderColor: C.accent, backgroundColor: alpha(C.accent, 0.08) },
+  iconAnnouncement: { backgroundColor: C.accent, borderColor: C.accent },
+  kicker: { color: C.blue, fontFamily: FONTS.pixel, fontSize: 6, marginBottom: 4 },
+  announceBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: C.accent, borderWidth: 2, borderColor: C.outline },
   itemNew: { borderColor: C.tint2 },
   itemWarning: { borderColor: alpha(C.warning, 0.5), backgroundColor: alpha(C.warning, 0.06) },
   iconBox: { width: 32, height: 32, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bgDeep },

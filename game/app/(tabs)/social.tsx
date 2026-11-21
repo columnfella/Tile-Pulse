@@ -16,7 +16,8 @@ import { PressableScale } from '../../src/components/ui/PressableScale';
 import { FriendsPanel } from '../../src/components/social/FriendsPanel';
 import { RanksPanel } from '../../src/components/social/RanksPanel';
 import { InboxPanel } from '../../src/components/social/InboxPanel';
-import { useUnreadCount } from '../../src/services/notifications';
+import { useSocialCounts } from '../../src/services/socialCounts';
+import { PixelBadge } from '../../src/components/ui/PixelBadge';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 
 import { C, alpha, themedStyles } from '../../src/theme/palette';
@@ -33,7 +34,7 @@ const isSection = (s: unknown): s is Section => s === 'friends' || s === 'ranks'
 export default function SocialScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
   const [section, setSection] = useState<Section>(isSection(params.section) ? params.section : 'friends');
-  const unread = useUnreadCount();
+  const counts = useSocialCounts();
 
   // Links like /social?section=inbox switch the section even when the tab is already open
   useEffect(() => {
@@ -50,7 +51,8 @@ export default function SocialScreen() {
         <View style={styles.segments}>
           {SECTIONS.map((s) => {
             const active = s.id === section;
-            const badge = s.id === 'inbox' && unread > 0 ? (unread > 99 ? '99+' : String(unread)) : null;
+            // FRIENDS: requests waiting for you · INBOX: unread notices + new announcements
+            const count = s.id === 'friends' ? counts.friends : s.id === 'inbox' ? counts.inbox : 0;
             return (
               <PressableScale
                 key={s.id}
@@ -59,15 +61,11 @@ export default function SocialScreen() {
                 onPress={() => setSection(s.id)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
-                accessibilityLabel={badge ? `${s.label}, ${badge} new` : s.label}
+                accessibilityLabel={count ? `${s.label}, ${count} new` : s.label}
               >
                 <PixelIcon name={s.icon} size={13} color={active ? PIXEL.accent : PIXEL.textDim} />
                 <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{s.label}</Text>
-                {badge ? (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{badge}</Text>
-                  </View>
-                ) : null}
+                <PixelBadge count={count} />
               </PressableScale>
             );
           })}
@@ -103,6 +101,4 @@ const styles = themedStyles(() => ({
   segmentActive: { borderColor: PIXEL.accent, backgroundColor: alpha(C.accent, 0.12) },
   segmentText: { color: PIXEL.textDim, fontFamily: FONTS.pixel, fontSize: 8 },
   segmentTextActive: { color: PIXEL.accent },
-  badge: { minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center', backgroundColor: PIXEL.accent, borderWidth: 1, borderColor: C.outline },
-  badgeText: { color: C.onAccent, fontFamily: FONTS.body, fontSize: 13, lineHeight: 14 },
 }));

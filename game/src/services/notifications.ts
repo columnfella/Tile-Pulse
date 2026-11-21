@@ -4,8 +4,8 @@
  * The unread count arrives with the presence heartbeat (friends.ts) every
  * minute and is shared through a tiny store, so the tab badge updates live.
  */
-import { useSyncExternalStore } from 'react';
 import { apiRequest } from './account';
+import { setSocialCounts, useSocialCounts } from './socialCounts';
 
 export type NotificationKind =
   | 'friend_request'
@@ -31,25 +31,14 @@ export interface AppNotification {
 
 /* ------------------------------ unread count store ----------------------------- */
 
-let unread = 0;
-const listeners = new Set<() => void>();
-
+/** The inbox's unread count (all kinds); badges live in socialCounts.ts. */
 export function setUnreadCount(n: number) {
-  if (n === unread) return;
-  unread = Math.max(0, n);
-  listeners.forEach((l) => l());
+  setSocialCounts({ unread: n });
 }
 
-/** Live unread count for the tab badge. */
+/** Live unread count (all kinds). */
 export function useUnreadCount(): number {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => unread,
-    () => 0
-  );
+  return useSocialCounts().unread;
 }
 
 /* ----------------------------------- requests ---------------------------------- */

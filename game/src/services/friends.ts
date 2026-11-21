@@ -4,7 +4,7 @@
  */
 import { AppState } from 'react-native';
 import { apiRequest, getSession, onSessionChange, updateSessionUser, type StaffRole } from './account';
-import { setUnreadCount } from './notifications';
+import { clearPersonalCounts, setSocialCounts } from './socialCounts';
 import type { ImageRef, Presence } from './profile';
 
 export interface PlayerCard {
@@ -31,17 +31,26 @@ export interface FriendLists {
   outgoing: FriendRequest[];
 }
 
-export const getFriends = () => apiRequest<FriendLists>('GET', '/friends');
+/** Every friends reply carries the lists: keep the FRIENDS badge (pending requests) in sync. */
+const withCount = async <T extends FriendLists>(p: Promise<T>): Promise<T> => {
+  const lists = await p;
+  setSocialCounts({ requests: lists.incoming.length });
+  return lists;
+};
+
+export const getFriends = () => withCount(apiRequest<FriendLists>('GET', '/friends'));
 
 export const addFriend = (username: string) =>
-  apiRequest<FriendLists & { status: 'friends' | 'outgoing' }>('POST', '/friends', {
-    json: { username: username.trim().replace(/^@/, '') },
-  });
+  withCount(
+    apiRequest<FriendLists & { status: 'friends' | 'outgoing' }>('POST', '/friends', {
+      json: { username: username.trim().replace(/^@/, '') },
+    })
+  );
 
-export const acceptFriend = (userId: string) => apiRequest<FriendLists>('POST', `/friends/${userId}/accept`);
+export const acceptFriend = (userId: string) => withCount(apiRequest<FriendLists>('POST', `/friends/${userId}/accept`));
 
 /** Removes a friend, declines their request, or cancels yours. */
-export const removeFriend = (userId: string) => apiRequest<FriendLists>('DELETE', `/friends/${userId}`);
+export const removeFriend = (userId: string) => withCount(apiRequest<FriendLists>('DELETE', `/friends/${userId}`));
 
 /* -------------------------------- leaderboard ------------------------------- */
 
@@ -75,10 +84,17 @@ async function beat() {
   try {
     // The reply carries the inbox's unread count and your staff role (so a
     // promotion shows up without signing in again)
-    const r = await apiRequest<{ unread?: number; staffRole?: StaffRole } | undefined>('POST', '/me/presence', {
+    const r = await apiRequest<{ unread?: number; unreadOther?: number; requests?: number; staffRole?: StaffRole } | undefined>('POST', '/me/presence', {
       json: { kind: activity.kind, ...(activity.detail ? { detail: activity.detail.slice(0, 120) } : {}) },
     });
-    if (typeof r?.unread === 'number') setUnreadCount(r.unread);
+    if (typeof r?.unread === 'number') {
+      setSocialCounts({
+        unread: r.unread,
+        // Older servers only send the total
+        unreadOther: typeof r.unreadOther === 'number' ? r.unreadOther : r.unread,
+        ...(typeof r.requests === 'number' ? { requests: r.requests } : {}),
+      });
+    }
     if (r && r.staffRole !== undefined) await updateSessionUser({ ...session.user, staffRole: r.staffRole });
   } catch {
     /* offline: try again on the next beat */
@@ -101,6 +117,7 @@ export function startPresence() {
   });
   onSessionChange((s) => {
     if (s) void beat();
+    else clearPersonalCounts(); // signed out: no requests / notices to show
   });
   void beat();
 }

@@ -6,12 +6,13 @@ import { PixelIcon } from '../../src/components/ui/PixelIcon';
 import { UnmountOnBlur } from '../../src/components/ui/UnmountOnBlur';
 import { ACTIVE_THEME } from '../../src/constants/theme';
 import { FONTS } from '../../src/theme/pixel';
-import { useUnreadCount } from '../../src/services/notifications';
+import { useSocialCounts } from '../../src/services/socialCounts';
+import { PixelBadge } from '../../src/components/ui/PixelBadge';
 
 import { C } from '../../src/theme/palette';
 export default function TabLayout() {
   const { ui } = ACTIVE_THEME;
-  const unread = useUnreadCount();
+  const counts = useSocialCounts();
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -68,12 +69,14 @@ export default function TabLayout() {
       <Tabs.Screen
         name="social"
         options={{
-          // Friends, leaderboard and inbox in one tab (badge: unread notifications)
+          // Friends, leaderboard and inbox in one tab. Red pixel badge: friend
+          // requests + unread notices + new team announcements
           title: 'Social',
-          tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
-          tabBarBadgeStyle: { backgroundColor: C.accent, color: C.onAccent, fontFamily: FONTS.body, fontSize: 12 },
           tabBarIcon: ({ color, size }) => (
-            <PixelIcon name="friends" size={size || 22} color={String(color)} />
+            <View>
+              <PixelIcon name="friends" size={size || 22} color={String(color)} />
+              <PixelBadge count={counts.tab} style={{ position: 'absolute', top: -7, right: -12 }} />
+            </View>
           ),
         }}
       />
