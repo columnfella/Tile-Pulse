@@ -161,7 +161,7 @@ export const MINIMAL_DARK_THEME: ThemeConfig = themed(() => ({
       perfect: { text: 'PERFECT', color: C.accent, glow: C.accent },
       great: { text: 'GREAT', color: C.blue, glow: C.blueDeeper },
       good: { text: 'GOOD', color: C.blue, glow: C.blueDeeper },
-      miss: { text: 'MISS', color: C.accent, glow: C.dangerDeep },
+      miss: { text: 'MISS', color: C.danger, glow: C.dangerDeep },
     },
   },
   ui: {

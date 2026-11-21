@@ -178,7 +178,8 @@ export function derivePalette(theme: ThemeDefinition): Palette {
     textFaint: mix(t.textMuted, t.background, 0.55),
 
     outline: ink,
-    onAccent: t.background,
+    // A touch darker than the background, so text on the accent stays readable (≥ 4.5:1)
+    onAccent: mix(t.background, '#000000', 0.4),
     black: ink,
     white: mix(t.text, '#ffffff', 0.5),
 

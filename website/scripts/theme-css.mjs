@@ -50,7 +50,7 @@ const c = theme.colors;
 const colors = {
   ...c,
   ink: mix(c.background, '#000000', 0.6), // pixel outlines and shadows
-  onPrimary: c.background, // text on primary buttons
+  onPrimary: mix(c.background, '#000000', 0.4), // text on primary buttons (same as the game)
   textFaint: mix(c.textMuted, c.background, 0.28),
   warning: mix('#d4b06a', c.highlight, 0.1), // muted amber (Early Tester banner)
 };

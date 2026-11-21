@@ -61,7 +61,10 @@ export const isBackgroundId = (v: unknown): v is BackgroundId =>
   typeof v === 'string' && BACKGROUNDS.some((b) => b.id === v);
 
 // Colours of the glows, rings, particles and stars: from the active theme
-const PALETTE = themed(() => [C.primary, C.highlight, C.primaryHover, C.secondary]);
+// Complementary accent, highlight and surface tones. Not the primary: a very
+// bright primary (Cyberpunk yellow) turns olive as a faint glow on near-black, and
+// overlapping bright accents mix into mud (yellow + cyan → green).
+const PALETTE = themed(() => [C.secondary, C.surfaceActive, C.highlight, C.surfaceHover]);
 
 /** Deterministic pseudo-random numbers so layouts are stable between renders. */
 function seeded(seed: number) {
