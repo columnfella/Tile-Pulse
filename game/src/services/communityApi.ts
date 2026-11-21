@@ -96,6 +96,14 @@ export interface CommunityLevel {
   updatedAt: number;
 }
 
+/** The server answered with an error (its message is meant for players, unless it's a 5xx). */
+export class ApiRequestError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 export class ApiUnavailableError extends Error {
   constructor() {
     super('Community server is offline.');
@@ -122,7 +130,7 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
     signal?.removeEventListener('abort', onAbort);
   }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(typeof body?.error === 'string' ? body.error : `Request failed (${res.status})`);
+  if (!res.ok) throw new ApiRequestError(res.status, typeof body?.error === 'string' ? body.error : `Request failed (${res.status})`);
   return body as T;
 }
 

@@ -25,14 +25,11 @@ import {
 } from '../../services/friends';
 
 import { C, themedStyles } from '../../theme/palette';
+import { playerErrorMessage } from '../../services/playerError';
 const POLL_MS = 20_000;
 
-const errorText = (err: unknown) =>
-  err instanceof ApiUnavailableError
-    ? `Can’t reach the community server (${API_BASE}).`
-    : err instanceof Error
-      ? err.message
-      : 'Something went wrong.';
+// Player-friendly: never shows the server address or technical details
+const errorText = (err: unknown) => playerErrorMessage(err);
 
 function Avatar({ id, avatar, name, size = 40 }: { id: string; avatar: ImageRef | null; name: string; size?: number }) {
   const uri = avatarUrl(id, avatar);

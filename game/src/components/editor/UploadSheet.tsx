@@ -34,6 +34,7 @@ import { storageService } from '../../services/storage';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
 import { C, alpha, themedStyles, themed } from '../../theme/palette';
+import { playerErrorMessage } from '../../services/playerError';
 const MAX_COVER_BYTES = 2 * 1024 * 1024;
 
 const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = themed(() => ([
@@ -51,12 +52,8 @@ const STEP_TEXT: Record<UploadStep, string> = {
   done: 'Done!',
 };
 
-const errorText = (err: unknown) =>
-  err instanceof ApiUnavailableError
-    ? `Can’t reach the community server (${API_BASE}).`
-    : err instanceof Error
-      ? err.message
-      : 'Something went wrong.';
+// Player-friendly: never shows the server address or technical details
+const errorText = (err: unknown) => playerErrorMessage(err);
 
 /* --------------------------------- pieces --------------------------------- */
 

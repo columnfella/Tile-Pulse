@@ -104,7 +104,8 @@ export async function apiRequest<T>(
 ): Promise<T> {
   // Release builds never send passwords or session tokens over plain HTTP
   // (anyone on the same network could read them). Use an https:// server.
-  if (!__DEV__ && API_BASE.startsWith('http://')) {
+  // (A server on this same computer is fine: that traffic never leaves the device.)
+  if (!__DEV__ && API_BASE.startsWith('http://') && !/^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(API_BASE)) {
     throw new ApiError(0, 'The server address is not secure (https is required).');
   }
   const session = auth ? await getSession() : null;

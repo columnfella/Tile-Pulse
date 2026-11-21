@@ -23,12 +23,9 @@ import {
 } from '../../services/notifications';
 
 import { C, alpha, themedStyles, themed } from '../../theme/palette';
-const errorText = (err: unknown) =>
-  err instanceof ApiUnavailableError
-    ? `Can’t reach the community server (${API_BASE}).`
-    : err instanceof Error
-      ? err.message
-      : 'Something went wrong.';
+import { playerErrorMessage } from '../../services/playerError';
+// Player-friendly: never shows the server address or technical details
+const errorText = (err: unknown) => playerErrorMessage(err);
 
 const LOOK: Record<NotificationKind, { icon: PixelIconName; color: string }> = themed(() => ({
   friend_request: { icon: 'userPlus', color: PIXEL.accent2 },

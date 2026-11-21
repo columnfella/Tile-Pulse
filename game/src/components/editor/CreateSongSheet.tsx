@@ -29,6 +29,7 @@ import type { Song } from '../../types/song';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
 import { C, alpha, themedStyles } from '../../theme/palette';
+import { playerErrorMessage } from '../../services/playerError';
 const MIN_BPM = 40;
 const MAX_BPM = 300;
 const TIME_SIGNATURES = ['4/4', '3/4', '6/8'] as const;
@@ -149,7 +150,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
       reset();
       onCreated(song);
     } catch (err) {
-      setError(`Couldn’t create the song: ${err instanceof Error ? err.message : String(err)}`);
+      setError(playerErrorMessage(err, 'Couldn’t create the song. Please try again.'));
     } finally {
       setSaving(false);
     }

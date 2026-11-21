@@ -8,6 +8,7 @@ import { PressableScale } from './PressableScale';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
 import { C, alpha, themedStyles } from '../../theme/palette';
+import { playerErrorMessage } from '../../services/playerError';
 const MAX = 300;
 
 interface Props {
@@ -46,7 +47,7 @@ export function ReasonModal({ visible, title, message, confirmLabel, presets = [
       await onConfirm(reason.trim());
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setError(playerErrorMessage(err));
       setBusy(false);
     }
   };

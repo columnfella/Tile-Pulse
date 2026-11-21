@@ -28,6 +28,7 @@ import {
 import { FONTS, PIXEL } from '../../theme/pixel';
 
 import { C, alpha, themedStyles } from '../../theme/palette';
+import { playerErrorMessage } from '../../services/playerError';
 const SEARCH_DEBOUNCE_MS = 500;
 
 type Mode = 'song' | 'artist' | 'songByArtist';
@@ -86,7 +87,7 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
     setError(null);
     task()
       .catch((err) => {
-        if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Search failed.');
+        if (!controller.signal.aborted) setError(playerErrorMessage(err, 'Search failed. Please try again.'));
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false);
@@ -161,7 +162,7 @@ export function BpmLookupSheet({ visible, initialQuery, currentBpm, onApply, onC
       .catch((err) =>
         setTempo((t) => ({
           ...t,
-          [track.id]: { status: 'error', message: err instanceof Error ? err.message : 'Lookup failed.' },
+          [track.id]: { status: 'error', message: playerErrorMessage(err, 'Lookup failed. Please try again.') },
         }))
       );
   };

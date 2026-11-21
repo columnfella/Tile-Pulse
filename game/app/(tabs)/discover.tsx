@@ -39,6 +39,7 @@ import { FONTS, PIXEL } from '../../src/theme/pixel';
 import { CoverBanner, LevelBadge } from '../../src/components/ui/LevelCardParts';
 
 import { C, alpha, themedStyles, themed } from '../../src/theme/palette';
+import { playerErrorMessage } from '../../src/services/playerError';
 const SEARCH_DEBOUNCE_MS = 400;
 const PAGE_SIZE = 20;
 
@@ -254,7 +255,7 @@ export default function DiscoverScreen() {
           setLoad(
             err instanceof ApiUnavailableError
               ? { status: 'offline' }
-              : { status: 'error', message: err instanceof Error ? err.message : 'Search failed.' }
+              : { status: 'error', message: playerErrorMessage(err, 'Couldn’t load levels. Please try again.') }
           );
         })
         .finally(() => {
@@ -295,7 +296,7 @@ export default function DiscoverScreen() {
       showBanner(`“${level.name}” added to your songs`);
     } catch (err) {
       showBanner(
-        err instanceof ApiUnavailableError ? 'Server is offline — try again later.' : err instanceof Error ? err.message : 'Download failed.',
+        playerErrorMessage(err, 'Download failed. Please try again.'),
         true
       );
     } finally {
@@ -550,9 +551,8 @@ export default function DiscoverScreen() {
           <View style={styles.bigIcon}>
             <PixelIcon name="globe" size={28} color={PIXEL.accent} />
           </View>
-          <Text style={styles.infoTitle}>SERVER OFFLINE</Text>
-          <Text style={styles.muted}>Couldn’t reach the community server at</Text>
-          <Text style={styles.code}>{API_BASE}</Text>
+          <Text style={styles.infoTitle}>CAN’T CONNECT</Text>
+          <Text style={styles.muted}>Can’t connect right now. Check your internet connection and try again.</Text>
           <PressableScale scaleTo={0.94} style={styles.retryBtn} onPress={() => setReloadKey((k) => k + 1)}>
             <PixelIcon name="reset" size={7} color={PIXEL.accent2} />
             <Text style={styles.retryText}>Retry</Text>

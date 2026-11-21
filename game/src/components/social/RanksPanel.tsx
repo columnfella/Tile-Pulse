@@ -18,6 +18,7 @@ import { avatarUrl } from '../../services/profile';
 import { getLeaderboard, type Leaderboard, type LeaderboardEntry } from '../../services/friends';
 
 import { C, themedStyles, themed, mix } from '../../theme/palette';
+import { playerErrorMessage } from '../../services/playerError';
 const MEDAL = themed(() => ([C.gold, C.textSoft, mix(C.gold, C.danger, 0.5)] as const)); // gold, silver, bronze
 
 export function RanksPanel() {
@@ -35,13 +36,7 @@ export function RanksPanel() {
       setData(board);
       setMe(session?.user.username ?? null);
     } catch (err) {
-      setError(
-        err instanceof ApiUnavailableError
-          ? `Can’t reach the community server (${API_BASE}).`
-          : err instanceof Error
-            ? err.message
-            : 'Something went wrong.'
-      );
+      setError(playerErrorMessage(err));
     } finally {
       setLoading(false);
     }

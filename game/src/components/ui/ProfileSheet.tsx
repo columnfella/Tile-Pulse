@@ -28,12 +28,9 @@ import {
 import { acceptFriend, addFriend, presenceText, removeFriend } from '../../services/friends';
 
 import { C, alpha, themedStyles } from '../../theme/palette';
-const errorText = (err: unknown) =>
-  err instanceof ApiUnavailableError
-    ? `Can’t reach the community server (${API_BASE}).`
-    : err instanceof Error
-      ? err.message
-      : 'Something went wrong.';
+import { playerErrorMessage } from '../../services/playerError';
+// Player-friendly: never shows the server address or technical details
+const errorText = (err: unknown) => playerErrorMessage(err);
 
 function Thumb({ level }: { level: ProfileLevel }) {
   const uri = levelCoverUrl(level.id, level.cover);

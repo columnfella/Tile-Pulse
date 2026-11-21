@@ -19,6 +19,7 @@ import * as Updates from 'expo-updates';
 
 import { C, loadSavedTheme, useThemeId } from '../src/theme/palette';
 import { AppearanceHost } from '../src/components/ui/AppearanceSheet';
+import { AnnouncementHost } from '../src/components/ui/AnnouncementHost';
 /**
  * Immersive full-screen mode: hides the status bar (all platforms) and the
  * Android navigation bar (back/home/recents). Users can still swipe from the
@@ -184,6 +185,9 @@ export default function RootLayout() {
       {/* Animated startup screen; fades out once initialization finishes */}
       {/* Menu song credit pop-up (shown once the splash is gone) */}
       <NowPlayingToast ready={isReady} />
+
+      {/* Messages from the TilePulse team (admin console), shown once per device */}
+      <AnnouncementHost ready={isReady} />
 
       {!isReady && <AppSplash onReady={hideNativeSplash} />}
     </View>

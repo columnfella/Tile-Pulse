@@ -45,14 +45,11 @@ import {
 } from '../../services/social';
 
 import { C, alpha, themedStyles } from '../../theme/palette';
+import { playerErrorMessage } from '../../services/playerError';
 const COMMENT_MAX = 300;
 
-const errorText = (err: unknown) =>
-  err instanceof ApiUnavailableError
-    ? `Can’t reach the community server (${API_BASE}).`
-    : err instanceof Error
-      ? err.message
-      : 'Something went wrong.';
+// Player-friendly: never shows the server address or technical details
+const errorText = (err: unknown) => playerErrorMessage(err);
 
 function timeAgo(ms: number): string {
   const s = Math.max(0, (Date.now() - ms) / 1000);

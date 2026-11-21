@@ -52,18 +52,15 @@ import {
 } from '../../src/services/profile';
 
 import { C, alpha, themedStyles } from '../../src/theme/palette';
+import { playerErrorMessage } from '../../src/services/playerError';
 // Banner colours a player can pick: saved on the server as their choice, so fixed (not theme colours)
 const BANNER_COLORS = ['#2f6bff', '#FF6B4A', '#22c46e', '#8b5cf6', '#f5b83d', '#e64980', '#14b8a6', '#15203a'];
 const PASSWORD_MIN = 10;
 
 type Tab = 'history' | 'uploads' | 'settings';
 
-const errorText = (err: unknown) =>
-  err instanceof ApiUnavailableError
-    ? `Can’t reach the community server (${API_BASE}).`
-    : err instanceof Error
-      ? err.message
-      : 'Something went wrong.';
+// Player-friendly: never shows the server address or technical details
+const errorText = (err: unknown) => playerErrorMessage(err);
 
 function timeAgo(ms: number): string {
   const s = Math.max(0, (Date.now() - ms) / 1000);
