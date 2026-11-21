@@ -66,7 +66,8 @@ export interface CommunityLevel {
   holdCount: number;
   plays: number;
   version: number;
-  author: { id: string; displayName: string };
+  /** team: made by the TilePulse team (owner / developers). */
+  author: { id: string; displayName: string; team?: boolean };
   /** Built-in background id chosen by the mapper (may be unknown to older app versions). */
   background: string | null;
   shader: { id: string; name: string } | null;
@@ -90,7 +91,7 @@ export interface CommunityLevel {
     bpm: number;
     timeSignature: { beatsPerMeasure: number; beatUnit: number };
     durationMs: number | null;
-    audio: { mimeType: string; sizeBytes: number } | null;
+    audio: { mimeType: string; sizeBytes: number; sha256?: string } | null;
   };
   createdAt: number;
   updatedAt: number;
@@ -159,22 +160,33 @@ const EXTENSIONS: Record<string, string> = {
 export const coverUrl = (level: CommunityLevel) =>
   level.cover ? `${API_BASE}/api/v1/levels/${level.id}/cover?v=${level.cover.sha256.slice(0, 12)}` : null;
 
+/** Current versions of levels (missing = deleted or made private). */
+export async function getLevelVersions(ids: string[]): Promise<{ id: string; version: number; updatedAt: number }[]> {
+  if (!ids.length) return [];
+  const r = await getJson<{ levels: { id: string; version: number; updatedAt: number }[] }>(
+    `/levels/versions?ids=${encodeURIComponent(ids.slice(0, 100).join(','))}`
+  );
+  return r.levels;
+}
+
 /** Local song id for a downloaded level (so downloading twice updates it instead of duplicating). */
 export const localIdForLevel = (levelId: string) => `community_${levelId}`;
 
 /** Downloads a level (notes + audio) into the local library and returns the saved song. */
-export async function downloadLevel(level: CommunityLevel): Promise<Song> {
+export async function downloadLevel(level: Pick<CommunityLevel, 'id'>): Promise<Song> {
   const { level: full } = await getJson<{ level: CommunityLevel & { notes: Omit<TileNote, 'id'>[] } }>(
     `/levels/${level.id}`
   );
   if (!full.song.audio) throw new Error('This level has no audio uploaded yet.');
 
   const id = localIdForLevel(full.id);
-  const audioUri = await saveRemoteAudio(
-    id,
-    `${API_BASE}/api/v1/levels/${full.id}/audio`,
-    EXTENSIONS[full.song.audio.mimeType] ?? 'mp3'
-  );
+  // Updating a level you already have: keep the audio when it didn't change
+  const existing = await storageService.getSongById(id).catch(() => null);
+  const sameAudio =
+    !!existing?.audioUri && !!full.song.audio.sha256 && existing.community?.audioSha256 === full.song.audio.sha256;
+  const audioUri = sameAudio
+    ? existing!.audioUri
+    : await saveRemoteAudio(id, `${API_BASE}/api/v1/levels/${full.id}/audio`, EXTENSIONS[full.song.audio.mimeType] ?? 'mp3');
   const song: Song = {
     id,
     title: full.song.title,
@@ -193,6 +205,9 @@ export async function downloadLevel(level: CommunityLevel): Promise<Song> {
       difficulty: full.difficulty,
       level: full.level,
       author: full.author.displayName,
+      team: !!full.author.team,
+      version: full.version,
+      audioSha256: full.song.audio.sha256,
     },
   };
   // Keep the level's cover picture with the song (optional: a failed download isn't fatal)

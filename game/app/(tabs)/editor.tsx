@@ -50,6 +50,7 @@ import { FONTS } from '../../src/theme/pixel';
 import { BpmLookupSheet } from '../../src/components/editor/BpmLookupSheet';
 import { SlideBody, SLIDE_COLORS } from '../../src/components/game/SlideBody';
 import { UploadSheet } from '../../src/components/editor/UploadSheet';
+import { UploadedLevelsList } from '../../src/components/editor/UploadedLevelsList';
 import { CreateSongSheet } from '../../src/components/editor/CreateSongSheet';
 import { SongSettingsSheet } from '../../src/components/ui/SongSettingsSheet';
 import { useDefaultBackground } from '../../src/services/settings';
@@ -361,9 +362,13 @@ interface SongPickerProps {
   onPick: (id: string) => void;
   onCreate: () => void;
   onDelete: (songs: Song[]) => void;
+  /** One of your uploaded levels was opened for editing (from the UPLOADED list). */
+  onOpenUploaded: (song: Song) => void;
 }
 
-function SongPicker({ songs, loaded, onPick, onCreate, onDelete }: SongPickerProps) {
+function SongPicker({ songs, loaded, onPick, onCreate, onDelete, onOpenUploaded }: SongPickerProps) {
+  // MY SONGS: songs on this device · UPLOADED: levels you posted (edit + update them)
+  const [view, setView] = useState<'mine' | 'uploaded'>('mine');
   // Delete mode: tap levels to select them, then delete them together
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -390,8 +395,35 @@ function SongPicker({ songs, loaded, onPick, onCreate, onDelete }: SongPickerPro
       <Animated.View entering={FadeIn.duration(250)} style={styles.pickerHeader}>
         <Text style={styles.pickerTitle}>Beatmap Editor</Text>
         <Text style={styles.pickerSub}>
-          {selecting ? 'Tap the levels you want to delete' : 'Create a new song or choose one to edit'}
+          {view === 'uploaded'
+            ? 'Edit a level you posted and update it for everyone'
+            : selecting
+              ? 'Tap the levels you want to delete'
+              : 'Create a new song or choose one to edit'}
         </Text>
+        {!selecting ? (
+          <View style={styles.viewTabs}>
+            {(
+              [
+                ['mine', 'MY SONGS', 'note'],
+                ['uploaded', 'UPLOADED', 'upload'],
+              ] as const
+            ).map(([id, label, icon]) => (
+              <PressableScale
+                key={id}
+                scaleTo={0.95}
+                style={[styles.viewTab, view === id && styles.viewTabActive]}
+                onPress={() => setView(id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: view === id }}
+              >
+                <PixelIcon name={icon} size={12} color={view === id ? C.accent : C.textDim} />
+                <Text style={[styles.viewTabText, view === id && styles.viewTabTextActive]}>{label}</Text>
+              </PressableScale>
+            ))}
+          </View>
+        ) : null}
+        {view === 'mine' ? (
         <View style={styles.pickerActions}>
           {selecting ? (
             <>
@@ -424,9 +456,12 @@ function SongPicker({ songs, loaded, onPick, onCreate, onDelete }: SongPickerPro
             </>
           )}
         </View>
+        ) : null}
       </Animated.View>
 
-      {loaded && songs.length === 0 ? (
+      {view === 'uploaded' ? (
+        <UploadedLevelsList onOpen={onOpenUploaded} />
+      ) : loaded && songs.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No songs yet — tap Create song to make your first one.</Text>
         </View>
@@ -572,12 +607,26 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
     pxPerSec.value = (bpm / 60) * PIXELS_PER_BEAT;
   }, [bpm, pxPerSec]);
 
+  // While playing, the playhead is drawn on a fixed layer over the grid (not inside
+  // the scrolling content): the scroll lands a frame after it's requested, so a
+  // line moved inside the content bounced up and down against the notes. The
+  // line stays put on screen (200 px from the top) and the notes scroll past it;
+  // only at the very start / end of the grid, where the scroll can't follow, does
+  // the line itself move.
+  const playheadScreenY = useSharedValue(0);
+  const playheadOverlayStyle = useAnimatedStyle(() => ({ transform: [{ translateY: playheadScreenY.value }] }));
+  const contentHeightSV = useSharedValue(0);
+  const viewportHeightSV = useSharedValue(600);
   const follow = useFrameCallback(() => {
     'worklet';
     const t = clockRunning.value ? clockPos.value + (Date.now() - clockWall.value) / 1000 : clockPos.value;
     const y = gridHeightSV.value - t * pxPerSec.value;
     playheadY.value = y;
-    scrollTo(scrollViewRef, 0, Math.max(0, y + GRID_PAD_TOP - 200), false);
+    const contentY = y + GRID_PAD_TOP;
+    const maxScroll = Math.max(0, contentHeightSV.value - viewportHeightSV.value);
+    const scroll = Math.min(maxScroll, Math.max(0, contentY - 200));
+    scrollTo(scrollViewRef, 0, scroll, false);
+    playheadScreenY.value = contentY - scroll;
   }, false);
 
   const clockUnsubRef = useRef<(() => void) | null>(null);
@@ -698,6 +747,7 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
 
   const handleViewportLayout = (e: LayoutChangeEvent) => {
     viewportHeightRef.current = e.nativeEvent.layout.height || 600;
+    viewportHeightSV.value = viewportHeightRef.current;
   };
 
   // On leaving: stop audio and flush any pending save
@@ -1335,6 +1385,10 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
   const selectedIsSlide = selectedTile ? isSlideTile(selectedTile) : false;
   // Room under the grid for the panels that cover its bottom
   const bottomPanelsHeight = (guideMode ? GUIDE_PANEL_HEIGHT : 0) + (selectedIsSlide ? 120 : 0);
+  // Scroll content height, for the playhead follow loop (it clamps the scroll like the native view)
+  useEffect(() => {
+    contentHeightSV.value = gridHeight + GRID_PAD_TOP + GRID_PAD_BOTTOM + bottomPanelsHeight;
+  }, [gridHeight, bottomPanelsHeight, contentHeightSV]);
   // Which point of the selected slide the direction pad works on (defaults to its end)
   const slidePointCount = selectedIsSlide ? selectedTile!.path!.length : 0;
   const activePoint =
@@ -1662,8 +1716,9 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
               {/* Test start line */}
               <View pointerEvents="none" style={[styles.startLine, { top: beatToY(previewStartBeat, gridHeight) - 1 }]} />
 
-              {/* Playhead: moves while playing, stays put while paused */}
-              {(isPlayingPreview || pausedAtSec !== null) && (
+              {/* Paused playhead (inside the grid, so it scrolls with the notes). While
+                  playing it's drawn on the fixed layer below the scroll view instead. */}
+              {pausedAtSec !== null && !isPlayingPreview && (
                 <Animated.View
                   entering={FadeIn.duration(150)}
                   pointerEvents="none"
@@ -1685,6 +1740,11 @@ function BeatmapEditor({ song, onBack, onSaved }: BeatmapEditorProps) {
             </View>
           </View>
         </Animated.ScrollView>
+
+        {/* Playhead while playing: a fixed layer over the lanes (see the follow loop) */}
+        {isPlayingPreview && (
+          <Animated.View entering={FadeIn.duration(150)} pointerEvents="none" style={[styles.playheadOverlay, playheadOverlayStyle]} />
+        )}
 
         {/* Selected Tile Inspector (floats over the grid, so the grid doesn't jump) */}
         {selectedTile && (
@@ -1954,6 +2014,10 @@ export default function EditorScreen() {
         onPick={setEditingId}
         onCreate={() => setCreating(true)}
         onDelete={setPendingDelete}
+        onOpenUploaded={(opened) => {
+          setSongs((prev) => (prev.some((s) => s.id === opened.id) ? prev : [opened, ...prev]));
+          setEditingId(opened.id);
+        }}
       />
 
       {/* Delete confirmation */}
@@ -2193,6 +2257,21 @@ const styles = themedStyles(() => ({
     fontFamily: FONTS.pixel,
     fontSize: 10,
   },
+  viewTabs: { flexDirection: 'row', gap: 6, marginTop: 10 },
+  viewTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    backgroundColor: C.panel,
+    borderWidth: 2,
+    borderColor: C.panelLight,
+  },
+  viewTabActive: { borderColor: C.accent, backgroundColor: alpha(C.accent, 0.12) },
+  viewTabText: { color: C.textDim, fontFamily: FONTS.pixel, fontSize: 8 },
+  viewTabTextActive: { color: C.accent },
   pickerSub: {
     color: C.textDim,
     fontFamily: FONTS.body,
@@ -2936,6 +3015,14 @@ const styles = themedStyles(() => ({
     borderRadius: 0,
     backgroundColor: C.bgDeep,
     textAlign: 'center',
+  },
+  playheadOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 44, // after the ruler column
+    right: 0,
+    height: 2,
+    backgroundColor: C.accent,
   },
   playheadLine: {
     position: 'absolute',

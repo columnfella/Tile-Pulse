@@ -9,7 +9,7 @@ import { FONTS } from '../../src/theme/pixel';
 import { useSocialCounts } from '../../src/services/socialCounts';
 import { PixelBadge } from '../../src/components/ui/PixelBadge';
 
-import { C } from '../../src/theme/palette';
+import { BAR_OPACITY, C, alpha } from '../../src/theme/palette';
 export default function TabLayout() {
   const { ui } = ACTIVE_THEME;
   const counts = useSocialCounts();
@@ -29,7 +29,8 @@ export default function TabLayout() {
         // fades go through it, never white)
         sceneStyle: { backgroundColor: 'transparent' },
         tabBarStyle: {
-          backgroundColor: ui.surfaceBackground,
+          // See-through: the animated background shows softly behind the tabs
+          backgroundColor: alpha(C.panel, BAR_OPACITY),
           borderTopColor: ui.cardBorder,
           // No fixed height/padding: React Navigation adds the bottom safe-area
           // inset itself (e.g. the iPhone home indicator).

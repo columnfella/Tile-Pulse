@@ -35,6 +35,8 @@ import { FONTS, PIXEL } from '../../theme/pixel';
 
 import { C, alpha, themedStyles, themed } from '../../theme/palette';
 import { playerErrorMessage } from '../../services/playerError';
+import { hasHardcoreClear } from '../../services/uploadGate';
+import { useRouter } from 'expo-router';
 const MAX_COVER_BYTES = 2 * 1024 * 1024;
 
 const DIFFICULTIES: { key: Difficulty; label: string; color: string }[] = themed(() => ([
@@ -161,6 +163,12 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
   const [coverUri, setCoverUri] = useState<string | null>(null); // newly picked
   const [removeCover, setRemoveCover] = useState(false);
 
+  // Upload rule: the chart must have been beaten in Hardcore first (null = checking)
+  const [cleared, setCleared] = useState<boolean | null>(null);
+  // Updating a posted level asks for a confirmation first
+  const [confirmingUpdate, setConfirmingUpdate] = useState(false);
+  const router = useRouter();
+
   // Upload
   const [step, setStep] = useState<UploadStep | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -173,6 +181,8 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
     setUploadError(null);
     setSuccess(null);
     setStep(null);
+    setConfirmingUpdate(false);
+    hasHardcoreClear(song).then(setCleared).catch(() => setCleared(false));
     getSession().then(setSession);
     listShaders().then(setShaders).catch(() => setShaders([]));
     if (loadedFor.current === song.id) return;
@@ -248,6 +258,16 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
       setUploadError('Give your level a name.');
       return;
     }
+    if (!cleared) {
+      setUploadError('Beat this level in Hardcore mode first.');
+      return;
+    }
+    // Updating: everyone who downloaded it gets the new version, so confirm first
+    if (record && !confirmingUpdate) {
+      setConfirmingUpdate(true);
+      return;
+    }
+    setConfirmingUpdate(false);
     setUploadError(null);
     setSuccess(null);
     try {
@@ -515,6 +535,38 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
 
         {/* Footer: upload */}
         <View style={styles.footer}>
+          {cleared === false && !isPreset ? (
+            <View style={styles.gateBox}>
+              <View style={styles.gateHead}>
+                <PixelIcon name="skull" size={14} color={C.danger} />
+                <Text style={styles.gateTitle}>BEAT IT IN HARDCORE FIRST</Text>
+              </View>
+              <Text style={styles.gateText}>
+                Every posted level must be beatable: finish this level in Hardcore mode (one miss ends the run). Changing notes later
+                means beating it again.
+              </Text>
+              <PressableScale
+                scaleTo={0.95}
+                style={styles.gateBtn}
+                onPress={() => {
+                  onClose();
+                  router.push(`/play/${song.id}?hardcore=1`);
+                }}
+              >
+                <PixelIcon name="play" size={12} color={C.onAccent} />
+                <Text style={styles.primaryText}>PLAY IN HARDCORE</Text>
+              </PressableScale>
+            </View>
+          ) : null}
+          {confirmingUpdate ? (
+            <View style={styles.gateBox}>
+              <Text style={styles.gateTitle}>UPDATE “{name.trim()}”?</Text>
+              <Text style={styles.gateText}>Everyone who downloaded it gets the new version automatically.</Text>
+              <PressableScale scaleTo={0.95} style={styles.cancelUpdateBtn} onPress={() => setConfirmingUpdate(false)}>
+                <Text style={styles.cancelUpdateText}>CANCEL</Text>
+              </PressableScale>
+            </View>
+          ) : null}
           {uploadError ? <Text style={styles.error}>{uploadError}</Text> : null}
           {success ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.successRow}>
@@ -524,13 +576,21 @@ export function UploadSheet({ visible, song, onClose }: UploadSheetProps) {
           ) : null}
           <PressableScale
             scaleTo={0.96}
-            style={[styles.primaryBtn, (!session || busy || isPreset || copyPasswordMissing) && styles.btnDisabled]}
-            disabled={!session || busy || isPreset || copyPasswordMissing}
+            style={[styles.primaryBtn, (!session || busy || isPreset || copyPasswordMissing || !cleared) && styles.btnDisabled]}
+            disabled={!session || busy || isPreset || copyPasswordMissing || !cleared}
             onPress={handleUpload}
           >
             {busy ? <ActivityIndicator size="small" color={C.onAccent} /> : <PixelIcon name="upload" size={14} color={C.onAccent} />}
             <Text style={styles.primaryText}>
-              {busy ? STEP_TEXT[step!] : !session ? 'SIGN IN TO UPLOAD' : record ? 'UPDATE LEVEL' : 'UPLOAD LEVEL'}
+              {busy
+                ? STEP_TEXT[step!]
+                : !session
+                  ? 'SIGN IN TO UPLOAD'
+                  : confirmingUpdate
+                    ? 'CONFIRM UPDATE'
+                    : record
+                      ? 'UPDATE LEVEL'
+                      : 'UPLOAD LEVEL'}
             </Text>
           </PressableScale>
         </View>
@@ -622,6 +682,13 @@ const styles = themedStyles(() => ({
   secondaryText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 9 },
   btnDisabled: { opacity: 0.45 },
 
+  gateBox: { gap: 6, padding: 10, borderWidth: 2, borderColor: C.danger, backgroundColor: alpha(C.danger, 0.08) },
+  gateHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  gateTitle: { color: C.textStrong, fontFamily: FONTS.pixel, fontSize: 8, lineHeight: 12 },
+  gateText: { color: C.textDim, fontFamily: FONTS.body, fontSize: 16, lineHeight: 17 },
+  gateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 9, backgroundColor: C.danger, borderWidth: 2, borderColor: C.outline },
+  cancelUpdateBtn: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, borderWidth: 2, borderColor: C.panelLight },
+  cancelUpdateText: { color: C.textDim, fontFamily: FONTS.pixel, fontSize: 7 },
   footer: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderTopWidth: 2, borderTopColor: PIXEL.panelLight, backgroundColor: PIXEL.panel },
   successRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   successText: { color: PIXEL.accent2, fontFamily: FONTS.body, fontSize: 18, flex: 1 },

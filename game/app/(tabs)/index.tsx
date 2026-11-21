@@ -9,6 +9,7 @@ import { Song } from '../../src/types/song';
 import { storageService } from '../../src/services/storage';
 import { PRESET_IDS } from '../../src/game/presets';
 import { getPianoCover } from '../../src/services/pianoCovers';
+import { updateDownloadedLevels } from '../../src/services/levelUpdates';
 import { formatAudioTime } from '../../src/game/engine';
 import { PlayRow } from '../../src/components/ui/PlayRow';
 import { PixelIcon } from '../../src/components/ui/PixelIcon';
@@ -22,7 +23,7 @@ import { CoverBanner, IconBadge, LevelBadge, cardPartStyles } from '../../src/co
 import { setDefaultBackground, useDefaultBackground } from '../../src/services/settings';
 import { FONTS, PIXEL } from '../../src/theme/pixel';
 
-import { C, alpha, themedStyles } from '../../src/theme/palette';
+import { BAR_OPACITY, C, alpha, themedStyles } from '../../src/theme/palette';
 /**
  * Songs tab: your library, shown as level cards like Discover — downloaded
  * community levels, songs you created in the Editor, and the built-in samples.
@@ -52,8 +53,9 @@ export default function HomeScreen() {
     setLoaded(true);
     const entries = await Promise.all(list.map(async (s) => [s.id, await storageService.getCoverUri(s)] as const));
     setCovers(Object.fromEntries(entries));
-    // Built-in samples without a cover: a random piano photo (online, kept per device)
-    const samples = list.filter((s) => PRESET_IDS.has(s.id) && !s.coverUri);
+    // TilePulse team levels without a cover (the built-in samples and levels the
+    // team posted): a random piano photo (online, kept per device)
+    const samples = list.filter((s) => (PRESET_IDS.has(s.id) || s.community?.team) && !s.coverUri);
     const photos = await Promise.all(samples.map(async (s) => [s.id, await getPianoCover(s.id)] as const));
     const found = photos.filter((p): p is readonly [string, NonNullable<(typeof p)[1]>] => !!p[1]);
     if (found.length) {
@@ -67,6 +69,15 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadSongs().catch((err) => console.warn('Failed to load songs:', err));
+      // Downloaded levels whose creator updated them: get the new version
+      void updateDownloadedLevels().then((names) => {
+        if (!names.length) return;
+        void loadSongs();
+        const what = names.length === 1 ? `“${names[0]}”` : `${names.length} levels`;
+        if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+        setBanner(`Updated ${what} to the newest version`);
+        bannerTimerRef.current = setTimeout(() => setBanner(null), 3500);
+      });
       return () => {
         setExpandedId(null);
       };
@@ -430,9 +441,9 @@ const styles = themedStyles(() => ({
     paddingBottom: 14,
     borderBottomWidth: 2,
     borderBottomColor: PIXEL.panelLight,
-    // Solid, and the same colour as the strip behind the camera above it
-    // (ScreenView), so header and camera area read as one bar
-    backgroundColor: PIXEL.bg,
+    // See-through, the same tint as the strip behind the camera above it
+    // (ScreenView) and the tab bar: one bar, with the background shader behind
+    backgroundColor: alpha(C.bg, BAR_OPACITY),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

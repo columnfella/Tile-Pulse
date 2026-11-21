@@ -64,5 +64,11 @@ export interface Song {
     difficulty: 'easy' | 'normal' | 'hard' | 'expert';
     level: number;
     author: string;
+    /** Made by the TilePulse team (gets a piano photo when it has no cover). */
+    team?: boolean;
+    /** Server version when downloaded: a newer one is downloaded automatically. */
+    version?: number;
+    /** Fingerprint of the downloaded audio (re-downloaded only when it changes). */
+    audioSha256?: string;
   };
 }

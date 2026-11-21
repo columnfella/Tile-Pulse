@@ -303,5 +303,8 @@ export function themedStyles<S extends StyleInput>(factory: () => S): Readonly<S
   return themed(() => StyleSheet.create(factory()));
 }
 
+/** Opacity of the bars over the animated background (header, camera strip, tab bar). */
+export const BAR_OPACITY = 0.72;
+
 /** The active theme's colours. */
 export const C: Palette = themed(() => getPalette());

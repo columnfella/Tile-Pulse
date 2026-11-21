@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useScreenInsets } from '../../src/components/ui/useScreenInsets';
 import { usePlayAreaSize } from '../../src/components/game/usePlayAreaSize';
+import { recordHardcoreClear } from '../../src/services/uploadGate';
 import Animated, {
   FadeIn,
   FadeInUp,
@@ -688,6 +689,12 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
     return () => setActivity('menu');
   }, [song]);
 
+  // Beating your own level in Hardcore unlocks uploading it (src/services/uploadGate.ts)
+  useEffect(() => {
+    if (!isCompleted || failed || !hardcore || !song || song.community) return;
+    void recordHardcoreClear(song);
+  }, [isCompleted, failed, hardcore, song]);
+
   // A finished community level goes into your profile history (when signed in)
   useEffect(() => {
     if (!isCompleted || !song?.community?.levelId) return;
@@ -984,6 +991,9 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
 
             <Text style={styles.statusModalTitle}>{hardcore ? 'Hardcore Clear!' : 'Song Completed!'}</Text>
             <Text style={styles.statusModalSub}>{song.title}</Text>
+            {hardcore && !song.community ? (
+              <Text style={styles.unrankedNote}>Beaten in Hardcore: you can upload this level now.</Text>
+            ) : null}
             {ranked && !ranked.ranked ? (
               <Text style={styles.unrankedNote}>
                 {ranked.verified

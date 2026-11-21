@@ -9,6 +9,7 @@ import { API_BASE, type Difficulty, type CopyMode } from './communityApi';
 import { ApiError, apiRequest, getSession } from './account';
 import { putFile } from './binaryUpload';
 import { storageService } from './storage';
+import { saveRemoteAudio } from './audioFileStore';
 
 const UPLOADS_KEY = 'tilepulse_uploads_v1';
 
@@ -221,4 +222,89 @@ export interface CommunityShader {
 
 export async function listShaders(): Promise<CommunityShader[]> {
   return (await apiRequest<{ shaders: CommunityShader[] }>('GET', '/shaders?limit=50', { auth: false })).shaders;
+}
+
+/* ------------------------- editing your uploaded levels ------------------------ */
+
+/** The local song linked to one of your uploaded levels (null when not on this device). */
+export async function findLocalSongForLevel(levelId: string): Promise<string | null> {
+  const all = await readRecords();
+  const hit = Object.entries(all).find(([, r]) => r.levelId === levelId);
+  if (!hit) return null;
+  const exists = await storageService.getSongById(hit[0]).catch(() => null);
+  return exists ? hit[0] : null;
+}
+
+/**
+ * Downloads one of your uploaded levels into your editor (notes, audio, cover),
+ * linked to the online level: uploading it again updates that level for
+ * everyone instead of posting a new one.
+ */
+export async function downloadForEditing(levelId: string, visibility: 'public' | 'unlisted'): Promise<Song> {
+  const existing = await findLocalSongForLevel(levelId);
+  if (existing) return (await storageService.getSongById(existing))!;
+
+  const { level } = await apiRequest<{
+    level: {
+      id: string;
+      name: string;
+      difficulty: Difficulty;
+      level: number;
+      background: string | null;
+      shader: { id: string } | null;
+      cover: { sha256: string } | null;
+      description: string | null;
+      copy: CopyMode;
+      song: {
+        id: string;
+        title: string;
+        artist: string | null;
+        bpm: number;
+        timeSignature: { beatsPerMeasure: number; beatUnit: number };
+        durationMs: number | null;
+        audio: { mimeType: string } | null;
+      };
+      notes: { lane: 0 | 1 | 2 | 3; beat: number; durationBeats: number; path?: { beat: number; x: number }[] }[];
+    };
+  }>('GET', `/levels/${levelId}`, { auth: false });
+  if (!level.song.audio) throw new Error('This level has no audio online.');
+
+  const id = `edit_${level.id}`;
+  const ext = level.song.audio.mimeType.includes('wav') ? 'wav' : level.song.audio.mimeType.includes('mp4') ? 'm4a' : level.song.audio.mimeType.includes('ogg') ? 'ogg' : level.song.audio.mimeType.includes('flac') ? 'flac' : 'mp3';
+  const audioUri = await saveRemoteAudio(id, `${API_BASE}/api/v1/levels/${level.id}/audio`, ext);
+  const song: Song = {
+    id,
+    title: level.song.title,
+    artist: level.song.artist ?? undefined,
+    audioUri,
+    bpm: level.song.bpm,
+    timeSignature: level.song.timeSignature,
+    tiles: level.notes.map((n, i) => ({ ...n, id: `${id}_${i}` })) as Song['tiles'],
+    createdAt: Date.now(),
+    durationSeconds: level.song.durationMs ? level.song.durationMs / 1000 : undefined,
+    background: (level.background ?? undefined) as Song['background'],
+  };
+  if (level.cover) {
+    try {
+      song.coverUri = await storageService.saveRemoteCover(id, `${API_BASE}/api/v1/levels/${level.id}/cover?v=${level.cover.sha256.slice(0, 12)}`);
+    } catch {
+      /* no cover locally: the online one stays */
+    }
+  }
+  await storageService.saveSong(song);
+  await saveRecord(id, {
+    songId: level.song.id,
+    levelId: level.id,
+    name: level.name,
+    difficulty: level.difficulty,
+    level: level.level,
+    visibility,
+    background: level.background,
+    shaderId: level.shader?.id ?? null,
+    hasCover: !!level.cover,
+    uploadedAt: Date.now(),
+    description: level.description ?? '',
+    copyMode: level.copy,
+  });
+  return song;
 }

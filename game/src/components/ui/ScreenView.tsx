@@ -1,15 +1,15 @@
 import React from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { useScreenInsets } from './useScreenInsets';
-import { PIXEL } from '../../theme/pixel';
+import { BAR_OPACITY, C, alpha } from '../../theme/palette';
 
 interface ScreenViewProps {
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
   /**
-   * Colour of the strip behind the camera cutout / notch at the top. Solid by
-   * default: with the status bar hidden that area is otherwise see-through and
-   * the animated background showed around the camera, above the header.
+   * Colour of the strip behind the camera cutout / notch at the top. By default
+   * the same see-through tint as the Songs header and the tab bar, so the strip
+   * and the header read as one bar with the animated background softly behind.
    */
   topBarColor?: string;
 }
@@ -19,7 +19,7 @@ interface ScreenViewProps {
  * camera cutout, notch or rounded corner, and fills that top area with a solid
  * strip. The bottom is left to the tab bar, which applies its own inset.
  */
-export function ScreenView({ style, children, topBarColor = PIXEL.bg }: ScreenViewProps) {
+export function ScreenView({ style, children, topBarColor }: ScreenViewProps) {
   const insets = useScreenInsets();
   return (
     <View
@@ -31,7 +31,7 @@ export function ScreenView({ style, children, topBarColor = PIXEL.bg }: ScreenVi
       {insets.top > 0 ? (
         <View
           pointerEvents="none"
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: topBarColor }}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: topBarColor ?? alpha(C.bg, BAR_OPACITY) }}
         />
       ) : null}
       {children}
