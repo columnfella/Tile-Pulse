@@ -5,22 +5,22 @@
     {
       "id": "dusty_dusk",
       "name": "Dusty Dusk",
-      "mood": "Purple-pink twilight",
+      "mood": "Electric violet night",
       "colors": {
-        "background": "#191622",
-        "backgroundSecondary": "#231D30",
-        "surface": "#322641",
-        "surfaceHover": "#40304F",
-        "surfaceActive": "#59416F",
-        "border": "#493852",
-        "primary": "#8B6FAD",
-        "primaryHover": "#BD91CB",
-        "secondary": "#C77FA6",
-        "highlight": "#E0A5BD",
-        "text": "#F0DCEB",
-        "textMuted": "#B6A7BE",
-        "success": "#91AA99",
-        "error": "#C98289"
+        "background": "#111321",
+        "backgroundSecondary": "#181A2E",
+        "surface": "#20213A",
+        "surfaceHover": "#34365C",
+        "surfaceActive": "#3F4170",
+        "border": "#34365C",
+        "primary": "#7775FF",
+        "primaryHover": "#A99AFF",
+        "secondary": "#FF5FA2",
+        "highlight": "#5CE1E6",
+        "text": "#EEEDFF",
+        "textMuted": "#A3A5C9",
+        "success": "#7ED9B0",
+        "error": "#FF6B6B"
       }
     },
     {
