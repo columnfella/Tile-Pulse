@@ -2,7 +2,7 @@
   "expo": {
     "name": "TilePulse",
     "slug": "tilepulse-rhythm-game",
-    "version": "0.29.0",
+    "version": "0.29.1",
     "runtimeVersion": {
       "policy": "fingerprint"
     },
@@ -23,7 +23,13 @@
     "scheme": "tilepulse",
     "plugins": [
       "expo-router",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ],
       "expo-document-picker",
       "expo-status-bar",
       [
@@ -58,7 +64,12 @@
         "monochromeImage": "./src/assets/images/adaptive-mono.png",
         "backgroundColor": "#05070d"
       },
-      "package": "com.tilepulse.rhythm"
+      "package": "com.tilepulse.rhythm",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro"
