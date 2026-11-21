@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -30,6 +30,7 @@ import { FONTS, PIXEL } from '../../theme/pixel';
 
 import { C, alpha, themedStyles } from '../../theme/palette';
 import { playerErrorMessage } from '../../services/playerError';
+import { BpmLookupSheet } from './BpmLookupSheet';
 const MIN_BPM = 40;
 const MAX_BPM = 300;
 const TIME_SIGNATURES = ['4/4', '3/4', '6/8'] as const;
@@ -63,6 +64,12 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
   const [artist, setArtist] = useState('');
   const [audio, setAudio] = useState<PickedAudio | null>(null);
   const [bpmText, setBpmText] = useState('120');
+  // Online tempo lookup (same as the BPM? button in the editor)
+  const [bpmLookupOpen, setBpmLookupOpen] = useState(false);
+  // Scrolls the BPM field above the keyboard when it's tapped
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const tempoY = useRef(0);
+  const revealTempo = () => setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, tempoY.current - 12), animated: true }), 250);
   const [timeSig, setTimeSig] = useState<(typeof TIME_SIGNATURES)[number]>('4/4');
   const [cover, setCover] = useState<{ uri: string; name?: string } | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -159,7 +166,9 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // 'padding' on Android too: the app runs full screen (system bars hidden), where
+        // Android doesn't resize the window for the keyboard, so inputs got covered
+        behavior="padding"
         style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }]}
       >
         <View style={styles.header}>
@@ -172,7 +181,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
           </PressableScale>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {/* Card preview with the optional cover */}
           <PressableScale scaleTo={0.98} style={styles.cover} onPress={pickCover} accessibilityLabel="Choose a cover picture">
             {cover ? (
@@ -241,6 +250,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
             />
           </Section>
 
+          <View onLayout={(e) => (tempoY.current = e.nativeEvent.layout.y)}>
           <Section title="TEMPO" icon="clock">
             <View style={styles.bpmRow}>
               <TextInput
@@ -251,14 +261,23 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
                 maxLength={3}
                 style={[styles.input, styles.bpmInput]}
                 accessibilityLabel="BPM"
+                onFocus={revealTempo}
               />
               <Text style={styles.muted}>BPM</Text>
               <View style={styles.flex} />
+              <PressableScale
+                scaleTo={0.92}
+                style={styles.lookupBtn}
+                onPress={() => setBpmLookupOpen(true)}
+                accessibilityLabel="Look up this song's BPM online"
+              >
+                <Text style={styles.lookupText}>BPM?</Text>
+              </PressableScale>
               <PressableScale scaleTo={0.92} style={styles.tapBtn} onPress={tapTempo}>
                 <Text style={styles.tapText}>TAP TEMPO</Text>
               </PressableScale>
             </View>
-            <Text style={styles.note}>Not sure? Keep 120 — you can look it up later with the BPM? button in the editor.</Text>
+            <Text style={styles.note}>Not sure? Tap BPM? to look the song up online, or tap along with TAP TEMPO.</Text>
             <Text style={styles.label}>TIME SIGNATURE</Text>
             <View style={styles.row}>
               {TIME_SIGNATURES.map((sig) => (
@@ -273,6 +292,7 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
               ))}
             </View>
           </Section>
+          </View>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -300,6 +320,16 @@ export function CreateSongSheet({ visible, importedUris, onCreated, onClose }: C
             onClose={() => setScannerOpen(false)}
           />
         )}
+        <BpmLookupSheet
+          visible={bpmLookupOpen}
+          initialQuery={[title.trim(), artist.trim()].filter(Boolean).join(' ')}
+          currentBpm={parseInt(bpmText, 10) || 120}
+          onApply={(found) => {
+            setBpmLookupOpen(false);
+            setBpmText(String(Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(found)))));
+          }}
+          onClose={() => setBpmLookupOpen(false)}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -347,6 +377,8 @@ const styles = themedStyles(() => ({
   audioName: { flex: 1, color: PIXEL.text, fontFamily: FONTS.body, fontSize: 18 },
   bpmRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bpmInput: { width: 76, textAlign: 'center', color: PIXEL.accent2 },
+  lookupBtn: { paddingHorizontal: 10, paddingVertical: 8, borderWidth: 2, borderColor: PIXEL.accent2, backgroundColor: alpha(C.blue, 0.12) },
+  lookupText: { color: PIXEL.accent2, fontFamily: FONTS.pixel, fontSize: 8 },
   tapBtn: { paddingHorizontal: 10, paddingVertical: 8, borderWidth: 2, borderColor: PIXEL.accent, backgroundColor: alpha(C.accent, 0.12) },
   tapText: { color: PIXEL.accent, fontFamily: FONTS.pixel, fontSize: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 5, borderWidth: 2, borderColor: PIXEL.panelLight, backgroundColor: C.bgDeep },

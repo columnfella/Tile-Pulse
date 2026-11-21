@@ -46,7 +46,7 @@ import { useHitFlash } from '../../src/components/game/HitEffects';
 import { useCreateSignal, useSignal, type Signal } from '../../src/game/signal';
 import { AnimatedBackground, isBackgroundId } from '../../src/components/backgrounds/AnimatedBackground';
 import { useDefaultBackground } from '../../src/services/settings';
-import { submitScore } from '../../src/services/profile';
+import { startPlay, submitScore } from '../../src/services/profile';
 import { holdMenuMusic } from '../../src/services/menuMusic';
 import { setActivity } from '../../src/services/friends';
 import { LevelSocialSheet } from '../../src/components/ui/LevelSocialSheet';
@@ -84,6 +84,8 @@ function JudgmentFromSignal({ judgment }: { judgment: Signal<JudgmentState> }) {
 }
 
 const WINDOW_STEP_SEC = 0.5;
+/** A run ends this long after the last note ends (time for the last tile to resolve). */
+const END_AFTER_LAST_NOTE_SEC = 1.5;
 
 /** Mounts only the tiles near the playhead; re-renders on its own when the window moves or a tile changes. */
 const WindowedTileField = React.memo(function WindowedTileField({
@@ -248,6 +250,9 @@ export default function PlayScreen() {
     }
     return sorted;
   }, [song]);
+
+  // When the last note (or the end of the last hold / slide) is over, in seconds
+  const lastNoteEndSec = useMemo(() => timeline.reduce((max, t) => Math.max(max, t.endTime), 0), [timeline]);
 
   // The song's row size: its SMALLEST spacing between notes (in beats). Every
   // tap tile is one row tall and longer gaps become whole empty rows, so all
@@ -516,7 +521,13 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         }
         bumpTiles();
       } else if (!glide) {
-        flashEmptyLane(lane); // nothing to hit here
+        flashEmptyLane(lane); // nothing to hit here (soft red flash)
+        // Hardcore: tapping an empty spot counts as a mistake, so the run is lost
+        if (hardcoreRef.current) {
+          failedRef.current = true;
+          audioService.pause();
+          setFailed(true);
+        }
       }
     },
     [phase, isPaused, isCompleted, song, registerHit, tilesByLane, tilesById, bumpTiles, pixelsPerBeat, hitLineY, geometry.defaultTapTileHeightPx, rowBeats, flashEmptyLane]
@@ -662,8 +673,10 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
       // A hardcore miss above stopped the music: that is a loss, not the end of the song
       if (failedRef.current) return;
 
-      // Song completion: the track finished, or we're past its end
+      // Run completion: shortly after the last note ends (however far away it is,
+      // the run goes on until it), or when the track itself finishes first
       const songEnded =
+        (lastNoteEndSec > 0 && curTime >= lastNoteEndSec + END_AFTER_LAST_NOTE_SEC) ||
         curTime >= audioService.getDuration() + 1.0 ||
         (!audioService.getIsPlaying() && curTime > 0);
       if (songEnded && song.tiles.length > 0) {
@@ -682,7 +695,7 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [phase, isPaused, isCompleted, failed, song, registerHit, timeline, tilesById, bumpTiles, boardHeight, hitLineY, pixelsPerBeat]);
+  }, [phase, isPaused, isCompleted, failed, song, registerHit, timeline, tilesById, bumpTiles, boardHeight, hitLineY, pixelsPerBeat, lastNoteEndSec]);
 
   // Friends see what you're playing
   useEffect(() => {
@@ -696,6 +709,21 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
     if (!isCompleted || failed || !hardcore || !song || song.community) return;
     void recordHardcoreClear(song);
   }, [isCompleted, failed, hardcore, song]);
+
+  // Each run of a community level gets a one-time play ticket from the server
+  // (requested when the countdown starts, so restarts get a new one)
+  const playIdRef = useRef<string | null>(null);
+  const runRef = useRef(0);
+  useEffect(() => {
+    if (phase !== 'countdown' || !song?.community?.levelId) return;
+    // (no cleanup: the countdown usually ends before the server answers; a newer
+    // run simply makes this answer stale)
+    const run = ++runRef.current;
+    playIdRef.current = null;
+    void startPlay(song.community.levelId).then((id) => {
+      if (runRef.current === run) playIdRef.current = id;
+    });
+  }, [phase, song]);
 
   // A finished community level goes into your profile history (when signed in)
   useEffect(() => {
@@ -713,7 +741,8 @@ const SLIDE_GRACE_SEC = 0.3; // how long a finger may slip off a slide before it
         good: st.goodCount,
         miss: st.missCount,
       },
-      hardcore
+      hardcore,
+      playIdRef.current
     ).then(setRanked);
   }, [isCompleted, song, hardcore, statsSig]);
 

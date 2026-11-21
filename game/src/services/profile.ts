@@ -149,15 +149,35 @@ export async function getProfile(username: string): Promise<PublicProfile> {
  * are ignored). Resolves whether it earned leaderboard points (only verified
  * levels made by someone else do), or null when it wasn't sent.
  */
+/**
+ * A run of a community level starts: asks the server for a one-time play ticket.
+ * Only scores sent with one count for leaderboards and play counts (the server
+ * also checks the run took about as long as the song). null when signed out / offline.
+ */
+export async function startPlay(levelId: string): Promise<string | null> {
+  if (!(await getSession())) return null;
+  try {
+    return (await apiRequest<{ playId: string }>('POST', `/beatmaps/${levelId}/plays`)).playId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function submitScore(
   levelId: string,
   s: { score: number; accuracy: number; maxCombo: number; perfect: number; great: number; good: number; miss: number },
-  hardcore: boolean
+  hardcore: boolean,
+  playId?: string | null
 ): Promise<{ ranked: boolean; verified: boolean } | null> {
   if (!(await getSession())) return null;
   try {
     const r = await apiRequest<{ ranked?: boolean; verified?: boolean }>('POST', `/beatmaps/${levelId}/scores`, {
-      json: { ...s, accuracy: Math.max(0, Math.min(100, s.accuracy)), hardcore: hardcore && s.miss === 0 },
+      json: {
+        ...s,
+        accuracy: Math.max(0, Math.min(100, s.accuracy)),
+        hardcore: hardcore && s.miss === 0,
+        ...(playId ? { playId } : {}),
+      },
     });
     return { ranked: Boolean(r?.ranked), verified: Boolean(r?.verified) };
   } catch {
