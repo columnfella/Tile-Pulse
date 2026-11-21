@@ -7,7 +7,20 @@
  *
  * Offline / API down: no cover, the card simply shows without one.
  */
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+/**
+ * Wikimedia refuses requests from generic HTTP clients (403 "Please set a
+ * user-agent"), which is what the phone app sends by default: name the app.
+ * Browsers send their own and don't allow changing it, so only on the app.
+ */
+const WIKIMEDIA_HEADERS: Record<string, string> | undefined =
+  Platform.OS === 'web' ? undefined : { 'User-Agent': 'TilePulse/1.0 (rhythm game app)' };
+
+/** Image source for a cover picture (adds the app name for Wikimedia photos). */
+export const coverImageSource = (uri: string) =>
+  WIKIMEDIA_HEADERS && /^https:\/\/upload\.wikimedia\.org\//.test(uri) ? { uri, headers: WIKIMEDIA_HEADERS } : { uri };
 
 export interface PianoCover {
   url: string;
@@ -40,7 +53,7 @@ function loadPool(): Promise<PianoCover[]> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const res = await fetch(API, { signal: controller.signal });
+      const res = await fetch(API, { signal: controller.signal, headers: WIKIMEDIA_HEADERS });
       const json = await res.json();
       const pages = Object.values(json?.query?.pages ?? {}) as {
         imageinfo?: { thumburl?: string; mime?: string; width?: number; height?: number; extmetadata?: Record<string, { value?: string }> }[];

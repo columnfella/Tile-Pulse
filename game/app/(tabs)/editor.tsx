@@ -2004,6 +2004,7 @@ function BeatmapEditor({ song, onBack, onSaved, openUploadOnMount = false }: Bea
 export default function EditorScreen() {
   // `t` changes on every "Edit" tap from the Songs tab so the same song can be reopened
   const params = useLocalSearchParams<{ songId?: string; t?: string; upload?: string }>();
+  const router = useRouter();
   // Set when coming back from a verification run: reopen the upload menu
   const [uploadOnOpen, setUploadOnOpen] = useState<string | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -2036,6 +2037,9 @@ export default function EditorScreen() {
             handledRequestRef.current = request;
             setEditingId(params.songId!);
             setUploadOnOpen(params.upload === '1' ? params.songId! : null);
+            // Used up: the editor remounts every time you return to its tab, and
+            // leftover params made it reopen this song (and the upload menu) each time
+            router.setParams({ songId: undefined, t: undefined, upload: undefined });
           }
         })
         .catch((err) => console.warn('Failed to load songs:', err));

@@ -7,6 +7,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PixelIcon, type PixelIconName } from './PixelIcon';
+import { coverImageSource } from '../../services/pianoCovers';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
 import { C, alpha, themedStyles, themed } from '../../theme/palette';
@@ -27,7 +28,7 @@ export function CoverBanner({ uri, tall = false }: { uri: string; tall?: boolean
     <View style={[styles.coverBanner, tall && styles.coverBannerTall]} pointerEvents="none">
       <Animated.View style={[StyleSheet.absoluteFill, style]}>
         <Image
-          source={{ uri }}
+          source={coverImageSource(uri)}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
           onLoad={() => (opacity.value = withTiming(1, { duration: 500 }))}
