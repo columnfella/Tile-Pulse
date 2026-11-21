@@ -161,9 +161,11 @@ export const coverUrl = (level: CommunityLevel) =>
   level.cover ? `${API_BASE}/api/v1/levels/${level.id}/cover?v=${level.cover.sha256.slice(0, 12)}` : null;
 
 /** Current versions of levels (missing = deleted or made private). */
-export async function getLevelVersions(ids: string[]): Promise<{ id: string; version: number; updatedAt: number }[]> {
+export async function getLevelVersions(
+  ids: string[]
+): Promise<{ id: string; version: number; updatedAt: number; coverSha256?: string | null }[]> {
   if (!ids.length) return [];
-  const r = await getJson<{ levels: { id: string; version: number; updatedAt: number }[] }>(
+  const r = await getJson<{ levels: { id: string; version: number; updatedAt: number; coverSha256?: string | null }[] }>(
     `/levels/versions?ids=${encodeURIComponent(ids.slice(0, 100).join(','))}`
   );
   return r.levels;
@@ -208,6 +210,7 @@ export async function downloadLevel(level: Pick<CommunityLevel, 'id'>): Promise<
       team: !!full.author.team,
       version: full.version,
       audioSha256: full.song.audio.sha256,
+      coverSha256: full.cover?.sha256 ?? null,
     },
   };
   // Keep the level's cover picture with the song (optional: a failed download isn't fatal)

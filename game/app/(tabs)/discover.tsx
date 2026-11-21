@@ -40,7 +40,6 @@ import { CoverBanner, LevelBadge } from '../../src/components/ui/LevelCardParts'
 
 import { C, alpha, themedStyles, themed } from '../../src/theme/palette';
 import { playerErrorMessage } from '../../src/services/playerError';
-import { getPianoCover } from '../../src/services/pianoCovers';
 const SEARCH_DEBOUNCE_MS = 400;
 const PAGE_SIZE = 20;
 
@@ -187,22 +186,6 @@ export default function DiscoverScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [levels, setLevels] = useState<CommunityLevel[]>([]);
-  // TilePulse team levels always show a piano photo (Wikimedia Commons), instead of their cover
-  const [pianoCovers, setPianoCovers] = useState<Record<string, string>>({});
-  useEffect(() => {
-    const missing = levels.filter((l) => l.author.team && !pianoCovers[l.id]);
-    if (!missing.length) return;
-    let cancelled = false;
-    void Promise.all(missing.map(async (l) => [l.id, (await getPianoCover(localIdForLevel(l.id)))?.url] as const)).then((found) => {
-      if (cancelled) return;
-      const ok = found.filter((f): f is readonly [string, string] => !!f[1]);
-      if (ok.length) setPianoCovers((p) => ({ ...p, ...Object.fromEntries(ok) }));
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [levels]);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [loadingMore, setLoadingMore] = useState(false);
@@ -415,7 +398,7 @@ export default function DiscoverScreen() {
     const isDownloaded = downloaded.has(localId);
     const isDownloading = downloading === item.id;
     const seconds = item.song.durationMs ? Math.round(item.song.durationMs / 1000) : null;
-    const cover = (item.author.team ? pianoCovers[item.id] : null) ?? coverUrl(item);
+    const cover = coverUrl(item);
 
     return (
       <Animated.View entering={listItemIn(index % PAGE_SIZE)}>

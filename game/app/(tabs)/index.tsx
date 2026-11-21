@@ -8,7 +8,7 @@ import { listItemIn } from '../../src/components/ui/motion';
 import { Song } from '../../src/types/song';
 import { storageService } from '../../src/services/storage';
 import { PRESET_IDS } from '../../src/game/presets';
-import { getPianoCover } from '../../src/services/pianoCovers';
+import { PRESET_COVERS } from '../../src/game/presetCovers';
 import { updateDownloadedLevels } from '../../src/services/levelUpdates';
 import { formatAudioTime } from '../../src/game/engine';
 import { PlayRow } from '../../src/components/ui/PlayRow';
@@ -33,8 +33,6 @@ export default function HomeScreen() {
   const router = useRouter();
   const [songs, setSongs] = useState<Song[]>([]);
   const [covers, setCovers] = useState<Record<string, string | null>>({});
-  // Photo credits for the built-in samples' piano pictures (Wikimedia Commons)
-  const [coverCredits, setCoverCredits] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
@@ -53,15 +51,6 @@ export default function HomeScreen() {
     setLoaded(true);
     const entries = await Promise.all(list.map(async (s) => [s.id, await storageService.getCoverUri(s)] as const));
     setCovers(Object.fromEntries(entries));
-    // TilePulse team levels (the built-in samples and levels the team posted)
-    // show a random piano photo (online, kept per device) instead of their cover
-    const samples = list.filter((s) => (PRESET_IDS.has(s.id) && !s.coverUri) || s.community?.team);
-    const photos = await Promise.all(samples.map(async (s) => [s.id, await getPianoCover(s.id)] as const));
-    const found = photos.filter((p): p is readonly [string, NonNullable<(typeof p)[1]>] => !!p[1]);
-    if (found.length) {
-      setCovers((c) => ({ ...c, ...Object.fromEntries(found.map(([id, p]) => [id, p.url])) }));
-      setCoverCredits(Object.fromEntries(found.map(([id, p]) => [id, p.credit])));
-    }
   }, []);
 
   // Reload on focus (songs change in the Editor / Discover). On leaving, close
@@ -157,7 +146,8 @@ export default function HomeScreen() {
 
   const renderSong = ({ item: song, index }: { item: Song; index: number }) => {
     const expanded = expandedId === song.id;
-    const cover = covers[song.id];
+    // The built-in samples have bundled piano photos (src/game/presetCovers.ts)
+    const cover = covers[song.id] ?? PRESET_COVERS[song.id] ?? null;
     const isSample = PRESET_IDS.has(song.id);
     const community = song.community;
     const holds = song.tiles.filter((t) => t.durationBeats > 0).length;
@@ -220,11 +210,6 @@ export default function HomeScreen() {
           {expanded && (
             <Animated.View entering={FadeIn.duration(160)} style={styles.panel}>
               <PlayRow songId={song.id} />
-              {coverCredits[song.id] ? (
-                <Text style={styles.coverCredit} numberOfLines={2}>
-                  {coverCredits[song.id]}
-                </Text>
-              ) : null}
               <View style={styles.actionsRow}>
                 <PressableScale
                   scaleTo={0.94}
@@ -484,7 +469,6 @@ const styles = themedStyles(() => ({
   cardTitle: { color: C.textStrong, fontFamily: FONTS.body, fontSize: 21 },
   cardSong: { color: PIXEL.text, fontFamily: FONTS.body, fontSize: 17 },
   cardOrigin: { color: C.textSubtle, fontFamily: FONTS.body, fontSize: 15 },
-  coverCredit: { color: C.textFaint, fontFamily: FONTS.body, fontSize: 13, lineHeight: 13 },
   downloadedTag: {
     width: 22,
     height: 22,

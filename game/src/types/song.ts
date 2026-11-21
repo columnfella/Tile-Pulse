@@ -68,6 +68,8 @@ export interface Song {
     team?: boolean;
     /** Server version when downloaded: a newer one is downloaded automatically. */
     version?: number;
+    /** Fingerprint of the downloaded cover picture (a new cover online is downloaded). */
+    coverSha256?: string | null;
     /** Fingerprint of the downloaded audio (re-downloaded only when it changes). */
     audioSha256?: string;
   };

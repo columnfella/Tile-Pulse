@@ -3,11 +3,10 @@
  * the fading cover banner and the pixel difficulty/level badge.
  */
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PixelIcon, type PixelIconName } from './PixelIcon';
-import { coverImageSource } from '../../services/pianoCovers';
 import { FONTS, PIXEL } from '../../theme/pixel';
 
 import { C, alpha, themedStyles, themed } from '../../theme/palette';
@@ -21,19 +20,22 @@ export const DIFFICULTY_COLOR: Record<Difficulty, string> = themed(() => ({
 }));
 
 /** Cover picture behind the top of a card: fades in once loaded and fades out into the card. */
-export function CoverBanner({ uri, tall = false }: { uri: string; tall?: boolean }) {
+/** `uri`: an image URL, or a bundled image (the built-in levels' covers). */
+export function CoverBanner({ uri, tall = false }: { uri: string | ImageSourcePropType; tall?: boolean }) {
   const opacity = useSharedValue(0);
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
     <View style={[styles.coverBanner, tall && styles.coverBannerTall]} pointerEvents="none">
       <Animated.View style={[StyleSheet.absoluteFill, style]}>
         <Image
-          source={coverImageSource(uri)}
-          style={StyleSheet.absoluteFill}
+          source={typeof uri === 'string' ? { uri } : uri}
+          style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
           resizeMode="cover"
           onLoad={() => (opacity.value = withTiming(1, { duration: 500 }))}
         />
       </Animated.View>
+      {/* Light tint so titles stay readable on bright photos */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: alpha(C.bg, 0.3) }]} />
       <LinearGradient
         colors={[alpha(C.panel, 0), alpha(C.panel, 0.6), PIXEL.panel]}
         locations={[0.3, 0.72, 1]}
@@ -76,7 +78,8 @@ export const cardPartStyles = themedStyles(() => ({
 }));
 
 const styles = themedStyles(() => ({
-  coverBanner: { position: 'absolute', top: 0, left: 0, right: 0, height: 96 },
+  // overflow hidden: bundled images carry their own size and must not spill out
+  coverBanner: { position: 'absolute', top: 0, left: 0, right: 0, height: 96, overflow: 'hidden' },
   coverBannerTall: { height: 150 },
   badge: { width: 46, height: 46, borderWidth: 2, backgroundColor: C.bgDeep, alignItems: 'center' },
   badgeTop: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 2 },

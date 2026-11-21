@@ -32,7 +32,9 @@ export function updateDownloadedLevels(force = false): Promise<string[]> {
         // Downloads from older app versions lack the newer details (team level,
         // version): refresh them once, too
         const outdatedCopy = song.community.team === undefined;
-        if (!isNewer && !outdatedCopy) continue;
+        // The creator (or the TilePulse team) changed the cover picture
+        const newCover = remote.coverSha256 !== undefined && (song.community.coverSha256 ?? null) !== remote.coverSha256;
+        if (!isNewer && !outdatedCopy && !newCover) continue;
         try {
           const fresh = await downloadLevel({ id: remote.id });
           updated.push(fresh.community?.name ?? fresh.title);
