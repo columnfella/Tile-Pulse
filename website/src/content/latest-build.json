@@ -1,9 +1,9 @@
 {
-  "id": "aa8f1659-cab0-4628-8e96-1aae75e0b823",
-  "apkUrl": "https://expo.dev/artifacts/eas/uSj_hSWZ_XF6JWi7Bi-EzWgCQ-dejQnzm3V-bPc7k-E.apk",
-  "sizeBytes": 56704008,
-  "appVersion": "0.23.0",
-  "runtimeVersion": "888675e0d598aeec777d47833ad9de2e64ae9fba",
-  "builtAt": "2026-11-21T17:05:20.771Z",
-  "expiresAt": "2026-12-05T16:49:54.927Z"
+  "id": "7354a1d2-de8f-4e8c-8169-531751ad15d9",
+  "apkUrl": "https://expo.dev/artifacts/eas/rqGiXwVuBmcjFSGSu6yeFNAx8K4M3vzsdXeCV9pH_Ms.apk",
+  "sizeBytes": 57014192,
+  "appVersion": "0.29.1",
+  "runtimeVersion": "ceb437686732f1a3402d4fb849d93f495b212e67",
+  "builtAt": "2026-11-21T21:29:45.605Z",
+  "expiresAt": "2026-12-05T21:16:50.185Z"
 }
